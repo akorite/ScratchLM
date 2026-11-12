@@ -16,11 +16,31 @@
 
 struct Capture {
     std::string dir, filter;
-    std::ofstream index;
-    size_t serial = 0;
+    std::ofstream index, staging;
+    size_t serial = 0, stage_serial = 0;
     int step = 0;
     bool failed = false;
 };
+
+static Capture * active_capture = nullptr;
+
+extern "C" void bonsai_capture_q8k(const ggml_tensor * node, const void * data, int64_t elements) {
+    if (!active_capture || active_capture->filter.empty() ||
+        std::string(node->name).find(active_capture->filter) == std::string::npos) return;
+    auto & c = *active_capture;
+    if (elements <= 0 || elements % QK_K) { c.failed = true; return; }
+    const auto * blocks = static_cast<const block_q8_K *>(data);
+    const std::string file = "stage-" + std::to_string(c.stage_serial++) + ".bin";
+    std::ofstream out(c.dir + "/" + file, std::ios::binary);
+    for (int64_t i = 0; i < elements / QK_K; ++i) {
+        out.write(reinterpret_cast<const char *>(&blocks[i].d), sizeof(blocks[i].d));
+        out.write(reinterpret_cast<const char *>(blocks[i].qs), sizeof(blocks[i].qs));
+    }
+    out.close();
+    c.staging << c.step << '\t' << node->name << '\t' << ggml_op_name(node->op) << '\t'
+              << node->src[0]->name << '\t' << node->src[1]->name << '\t' << elements << '\t' << file << '\n';
+    if (!out || !c.staging) c.failed = true;
+}
 
 static bool write_bytes(const std::string & path, const void * data, size_t size) {
     std::ofstream out(path, std::ios::binary);
@@ -107,6 +127,9 @@ int main(int argc, char ** argv) {
     for (int i = 6; i < argc; ++i) tokens.push_back(std::stoi(argv[i]));
     Capture capture{dir, filter};
     capture.index.open(dir + "/captures.tsv");
+    capture.staging.open(dir + "/staging.tsv");
+    if (!capture.staging) return 1;
+    active_capture = &capture;
     if (!capture.index) return 1;
     llama_backend_init();
     auto mp = llama_model_default_params();
@@ -147,7 +170,7 @@ int main(int argc, char ** argv) {
         if (step + 1 >= input_count && step + 1 < input_count + static_cast<size_t>(generate)) tokens.push_back(best);
     }
     if (!filter.empty() && !capture.serial) { std::cerr << "capture filter matched no available tensors\n"; return 1; }
-    if (!info || !capture.index) return 1;
+    if (!info || !capture.index || !capture.staging) return 1;
     llama_free(ctx); llama_model_free(model); llama_backend_free();
     return 0;
 }

@@ -1,5 +1,24 @@
 {
   "activation_note": "Captured src1 is the transformed activation; Q8_K was generated separately by the pinned reference quantizer, not intercepted staging.",
+  "cpu_staging": {
+    "bytes": 2080,
+    "file": "layer3-q-staging.q8_k",
+    "format": "eight native blocks, each F32 scale plus 256 signed bytes; bsums omitted",
+    "instrumentation": {
+      "instrumented_sha256": "84daa257ea4466a9403207b2bc8d3ab0f25d2fa1e385544b11417487cb1f7a43",
+      "method": "reference.py instrument_source",
+      "pristine_sha256": "1fab6780933f71552943d53c8bc8de1c70698d8ed84dfb78ecbb38c6b383c3cf",
+      "source": "ggml/src/ggml-cpu/ggml-cpu.c"
+    },
+    "logits_match_pristine": true,
+    "matches_fixture": "layer3-q-input.q8_k after removing each block's bsums",
+    "reference_binary": {
+      "bytes": 6566912,
+      "file": "bonsai-reference",
+      "sha256": "a37f2258ccb391e55fa6da287f575b739cc437ba25a355074eb787e1a0785612"
+    },
+    "sha256": "a117970f63594ae00206af7a07013a8582dd1865747008732f842f1021e745a5"
+  },
   "diagnostic": "All five direct ternary-by-Q8 dot products agree with native projection outputs within 7e-8 absolute error on the recorded build.",
   "files": {
     "layer3-q-first5.f32": {

@@ -75,6 +75,36 @@ def capture_manifest(root):
                              "q8_k_unavailable": "not contiguous F32 with complete, finite, non-overflowing Q8_K groups" if q8 == "-" else None})
     return captures
 
+def staging_manifest(root):
+    captures = []
+    with (root / "staging.tsv").open(encoding="utf-8") as f:
+        for line in f:
+            step, node, operation, weight, activation, elements, payload = line.rstrip("\n").split("\t")
+            elements = int(elements)
+            data = artifact(root / payload)
+            if elements <= 0 or elements % 256 or data["bytes"] != elements // 256 * 260:
+                raise ValueError("invalid Q8_K staging payload size")
+            captures.append({"step": int(step), "node": node, "operation": operation,
+                             "weight": weight, "activation": activation, "elements": elements,
+                             "format": "q8_k-d-qs", "payload": data})
+    return captures
+
+
+def instrument_source(path):
+    text = path.read_text(encoding="utf-8")
+    declaration = "void ggml_compute_forward_mul_mat(\n"
+    point = "    ggml_barrier(params->threadpool);\n\n#if GGML_USE_LLAMAFILE\n"
+    if text.count(declaration) != 1 or text.count(point) != 1:
+        raise ValueError("pinned CPU source does not match instrumentation anchors")
+    text = text.replace(declaration,
+        "extern void bonsai_capture_q8k(const struct ggml_tensor *, const void *, int64_t);\n\n" + declaration)
+    text = text.replace(point, "    ggml_barrier(params->threadpool);\n"
+        "    if (ith == 0 && src0->type == GGML_TYPE_PQ2_0 && src1->type == GGML_TYPE_F32 && vec_dot_type == GGML_TYPE_Q8_K) {\n"
+        "        bonsai_capture_q8k(dst, params->wdata, ne10 * ne11 * ne12 * ne13);\n"
+        "    }\n\n#if GGML_USE_LLAMAFILE\n")
+    path.write_text(text, encoding="utf-8")
+
+
 def run_command(args):
     subprocess.run([str(x) for x in args], check=True)
 
@@ -89,7 +119,15 @@ def build(args):
         raise ValueError("build jobs must be positive")
     verify_source(source, archive)
     dest.mkdir(parents=True, exist_ok=False)
-    configure = ["cmake", "-S", HERE, "-B", dest, "-DLLAMA_SOURCE=" + str(source), "-DCMAKE_BUILD_TYPE=Release"]
+    with tarfile.open(archive, "r:gz") as tar:
+        tar.extractall(dest, filter="data")
+    instrumented = dest / ("llama.cpp-" + REVISION)
+    verify_source(instrumented, archive)
+    cpu_source = instrumented / "ggml/src/ggml-cpu/ggml-cpu.c"
+    pristine_cpu_sha256 = digest(cpu_source)
+    instrument_source(cpu_source)
+    instrumented_cpu_sha256 = digest(cpu_source)
+    configure = ["cmake", "-S", HERE, "-B", dest, "-DLLAMA_SOURCE=" + str(instrumented), "-DCMAKE_BUILD_TYPE=Release"]
     run_command(configure)
     run_command(["cmake", "--build", dest, "--target", "bonsai-reference", "--parallel", str(args.jobs)])
     binary = dest / "bonsai-reference"
@@ -101,6 +139,10 @@ def build(args):
             key, compiler = line.split("=", 1)
             compilers[key] = subprocess.run([compiler, "--version"], capture_output=True, text=True, check=True).stdout
     meta = {"revision": REVISION, "source_archive_sha256": ARCHIVE_SHA256, "binary": artifact(binary),
+            "instrumentation": {"source": "ggml/src/ggml-cpu/ggml-cpu.c",
+                                "pristine_sha256": pristine_cpu_sha256,
+                                "instrumented_sha256": instrumented_cpu_sha256,
+                                "method": "reference.py instrument_source"},
             "harness_sources": {name: digest(HERE / name) for name in ("native.cpp", "CMakeLists.txt", "reference.py")},
             "configure": [str(x) for x in configure], "cmake_cache": cache, "compile_commands": commands,
             "environment": {key: os.environ.get(key) for key in ("CC", "CXX", "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS")},
@@ -131,6 +173,8 @@ def run_fixture(args):
     identity = json.loads((ROOT / "model-lock.json").read_text(encoding="utf-8"))
     verify_model(args.model, identity)
     binary, build_meta = checked_build(args.build)
+    if "instrumentation" not in build_meta:
+        raise ValueError("native build lacks CPU staging instrumentation; rebuild the reference")
     out = args.output.resolve()
     out.mkdir(parents=True, exist_ok=False)
     run_command([binary, args.model.resolve(), out, args.context, args.generate, args.capture or "", *tokens])
@@ -150,8 +194,8 @@ def run_fixture(args):
                 "build": build_meta, "machine": machine(), "requested_context": args.context,
                 "effective_context": effective, "vocabulary_size": vocab, "input_tokens": tokens,
                 "generated_tokens_requested": args.generate, "steps": steps, "capture_filter": args.capture,
-                "captures": capture_manifest(out),
-                "capture_notes": "Callback captures non-quantized node outputs and available inputs after node execution, which can alias modified storage; quantized weights are omitted. Q8_K files are explicit reference quantizations, not intercepted CPU staging buffers. State is opaque native sequence serialization. Zero-group Q8_K bsums are zero-initialized because the pinned quantizer leaves them untouched.",
+                "captures": capture_manifest(out), "cpu_q8_k_staging": staging_manifest(out),
+                "capture_notes": "Graph callback Q8_K files are separately re-quantized, not CPU staging. CPU staging payloads contain each native block's float32 d and 256 int8 qs, with bsums omitted because zero groups may leave them uninitialized. Captures cover selected PQ2_0 MUL_MAT nodes converting F32 to Q8_K, only when a capture filter is supplied; Q8_0 fallback, prequantized inputs and other operators are excluded. State is opaque native sequence serialization.",
                 "seed_note": "Greedy argmax is deterministic and uses no RNG; locked seed is recorded, not consumed.",
                 "endianness": "little", "logits_format": "IEEE-754 binary32"}
     write_json(out / "manifest.json", manifest)
