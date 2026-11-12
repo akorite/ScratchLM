@@ -1,0 +1,14 @@
+{
+  "repository": "https://github.com/PrismML-Eng/llama.cpp",
+  "revision": "e3de715222b2667c54a267441159a5729f11155e",
+  "release": "prism-b10777-e3de715",
+  "backend": "CPU",
+  "threads": 1,
+  "seed": 0,
+  "cache_type_k": "f32",
+  "cache_type_v": "f32",
+  "flash_attention": false,
+  "sampling": "greedy",
+  "logical_context_tokens": 128,
+  "turbowarp_vm_revision": "0cb82afe62506f3d9f2ff849c95593f0473b5d2c"
+}
