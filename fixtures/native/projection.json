@@ -1,0 +1,36 @@
+{
+  "activation_note": "Captured src1 is the transformed activation; Q8_K was generated separately by the pinned reference quantizer, not intercepted staging.",
+  "diagnostic": "All five direct ternary-by-Q8 dot products agree with native projection outputs within 7e-8 absolute error on the recorded build.",
+  "files": {
+    "layer3-q-first5.f32": {
+      "bytes": 20,
+      "sha256": "8ea4e499fea9bca5d2b2e0e15f66613c82c3f55b587be76e54a4279523d5e85f"
+    },
+    "layer3-q-first5.pq2": {
+      "bytes": 2720,
+      "sha256": "4e2fd52391df89c7c60e6f3a29c6cec362dbf7b1774b634694f8bad065559989"
+    },
+    "layer3-q-input.f32": {
+      "bytes": 8192,
+      "sha256": "f6a9b510a73dfeb4e089a061f183de338defe584ad0960c5d7661bcaa57d6c91"
+    },
+    "layer3-q-input.q8_k": {
+      "bytes": 2336,
+      "sha256": "86290ff3bc3460acbf466f42f9bd6be2ae035567b2ffceb50ce6fa035751c161"
+    }
+  },
+  "native_output": [
+    0.018908143043518066,
+    0.41691574454307556,
+    -0.24126043915748596,
+    0.20625850558280945,
+    -0.1479310393333435
+  ],
+  "source": "Qcur_full-3 MUL_MAT captured by pinned native callback, token 1, position 0",
+  "weight": "blk.3.attn_q.weight",
+  "weight_dimensions": [
+    2048,
+    4096
+  ],
+  "weight_source_offset": 195420256
+}
