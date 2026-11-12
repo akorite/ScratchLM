@@ -1,0 +1,14 @@
+{
+  "schema": "bonsaiscratch-package-checksums/v1",
+  "source_sha256": "d5f01a4ecaf49239653308ee732ad1a0c5f802c0ddb997549fc7b694c8b45928",
+  "packages": {
+    "raw": {
+      "bytes": 533504208,
+      "sha256": "1f79686cc27e4affd19dd27b77a57a27a5760b85e76be5f26ac70ddde31a56bd"
+    },
+    "bslut4": {
+      "bytes": 533504211,
+      "sha256": "4255247910a0f1a1af5056541a1623d6af50b71dbc189fdaa7e5afcac44869c9"
+    }
+  }
+}

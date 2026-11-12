@@ -15,6 +15,8 @@ python3 tools/inspect_gguf.py "$WORK/model.gguf" "$WORK/model-manifest.json"
 
 The inspector checks `model-lock.json` by default, streams the GGUF metadata into JSON, and records each tensor's dimensions, type, offsets and size. The generated manifest contains the complete tokenizer metadata and can be large. `fixtures/tensor-manifest.json` is the compact tensor-only inventory of the locked model. `--no-lock` is intended for synthetic or explicitly untrusted files, not model verification.
 
+Create raw and BS-LUT4 packages with the commands in [the model format](docs/model-format.md). Each build verifies every group and tensor against the source before publishing the package; checksums for the locked model are in `fixtures/package-checksums.json`.
+
 ## Offline native reference
 
 The native harness builds the exact pinned PrismML source and records its binary hash and compiler settings. Its input is an explicit list of token IDs, not a prompt passed through a tokenizer. Download the source archive separately and extract it outside this repository:
