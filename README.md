@@ -30,12 +30,23 @@ python3 tools/reference/reference.py build --archive "$WORK/prism-source.tar.gz"
 python3 tools/reference/reference.py run --model "$WORK/model.gguf" --build "$WORK/reference-build" --output "$WORK/fixture" --tokens 1 --context 128
 ```
 
-`run --help` describes graph capture and successive greedy decode. A fixture includes logits, native sequence-state snapshots and build metadata. The optional graph callback records selected available tensors; its Q8_K files are reference quantizations of captured F32 tensors, not intercepted internal staging buffers. See [the numerical contract](docs/numerical-contract.md) before comparing fixtures.
+`run --help` describes graph capture and successive greedy decode. A fixture includes logits, opaque native sequence-state snapshots and build metadata. With a capture filter, the harness separately records selected graph tensors and the actual CPU Q8_K staging for matching PQ2_0 matrix operations. Graph-derived Q8_K files are separate reference quantizations, not staging buffers. See [the numerical contract](docs/numerical-contract.md) before comparing fixtures.
+
+## Local loader
+
+The [storage-only extension](docs/extension.md) loads a locally selected package into existing TurboWarp lists. Host-driven read and copy measurements are in `benchmarks/results/`; they are not compiled-kernel or target-hardware benchmarks.
+
+## Scratch primitive slice
+
+`dist/fp16-q8-scalar.sb3` is a partial test project, not a decoder. Its visible Stage blocks implement FP16 scale decoding, F32 rounding, Q8_K activation quantization, and a single-row scalar ternary dot for both package codecs. Generate it with `python3 tools/generate_project.py dist/fp16-q8-scalar.sb3`. On green flag the default `BS mode` 0 decodes the example words in `BS input`; inspect `BS output` in the editor. Mode 1 quantizes groups of 256 input values; mode 2 consumes the input activation plus preloaded `BS packed bytes` and `BS weight scales`, with `BS codec` 0 for raw or 1 for BS-LUT4. Mode 3 exposes F32 rounding for tests. The project does not yet provide a complete interactive package-loading or inference workflow.
+
+The compiled VM integration tests insert the real loader block into a test copy, load a real model row, disable further loader reads, and execute the resident Scratch arithmetic. They use the audited VM source pin; this does not pin a deployed TurboWarp application build.
 
 ## Tests
 
 ```sh
 python3 -m unittest discover -s tests -v
+node --test tests/transport/*.test.js
 ```
 
 Full model files and large generated manifests and fixtures belong outside Git. Current development measurements on the Intel Xeon host do not establish performance or memory use on the plan's Ryzen-class 16 GB target.

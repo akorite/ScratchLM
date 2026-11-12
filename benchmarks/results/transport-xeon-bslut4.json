@@ -1,0 +1,133 @@
+{
+  "method": "Node invokes the actual extension on TurboWarp VM list objects; no Scratch script runs",
+  "cache": "warm after package open; repeated reads start at the first embedding group",
+  "cpu": "Intel(R) Xeon(R) Platinum 8488C",
+  "os": "Linux 7.0.0-1014-aws x64",
+  "total_memory_bytes": 8153067520,
+  "node": "v24.22.1",
+  "vm_revision": "0cb82afe62506f3d9f2ff849c95593f0473b5d2c",
+  "package_codec": "bslut4",
+  "source_sha256": "d5f01a4ecaf49239653308ee732ad1a0c5f802c0ddb997549fc7b694c8b45928",
+  "results": [
+    {
+      "budget_bytes": 65536,
+      "actual_bytes": 65518,
+      "groups": 1927,
+      "repetition": 0,
+      "read_ms": 0.9943629999999644,
+      "copy_and_request_ms": 1.8833490000000666,
+      "total_ms": 2.877712000000031,
+      "observed_rss_bytes": 182161408
+    },
+    {
+      "budget_bytes": 65536,
+      "actual_bytes": 65518,
+      "groups": 1927,
+      "repetition": 1,
+      "read_ms": 0.1307780000000207,
+      "copy_and_request_ms": 0.3932349999999474,
+      "total_ms": 0.5240129999999681,
+      "observed_rss_bytes": 182161408
+    },
+    {
+      "budget_bytes": 65536,
+      "actual_bytes": 65518,
+      "groups": 1927,
+      "repetition": 2,
+      "read_ms": 0.1016440000000216,
+      "copy_and_request_ms": 0.276320999999939,
+      "total_ms": 0.3779649999999606,
+      "observed_rss_bytes": 182292480
+    },
+    {
+      "budget_bytes": 262144,
+      "actual_bytes": 262140,
+      "groups": 7710,
+      "repetition": 0,
+      "read_ms": 2.730380000000025,
+      "copy_and_request_ms": 1.2440629999999828,
+      "total_ms": 3.974443000000008,
+      "observed_rss_bytes": 184258560
+    },
+    {
+      "budget_bytes": 262144,
+      "actual_bytes": 262140,
+      "groups": 7710,
+      "repetition": 1,
+      "read_ms": 1.629368999999997,
+      "copy_and_request_ms": 0.7225549999999998,
+      "total_ms": 2.351923999999997,
+      "observed_rss_bytes": 184258560
+    },
+    {
+      "budget_bytes": 262144,
+      "actual_bytes": 262140,
+      "groups": 7710,
+      "repetition": 2,
+      "read_ms": 0.5697509999999966,
+      "copy_and_request_ms": 2.1058719999999767,
+      "total_ms": 2.675622999999973,
+      "observed_rss_bytes": 184258560
+    },
+    {
+      "budget_bytes": 1048576,
+      "actual_bytes": 1048560,
+      "groups": 30840,
+      "repetition": 0,
+      "read_ms": 4.924054000000012,
+      "copy_and_request_ms": 5.744233000000008,
+      "total_ms": 10.66828700000002,
+      "observed_rss_bytes": 192516096
+    },
+    {
+      "budget_bytes": 1048576,
+      "actual_bytes": 1048560,
+      "groups": 30840,
+      "repetition": 1,
+      "read_ms": 4.118633999999986,
+      "copy_and_request_ms": 3.911083000000019,
+      "total_ms": 8.029717000000005,
+      "observed_rss_bytes": 195137536
+    },
+    {
+      "budget_bytes": 1048576,
+      "actual_bytes": 1048560,
+      "groups": 30840,
+      "repetition": 2,
+      "read_ms": 3.308063000000004,
+      "copy_and_request_ms": 4.4034599999999955,
+      "total_ms": 7.711523,
+      "observed_rss_bytes": 198938624
+    },
+    {
+      "budget_bytes": 4194304,
+      "actual_bytes": 4194274,
+      "groups": 123361,
+      "repetition": 0,
+      "read_ms": 18.886060999999984,
+      "copy_and_request_ms": 28.33324600000003,
+      "total_ms": 47.219307000000015,
+      "observed_rss_bytes": 238284800
+    },
+    {
+      "budget_bytes": 4194304,
+      "actual_bytes": 4194274,
+      "groups": 123361,
+      "repetition": 1,
+      "read_ms": 4.778812000000016,
+      "copy_and_request_ms": 6.04874099999995,
+      "total_ms": 10.827552999999966,
+      "observed_rss_bytes": 242479104
+    },
+    {
+      "budget_bytes": 4194304,
+      "actual_bytes": 4194274,
+      "groups": 123361,
+      "repetition": 2,
+      "read_ms": 4.551417000000015,
+      "copy_and_request_ms": 5.8361320000000205,
+      "total_ms": 10.387549000000035,
+      "observed_rss_bytes": 247066624
+    }
+  ]
+}
