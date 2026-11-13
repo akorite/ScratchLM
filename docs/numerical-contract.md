@@ -16,10 +16,18 @@ For a nonzero group, the reference computes `iscale = -127.f / max`, rounds each
 
 Each activation group spans two PQ2_0 groups. The generic native kernel accumulates integer products within each 128-weight group, then applies that group's FP16 scale and the activation scale. The SIMD kernel's accumulation order may differ. Float comparisons require separately calibrated, frozen per-operator tolerances and explicit absolute, relative and RMS errors; a matching top-1 token alone does not establish numerical equivalence.
 
+The resident scalar and LUT4 diagnostics round each scale product, scaled integer subtotal, and accumulation to F32, matching the generic CPU kernel's operation boundaries. Five actual `blk.3.attn_q.weight` rows are checked exactly against that generic ordering and diagnostically against this host's SIMD reference. Raw-byte LUT4 uses 256 entries per four activations; BS-LUT4 uses 81. These checks do not establish a tolerance for other tensors or the SIMD path.
+
+For the captured one-thread CPU build on the recorded Xeon host, the frozen *projection-specific* gates are: `blk.3.attn_q.weight`, maximum absolute error ≤2e-6 and RMS error ≤4e-7; `blk.0.ffn_down.weight`, maximum absolute error ≤2e-7 and RMS error ≤4e-8. These bounds were set from the complete token-1 calibration tensors in `benchmarks/results/tensors-xeon.json`, before checking the stateful token-321 holdout. Record maximum relative error and cosine separately; relative error is unstable near zero and is not used alone as a gate. These bounds are not a blanket tolerance for other tensors, operators, hosts, or runtime builds.
+
+The primitive project's mode 10 accepts radians and converts to degrees before Scratch `sin`/`cos`; the audited compiler rounds those trig results to ten decimal places. Modes 4–8 implement diagnostic dense dot, RMS normalization with the locked model's F32 epsilon (approximately 1e-6), L2 normalization, SiLU, and softmax. Their tests use mathematical examples, not frozen native-operator tolerances.
+
+The separate `--text` proof uses named costumes across 256 hidden sprites because Scratch string comparisons are case-insensitive. It does not switch the stage backdrop. Compiled-VM tests cover case, UTF-16 surrogate pairs and unpaired-surrogate replacement, UTF-8 boundaries, CJK, and combining marks. Each code unit invokes 256 searches via broadcast-and-wait. On the Xeon host, a single no-renderer run took 58.50 seconds to load and execute and peaked at 3,393,016 KiB RSS. Browser renderer memory, target hardware, and production tokenizer suitability remain unverified.
+
 ## Boundaries and validation
 
 The extension may only select files, read metadata and copy storage values into Scratch lists. It must not quantize, decode neural weights, construct activation tables or perform model arithmetic. Native tools may perform these operations only offline to produce reference fixtures and analyze results. After loading a resident tile, run its arithmetic in Scratch with the loader disabled.
 
 Scratch uses binary64 Numbers for ordinary arithmetic, so an F32 value in a list is not by itself evidence that intermediate calculations round as F32. Apply and verify F32 rounding at the contract's operation boundaries. Record compiler build and settings and assert that the tested Scratch scripts actually compiled.
 
-The original plan is `docs/bonsaiscratch-plan-v1.1.md`. Per-operator tolerances and compiled-runtime measurements have not yet been established.
+The original plan is `docs/bonsaiscratch-plan-v1.1.md`. Per-operator tolerances and full-token compiled-runtime measurements have not yet been established.

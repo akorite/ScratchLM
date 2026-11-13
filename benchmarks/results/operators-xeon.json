@@ -1,0 +1,68 @@
+{
+  "schema": "bonsai-operator-errors/v1",
+  "vm_revision": "0cb82afe62506f3d9f2ff849c95593f0473b5d2c",
+  "compiler": true,
+  "note": "Native CPU F32 versus compiled Scratch binary64 intermediates. Diagnostic, not a complete tolerance gate.",
+  "results": [
+    {
+      "operator": "rms",
+      "step": 0,
+      "role": "calibration",
+      "elements": 2048,
+      "max_abs_error": 3.307650038308907e-07,
+      "max_relative_error": 9.914080552653254e-08,
+      "rms_error": 4.967589583014832e-08,
+      "cosine": 0.9999999999999997
+    },
+    {
+      "operator": "rms",
+      "step": 1,
+      "role": "stateful holdout",
+      "elements": 2048,
+      "max_abs_error": 3.030372024426242e-07,
+      "max_relative_error": 1.129571841367423e-07,
+      "rms_error": 6.135500446554523e-08,
+      "cosine": 0.9999999999999998
+    },
+    {
+      "operator": "l2",
+      "step": 0,
+      "role": "calibration",
+      "elements": 128,
+      "max_abs_error": 1.5709081369053024e-08,
+      "max_relative_error": 7.77879894665205e-08,
+      "rms_error": 1.972452925442853e-09,
+      "cosine": 0.9999999999999998
+    },
+    {
+      "operator": "l2",
+      "step": 1,
+      "role": "stateful holdout",
+      "elements": 128,
+      "max_abs_error": 3.9972749221739434e-08,
+      "max_relative_error": 1.1626194462158096e-07,
+      "rms_error": 4.078016378922478e-09,
+      "cosine": 1.0
+    },
+    {
+      "operator": "silu",
+      "step": 0,
+      "role": "calibration",
+      "elements": 6144,
+      "max_abs_error": 2.711622641982103e-07,
+      "max_relative_error": 1.8483970092695241e-07,
+      "rms_error": 5.38043644808354e-09,
+      "cosine": 0.9999999999999993
+    },
+    {
+      "operator": "silu",
+      "step": 1,
+      "role": "stateful holdout",
+      "elements": 6144,
+      "max_abs_error": 9.611437139511736e-07,
+      "max_relative_error": 1.691870960232268e-07,
+      "rms_error": 1.3991714832970143e-08,
+      "cosine": 0.999999999999998
+    }
+  ]
+}

@@ -72,6 +72,23 @@ class PrimitiveProjectTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(result.stdout), expected)
 
+    @unittest.skipUnless(os.environ.get('BONSAI_TURBOWARP_VM'), 'set BONSAI_TURBOWARP_VM to the pinned VM checkout')
+    def test_compiled_wide_q8_matches_native_staging(self):
+        staging = (ROOT / 'fixtures/native/layer0-ffn-down-staging.q8_k').read_bytes()
+        expected = []
+        for offset in range(0, len(staging), 260):
+            expected.append(struct.unpack_from('<f', staging, offset)[0])
+            expected.extend(struct.unpack_from('<256b', staging, offset + 4))
+        with tempfile.TemporaryDirectory() as temp:
+            project = Path(temp) / 'wide.sb3'
+            generated = subprocess.run([sys.executable, str(GENERATOR), str(project)], capture_output=True, text=True)
+            self.assertEqual(generated.returncode, 0, generated.stderr)
+            env = dict(os.environ, BONSAI_ACTIVATION_F32=str(ROOT / 'fixtures/native/layer0-ffn-down-input.f32'))
+            result = subprocess.run(['node', str(RUNNER), str(project), '[]', '1'], env=env,
+                                    capture_output=True, text=True, timeout=60)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(result.stdout), expected)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,0 +1,698 @@
+{
+  "schema": "bonsai-resident-kernels/v1",
+  "cpu": "Intel(R) Xeon(R) Platinum 8488C",
+  "platform": "Linux-7.0.0-1014-aws-x86_64-with-glibc2.43",
+  "turbowarp_vm": "0cb82afe62506f3d9f2ff849c95593f0473b5d2c",
+  "compiler": true,
+  "turbo_mode": true,
+  "warp_timer": false,
+  "row": 0,
+  "node_version": "v24.22.1",
+  "note": "Each resident real row is repeated; Scratch tick timer is coarse. Not full-token or browser performance.",
+  "results": [
+    {
+      "kernel": "scalar-raw",
+      "tensor": "blk.3.attn_q.weight",
+      "width": 2048,
+      "iterations": 489,
+      "contributions": 1001472,
+      "lookups": null,
+      "median_compute_tick_seconds": 0.178,
+      "worst_compute_tick_seconds": 0.193,
+      "runs": [
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0,
+          "compute_tick_seconds": 0.193,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 19.93205899999998,
+          "peak_rss_bytes": 185925632
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0,
+          "compute_tick_seconds": 0.178,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 20.40925100000004,
+          "peak_rss_bytes": 187744256
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0,
+          "compute_tick_seconds": 0.178,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 20.52616899999998,
+          "peak_rss_bytes": 186839040
+        }
+      ]
+    },
+    {
+      "kernel": "scalar-raw",
+      "tensor": "blk.3.attn_q.weight",
+      "width": 2048,
+      "iterations": 4883,
+      "contributions": 10000384,
+      "lookups": null,
+      "median_compute_tick_seconds": 1.437,
+      "worst_compute_tick_seconds": 1.502,
+      "runs": [
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0,
+          "compute_tick_seconds": 1.394,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 21.539901999999984,
+          "peak_rss_bytes": 187678720
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0,
+          "compute_tick_seconds": 1.502,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 23.472801000000004,
+          "peak_rss_bytes": 186298368
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0,
+          "compute_tick_seconds": 1.437,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 21.471452,
+          "peak_rss_bytes": 187170816
+        }
+      ]
+    },
+    {
+      "kernel": "raw-lut4",
+      "tensor": "blk.3.attn_q.weight",
+      "width": 2048,
+      "iterations": 489,
+      "contributions": 1001472,
+      "lookups": 250368,
+      "median_compute_tick_seconds": 0.063,
+      "worst_compute_tick_seconds": 0.066,
+      "runs": [
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0.11499999999999999,
+          "compute_tick_seconds": 0.066,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 22.00709599999999,
+          "peak_rss_bytes": 189431808
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0.129,
+          "compute_tick_seconds": 0.04799999999999999,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 20.344069999999988,
+          "peak_rss_bytes": 187154432
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0.11399999999999999,
+          "compute_tick_seconds": 0.063,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 20.328119000000015,
+          "peak_rss_bytes": 188985344
+        }
+      ]
+    },
+    {
+      "kernel": "raw-lut4",
+      "tensor": "blk.3.attn_q.weight",
+      "width": 2048,
+      "iterations": 4883,
+      "contributions": 10000384,
+      "lookups": 2500096,
+      "median_compute_tick_seconds": 0.36999999999999994,
+      "worst_compute_tick_seconds": 0.372,
+      "runs": [
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0.13,
+          "compute_tick_seconds": 0.372,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 22.315448000000004,
+          "peak_rss_bytes": 190791680
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0.13,
+          "compute_tick_seconds": 0.34099999999999997,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 21.176737000000003,
+          "peak_rss_bytes": 194600960
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0.162,
+          "compute_tick_seconds": 0.36999999999999994,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 19.599400000000003,
+          "peak_rss_bytes": 193581056
+        }
+      ]
+    },
+    {
+      "kernel": "bs-lut4",
+      "tensor": "blk.3.attn_q.weight",
+      "width": 2048,
+      "iterations": 489,
+      "contributions": 1001472,
+      "lookups": 250368,
+      "median_compute_tick_seconds": 0.049000000000000016,
+      "worst_compute_tick_seconds": 0.068,
+      "runs": [
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0.049999999999999996,
+          "compute_tick_seconds": 0.049000000000000016,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 20.872469000000024,
+          "peak_rss_bytes": 180236288
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0.052,
+          "compute_tick_seconds": 0.068,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 22.070720999999992,
+          "peak_rss_bytes": 180989952
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0.049999999999999996,
+          "compute_tick_seconds": 0.049000000000000016,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 25.392415000000028,
+          "peak_rss_bytes": 182595584
+        }
+      ]
+    },
+    {
+      "kernel": "bs-lut4",
+      "tensor": "blk.3.attn_q.weight",
+      "width": 2048,
+      "iterations": 4883,
+      "contributions": 10000384,
+      "lookups": 2500096,
+      "median_compute_tick_seconds": 0.35500000000000004,
+      "worst_compute_tick_seconds": 0.388,
+      "runs": [
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0.066,
+          "compute_tick_seconds": 0.35500000000000004,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 21.288460999999984,
+          "peak_rss_bytes": 187056128
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0.04800000000000001,
+          "compute_tick_seconds": 0.355,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 21.851095000000043,
+          "peak_rss_bytes": 188518400
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0.047999999999999994,
+          "compute_tick_seconds": 0.388,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 22.11812299999997,
+          "peak_rss_bytes": 189874176
+        }
+      ]
+    },
+    {
+      "kernel": "scalar-raw",
+      "tensor": "blk.0.ffn_down.weight",
+      "width": 6144,
+      "iterations": 163,
+      "contributions": 1001472,
+      "lookups": null,
+      "median_compute_tick_seconds": 0.195,
+      "worst_compute_tick_seconds": 0.196,
+      "runs": [
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0,
+          "compute_tick_seconds": 0.195,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 19.561454999999967,
+          "peak_rss_bytes": 183066624
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0,
+          "compute_tick_seconds": 0.196,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 21.138314000000037,
+          "peak_rss_bytes": 188289024
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0,
+          "compute_tick_seconds": 0.179,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 23.618832999999995,
+          "peak_rss_bytes": 186253312
+        }
+      ]
+    },
+    {
+      "kernel": "scalar-raw",
+      "tensor": "blk.0.ffn_down.weight",
+      "width": 6144,
+      "iterations": 1628,
+      "contributions": 10002432,
+      "lookups": null,
+      "median_compute_tick_seconds": 1.397,
+      "worst_compute_tick_seconds": 1.4080000000000001,
+      "runs": [
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0,
+          "compute_tick_seconds": 1.391,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 22.201448000000028,
+          "peak_rss_bytes": 186781696
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0,
+          "compute_tick_seconds": 1.4080000000000001,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 20.769813,
+          "peak_rss_bytes": 187662336
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0,
+          "compute_tick_seconds": 1.397,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 21.13411400000001,
+          "peak_rss_bytes": 185659392
+        }
+      ]
+    },
+    {
+      "kernel": "raw-lut4",
+      "tensor": "blk.0.ffn_down.weight",
+      "width": 6144,
+      "iterations": 163,
+      "contributions": 1001472,
+      "lookups": 250368,
+      "median_compute_tick_seconds": 0.04999999999999999,
+      "worst_compute_tick_seconds": 0.04999999999999999,
+      "runs": [
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0.29500000000000004,
+          "compute_tick_seconds": 0.04999999999999999,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 19.927902000000017,
+          "peak_rss_bytes": 197832704
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0.29200000000000004,
+          "compute_tick_seconds": 0.04899999999999999,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 20.42422499999998,
+          "peak_rss_bytes": 200105984
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0.29300000000000004,
+          "compute_tick_seconds": 0.04999999999999999,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 20.200980000000015,
+          "peak_rss_bytes": 199581696
+        }
+      ]
+    },
+    {
+      "kernel": "raw-lut4",
+      "tensor": "blk.0.ffn_down.weight",
+      "width": 6144,
+      "iterations": 1628,
+      "contributions": 10002432,
+      "lookups": 2500608,
+      "median_compute_tick_seconds": 0.35600000000000004,
+      "worst_compute_tick_seconds": 0.37000000000000005,
+      "runs": [
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0.275,
+          "compute_tick_seconds": 0.35600000000000004,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 22.06177299999996,
+          "peak_rss_bytes": 230375424
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0.275,
+          "compute_tick_seconds": 0.37000000000000005,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 23.17605500000002,
+          "peak_rss_bytes": 233996288
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0.29000000000000004,
+          "compute_tick_seconds": 0.35500000000000004,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 19.86514600000004,
+          "peak_rss_bytes": 230866944
+        }
+      ]
+    },
+    {
+      "kernel": "bs-lut4",
+      "tensor": "blk.0.ffn_down.weight",
+      "width": 6144,
+      "iterations": 163,
+      "contributions": 1001472,
+      "lookups": 250368,
+      "median_compute_tick_seconds": 0.04999999999999999,
+      "worst_compute_tick_seconds": 0.065,
+      "runs": [
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0.129,
+          "compute_tick_seconds": 0.04999999999999999,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 21.417886000000067,
+          "peak_rss_bytes": 188280832
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0.016999999999999994,
+          "setup_tick_seconds": 0.11500000000000002,
+          "compute_tick_seconds": 0.065,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 20.89832100000001,
+          "peak_rss_bytes": 188329984
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0.131,
+          "compute_tick_seconds": 0.046999999999999986,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 21.931764000000044,
+          "peak_rss_bytes": 187924480
+        }
+      ]
+    },
+    {
+      "kernel": "bs-lut4",
+      "tensor": "blk.0.ffn_down.weight",
+      "width": 6144,
+      "iterations": 1628,
+      "contributions": 10002432,
+      "lookups": 2500608,
+      "median_compute_tick_seconds": 0.34099999999999997,
+      "worst_compute_tick_seconds": 0.35400000000000004,
+      "runs": [
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0.161,
+          "compute_tick_seconds": 0.35400000000000004,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 21.193894,
+          "peak_rss_bytes": 190087168
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0.127,
+          "compute_tick_seconds": 0.33799999999999997,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 23.05445400000002,
+          "peak_rss_bytes": 193929216
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0,
+          "setup_tick_seconds": 0.129,
+          "compute_tick_seconds": 0.34099999999999997,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 23.706718999999964,
+          "peak_rss_bytes": 193880064
+        }
+      ]
+    }
+  ]
+}

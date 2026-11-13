@@ -1,5 +1,6 @@
 #include "llama.h"
 #include "ggml-backend.h"
+#include "ggml-cpu.h"
 #include "ggml-quants.h"
 
 #include <algorithm>
@@ -117,8 +118,48 @@ static int quantize_file(const char * input, const char * output) {
     return 0;
 }
 
+static int project_pq2(const char * model, const char * offset_arg, const char * rows_arg,
+                       const char * input, const char * output) {
+    try {
+        const uint64_t offset = std::stoull(offset_arg), rows = std::stoull(rows_arg);
+        std::ifstream activations(input, std::ios::binary | std::ios::ate);
+        if (!activations) return 1;
+        const auto bytes = activations.tellg();
+        if (bytes <= 0 || bytes % (256 * sizeof(float)) || bytes > 6144 * sizeof(float) ||
+            rows == 0 || rows > 248320) return 1;
+        const int width = int(bytes / sizeof(float));
+        std::vector<float> x(width);
+        activations.seekg(0);
+        activations.read(reinterpret_cast<char *>(x.data()), bytes);
+        if (!activations || !quantizable(x)) return 1;
+        std::vector<block_q8_K> q(width / QK_K);
+        quantize_row_q8_K_ref(x.data(), q.data(), width);
+        const uint64_t row_bytes = uint64_t(width / QK_PQ2_0) * sizeof(block_pq2_0);
+        std::ifstream weights(model, std::ios::binary | std::ios::ate);
+        if (!weights) return 1;
+        const uint64_t size = uint64_t(weights.tellg());
+        if (offset > size || rows > (size - offset) / row_bytes) return 1;
+        weights.seekg(offset);
+        std::vector<uint8_t> packed(rows * row_bytes);
+        weights.read(reinterpret_cast<char *>(packed.data()), packed.size());
+        if (!weights) return 1;
+        ggml_cpu_init();
+        const auto * trait = ggml_get_type_traits_cpu(GGML_TYPE_PQ2_0);
+        if (!trait || !trait->vec_dot || trait->vec_dot_type != GGML_TYPE_Q8_K) return 1;
+        std::vector<float> result(rows);
+        for (uint64_t row = 0; row < rows; ++row) {
+            trait->vec_dot(width, &result[row], 0, packed.data() + row * row_bytes, 0, q.data(), 0, 1);
+        }
+        return write_bytes(output, result.data(), result.size() * sizeof(float)) ? 0 : 1;
+    } catch (const std::exception & e) {
+        std::cerr << "PQ2 projection: " << e.what() << '\n';
+        return 1;
+    }
+}
+
 
 int main(int argc, char ** argv) {
+    if (argc == 7 && std::string(argv[1]) == "--project-pq2") return project_pq2(argv[2], argv[3], argv[4], argv[5], argv[6]);
     if (argc == 4 && std::string(argv[1]) == "--quantize") return quantize_file(argv[2], argv[3]);
     if (argc < 7) { std::cerr << "model output context generate filter token... required\n"; return 2; }
     const std::string model_path = argv[1], dir = argv[2], filter = argv[5];

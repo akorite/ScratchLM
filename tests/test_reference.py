@@ -95,6 +95,20 @@ class ReferenceTests(unittest.TestCase):
             self.assertEqual((output / capture['payload']['file']).read_bytes(), expected.read_bytes())
             self.assertEqual(manifest['steps'][0]['greedy_next'], 321)
 
+    @unittest.skipUnless(os.environ.get('BONSAI_NATIVE_BUILD') and os.environ.get('BONSAI_MODEL_PATH'),
+                         'set BONSAI_NATIVE_BUILD and BONSAI_MODEL_PATH')
+    def test_native_pq2_projection_matches_captured_rows(self):
+        root = SCRIPT.parents[2]
+        with tempfile.TemporaryDirectory(dir=os.environ.get('BONSAI_FIXTURE_TMP')) as temp:
+            output = pathlib.Path(temp) / 'rows.f32'
+            binary = pathlib.Path(os.environ['BONSAI_NATIVE_BUILD']) / 'bonsai-reference'
+            result = subprocess.run([str(binary), '--project-pq2', os.environ['BONSAI_MODEL_PATH'], '195420256',
+                                     '5', str(root / 'fixtures/native/layer3-q-input.f32'), str(output)],
+                                    capture_output=True, text=True, timeout=60)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            expected = (root / 'fixtures/native/layer3-q-first5.f32').read_bytes()
+            self.assertEqual(output.read_bytes(), expected)
+
 
 
     def test_cli_rejects_invalid_tokens_before_native_execution(self):

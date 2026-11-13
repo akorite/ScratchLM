@@ -11,7 +11,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def add_loader_block(project, count, scale_list, start=0):
+def add_loader_block(project, count, scale_list, start=0, tensor='blk.3.attn_q.weight'):
     with zipfile.ZipFile(project) as archive:
         entries = {name: archive.read(name) for name in archive.namelist()}
     graph = json.loads(entries['project.json'])
@@ -20,7 +20,7 @@ def add_loader_block(project, count, scale_list, start=0):
     following = blocks[hat]['next']
     blocks[hat]['next'] = 'load-resident'
     blocks[following]['parent'] = 'load-resident'
-    fields = {'ID': 'resident', 'TENSOR': 'blk.3.attn_q.weight', 'START': start, 'COUNT': count,
+    fields = {'ID': 'resident', 'TENSOR': tensor, 'START': start, 'COUNT': count,
               'Q': 'l_packed', 'SCALE': scale_list}
     blocks['load-resident'] = {'opcode': 'bonsailoader_loadGroups', 'next': following, 'parent': hat,
                                'inputs': {key: [1, [4 if isinstance(value, int) else 10, str(value)]]
@@ -51,6 +51,9 @@ class TransportIntegrationTests(unittest.TestCase):
     @unittest.skipUnless(os.environ.get('BONSAI_TURBOWARP_VM') and os.environ.get('BONSAI_MODEL_PACKAGE'),
                          'set BONSAI_TURBOWARP_VM and BONSAI_MODEL_PACKAGE')
     def test_compiled_resident_scalar_dot_after_loader_disabled(self):
+        raw = (ROOT / 'fixtures/native/layer3-q-first5.pq2').read_bytes()
+        q8 = (ROOT / 'fixtures/native/layer3-q-input.q8_k').read_bytes()
+        f32 = lambda value: struct.unpack('<f', struct.pack('<f', value))[0]
         expected = struct.unpack('<5f', (ROOT / 'fixtures/native/layer3-q-first5.f32').read_bytes())
         with tempfile.TemporaryDirectory() as temp:
             for row in range(5):
@@ -63,6 +66,17 @@ class TransportIntegrationTests(unittest.TestCase):
                                          capture_output=True, text=True, timeout=60)
                     self.assertEqual(run.returncode, 0, run.stderr)
                     actual = json.loads(run.stdout)
+                    generic = 0.0
+                    for group in range(16):
+                        block = raw[(row * 16 + group) * 34:][:34]
+                        scale = struct.unpack_from('<e', block)[0]
+                        qblock = (group // 2) * 292
+                        activation_scale = struct.unpack_from('<f', q8, qblock)[0]
+                        activations = struct.unpack_from('<128b', q8, qblock + 4 + (group % 2) * 128)
+                        subtotal = sum((((block[2 + i // 4] >> (2 * (i % 4))) & 3) - 1) * activations[i]
+                                       for i in range(128))
+                        generic = f32(generic + f32(f32(scale * activation_scale) * subtotal))
+                    self.assertEqual(actual[0], generic)
                     self.assertEqual(len(actual), 1)
                     self.assertLess(abs(actual[0] - expected[row]), 1e-6)
 

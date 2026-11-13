@@ -36,6 +36,10 @@
     "layer3-q-input.q8_k": {
       "bytes": 2336,
       "sha256": "86290ff3bc3460acbf466f42f9bd6be2ae035567b2ffceb50ce6fa035751c161"
+    },
+    "layer3-q-output.f32": {
+      "bytes": 16384,
+      "sha256": "8b91029ca09c314ad2f78f14697856b3ef5ccc0a0961c972f980a844eecca07f"
     }
   },
   "native_output": [

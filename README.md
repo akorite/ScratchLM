@@ -30,7 +30,7 @@ python3 tools/reference/reference.py build --archive "$WORK/prism-source.tar.gz"
 python3 tools/reference/reference.py run --model "$WORK/model.gguf" --build "$WORK/reference-build" --output "$WORK/fixture" --tokens 1 --context 128
 ```
 
-`run --help` describes graph capture and successive greedy decode. A fixture includes logits, opaque native sequence-state snapshots and build metadata. With a capture filter, the harness separately records selected graph tensors and the actual CPU Q8_K staging for matching PQ2_0 matrix operations. Graph-derived Q8_K files are separate reference quantizations, not staging buffers. See [the numerical contract](docs/numerical-contract.md) before comparing fixtures.
+`run --help` describes graph capture and successive greedy decode. A fixture includes logits, opaque native sequence-state snapshots and build metadata. With a capture filter, the harness separately records selected graph tensors and the actual CPU Q8_K staging for matching PQ2_0 matrix operations. Graph-derived Q8_K files are separate reference quantizations, not staging buffers. Callback inputs are read after the node executes and can have been overwritten by an in-place operation; capture the producer node separately when pre-operation input is required. See [the numerical contract](docs/numerical-contract.md) before comparing fixtures.
 
 ## Local loader
 
@@ -38,9 +38,11 @@ The [storage-only extension](docs/extension.md) loads a locally selected package
 
 ## Scratch primitive slice
 
-`dist/fp16-q8-scalar.sb3` is a partial test project, not a decoder. Its visible Stage blocks implement FP16 scale decoding, F32 rounding, Q8_K activation quantization, and a single-row scalar ternary dot for both package codecs. Generate it with `python3 tools/generate_project.py dist/fp16-q8-scalar.sb3`. On green flag the default `BS mode` 0 decodes the example words in `BS input`; inspect `BS output` in the editor. Mode 1 quantizes groups of 256 input values; mode 2 consumes the input activation plus preloaded `BS packed bytes` and `BS weight scales`, with `BS codec` 0 for raw or 1 for BS-LUT4. Mode 3 exposes F32 rounding for tests. The project does not yet provide a complete interactive package-loading or inference workflow.
+`dist/fp16-q8-scalar.sb3` is a partial test project, not a decoder. Generate it with `python3 tools/generate_project.py dist/fp16-q8-scalar.sb3`. The default mode 0 decodes FP16 words; mode 1 quantizes Q8_K activation groups; mode 2 computes one scalar ternary row; mode 3 rounds F32; modes 4–8 exercise dense dot, RMS/L2 normalization, SiLU and softmax; mode 9 uses raw-byte or BS-LUT4 lookup; mode 10 converts radians to Scratch's degree-based sine/cosine. Inspect the Stage variables and lists. Modes 2 and 9 require an activation and a resident model row; they are not an interactive inference workflow.
 
 The compiled VM integration tests insert the real loader block into a test copy, load a real model row, disable further loader reads, and execute the resident Scratch arithmetic. They use the audited VM source pin; this does not pin a deployed TurboWarp application build.
+
+Generate the separate text proof with `python3 tools/generate_project.py dist/text-proof.sb3 --text`. It uses 256 hidden sprites for exact UTF-16 code-unit lookup; see the numerical contract for its substantial measured startup and memory cost. `python3 tools/generate_project.py dist/head-benchmark.sb3 --benchmark` generates the streaming head benchmark with the captured activation embedded; load the storage extension and select a package first. Its output is a diagnostic projection, not model logits.
 
 ## Tests
 
@@ -50,3 +52,5 @@ node --test tests/transport/*.test.js
 ```
 
 Full model files and large generated manifests and fixtures belong outside Git. Current development measurements on the Intel Xeon host do not establish performance or memory use on the plan's Ryzen-class 16 GB target.
+
+The [M3 decision record](docs/m3-decision.md) summarizes the kernel comparison, projected decode/prefill costs, and the conditional redesign verdict that gates M4.

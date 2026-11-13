@@ -1,0 +1,120 @@
+{
+  "files": {
+    "ffn0-1-input.f32": {
+      "bytes": 24576,
+      "sha256": "8cf9106160ae5e2ab223ef74bcfe0313d8066e2d81e014d25ca43e667e436f02",
+      "source_run": "ffn0-heldout",
+      "step": 1
+    },
+    "ffn0-1-output.f32": {
+      "bytes": 8192,
+      "sha256": "a1c0b89d4fd59d60cfc95de00717f718e83974c2c785cff24a85175d73a3e5b7",
+      "source_run": "ffn0-heldout",
+      "step": 1
+    },
+    "ffn0-1-staging.q8_k": {
+      "bytes": 6240,
+      "sha256": "7565478975baa1bd1d2c478eea08c86646b27cc3ce51c81d6b22f1e67f520302",
+      "source_run": "ffn0-heldout",
+      "step": 1
+    },
+    "l2-0-input.f32": {
+      "bytes": 512,
+      "sha256": "853a01c6badf2b780bb4cf9c00caa8053aa64addbe967565480e0dc45bf93ca3",
+      "source_run": "l2-0",
+      "step": 0
+    },
+    "l2-0-output.f32": {
+      "bytes": 512,
+      "sha256": "38b761079dbdb984feb3efc6983ae16a3ebf33cf7c2410da4cc4511a1b2edac9",
+      "source_run": "l2-0",
+      "step": 0
+    },
+    "l2-1-input.f32": {
+      "bytes": 512,
+      "sha256": "c559c18f0f6610845c9d0d1a6a4c368fcf101094ad1f0e44ae711a9921a50314",
+      "source_run": "l2-0",
+      "step": 1
+    },
+    "l2-1-output.f32": {
+      "bytes": 512,
+      "sha256": "8e084d9e369f3241ef27b7d8d4468a3c904dac1fa2b2c0145b8dda4ff13c3631",
+      "source_run": "l2-0",
+      "step": 1
+    },
+    "q3-1-input.f32": {
+      "bytes": 8192,
+      "sha256": "caea18e679bb6b43e517d33f7ade54769cfeae0b37acd1f0f8964cc72c5c389c",
+      "source_run": "q3-heldout",
+      "step": 1
+    },
+    "q3-1-output.f32": {
+      "bytes": 16384,
+      "sha256": "eb2c74964e2bee1457b78f7dea039addf6de5208ccbe014565261d1ccc2b8b42",
+      "source_run": "q3-heldout",
+      "step": 1
+    },
+    "q3-1-staging.q8_k": {
+      "bytes": 2080,
+      "sha256": "312e0e9de0c9c7cb26b8bb699e8ab103ff29cbcde8d12e63a22e0ea1fb2c8e6f",
+      "source_run": "q3-heldout",
+      "step": 1
+    },
+    "rms-0-input.f32": {
+      "bytes": 8192,
+      "sha256": "ac53fe1eb779c291a84fe0f7a180c52c63d31e9806bd712a64b0bcb26d4f7168",
+      "source_run": "norm0",
+      "step": 0
+    },
+    "rms-0-output.f32": {
+      "bytes": 8192,
+      "sha256": "8080a841220e1e2adc702c43cae7105f1d18b16a484125b60b528d6258f254c6",
+      "source_run": "norm0",
+      "step": 0
+    },
+    "rms-1-input.f32": {
+      "bytes": 8192,
+      "sha256": "9fa34f3595f3d970fac777bd0eb89bba1ed0f3e4036d008f209b1e297a5b9afd",
+      "source_run": "norm0",
+      "step": 1
+    },
+    "rms-1-output.f32": {
+      "bytes": 8192,
+      "sha256": "1e1d7531bc25f589f86b31039de917d33591c000390b9ea874f05ef60043d319",
+      "source_run": "norm0",
+      "step": 1
+    },
+    "silu-0-input.f32": {
+      "bytes": 24576,
+      "sha256": "c04ddf9078f54fe6d152a99b1aa8285ab337530434dd46cc1d99f925c08c4c73",
+      "source_run": "silu0-pre",
+      "step": 0
+    },
+    "silu-0-output.f32": {
+      "bytes": 24576,
+      "sha256": "4388004ca4c28db7c3105b586c84e6c0fe0947b26f85e9ad01266a5d77dd7679",
+      "source_run": "silu0-pre",
+      "step": 0
+    },
+    "silu-1-input.f32": {
+      "bytes": 24576,
+      "sha256": "43638a02e17a888fe5bb0e37af4e400a5f341efad405aea3bfc8a311eae4c4f1",
+      "source_run": "silu0-pre",
+      "step": 1
+    },
+    "silu-1-output.f32": {
+      "bytes": 24576,
+      "sha256": "71dd47f7d82f8eb7ff70474c3b32728519e3f6483c3437f24e8dacc8891313f9",
+      "source_run": "silu0-pre",
+      "step": 1
+    }
+  },
+  "model_sha256": "d5f01a4ecaf49239653308ee732ad1a0c5f802c0ddb997549fc7b694c8b45928",
+  "notes": "Step 0 calibration and stateful step 1 holdout; L2 samples are the first 128-element row.",
+  "runtime_revision": "e3de715222b2667c54a267441159a5729f11155e",
+  "schema": "bonsai-native-operator-samples/v1",
+  "tokens": [
+    1,
+    321
+  ]
+}

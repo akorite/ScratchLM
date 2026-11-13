@@ -214,6 +214,31 @@ def quantize(args):
                "implementation": "quantize_row_q8_K_ref",
                "zero_groups": "bsums are zero-initialized; the pinned quantizer leaves them untouched"})
 
+def project(args):
+    if sys.byteorder != "little":
+        raise ValueError("fixture binary format requires a little-endian host")
+    identity = json.loads((ROOT / "model-lock.json").read_text(encoding="utf-8"))
+    verify_model(args.model, identity)
+    binary, build_meta = checked_build(args.build)
+    tensors = json.loads((ROOT / "fixtures/tensor-manifest.json").read_text(encoding="utf-8"))["tensors"]
+    tensor = next((t for t in tensors if t["name"] == args.tensor), None)
+    if not tensor or tensor["type_id"] != 142 or len(tensor["dimensions"]) != 2:
+        raise ValueError("tensor must name a locked two-dimensional PQ2_0 tensor")
+    width, rows = tensor["dimensions"]
+    if args.input.stat().st_size != width * 4:
+        raise ValueError("activation size does not match tensor width")
+    out = args.output.resolve()
+    out.mkdir(parents=True, exist_ok=False)
+    run_command([binary, "--project-pq2", args.model.resolve(), tensor["offset"], rows,
+                 args.input.resolve(), out / "projection.f32"])
+    result = artifact(out / "projection.f32")
+    if result["bytes"] != rows * 4:
+        raise ValueError("native projection output has wrong length")
+    write_json(out / "manifest.json", {"schema": "bonsai-native-pq2-projection/v1", "model": identity,
+               "build": build_meta, "machine": machine(), "tensor": tensor, "input": artifact(args.input),
+               "output": result, "quantizer": "quantize_row_q8_K_ref", "dot": "CPU PQ2_0 x Q8_K type trait",
+               "format": "little-endian IEEE-754 binary32", "note": "Projection only; not full model logits."})
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -238,6 +263,13 @@ def main():
     p.add_argument("--input", type=Path, required=True)
     p.add_argument("--output", type=Path, required=True)
     p.set_defaults(func=quantize)
+    p = sub.add_parser("project", help="project a raw F32 activation through a locked PQ2_0 tensor")
+    p.add_argument("--model", type=Path, required=True)
+    p.add_argument("--build", type=Path, required=True)
+    p.add_argument("--input", type=Path, required=True)
+    p.add_argument("--tensor", required=True)
+    p.add_argument("--output", type=Path, required=True)
+    p.set_defaults(func=project)
     args = parser.parse_args()
     try:
         args.func(args)
