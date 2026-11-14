@@ -329,7 +329,8 @@ def project(with_text=False, with_benchmark=False):
     deltanet_body = deltanet.stage(helpers)
     decode_helpers = dict(helpers, call_deltanet=lambda: call_proc('BS deltanet', 'true'),
                           call_attention=lambda: call_proc('BS layer', 'true'),
-                          call_head=lambda: call_proc('BS head', 'false'))
+                          call_head=lambda: call_proc('BS head', 'false'),
+                          call_embed=lambda: call_proc('BS embed', 'true'))
     decoder_body = decoder.stack(decode_helpers)
     fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=40),
                             [call_proc('BS layer', 'true')], fallback)]
@@ -364,6 +365,7 @@ def project(with_text=False, with_benchmark=False):
     add_procedure(graph, 'BS layer', layer_body, x=2100, warp='true')
     add_procedure(graph, 'BS deltanet', deltanet_body, x=2400, warp='true')
     add_procedure(graph, 'BS head', lut.script(globals(), head=True), x=3000, warp='false')
+    add_procedure(graph, 'BS embed', embedding.make(15, globals()), x=3300, warp='true')
     add_procedure(graph, 'BS decode', decoder_body, x=2700, warp='true')
 
     svg = (b'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>' if with_text else
@@ -386,7 +388,7 @@ def project(with_text=False, with_benchmark=False):
              'BS rope theta', 'BS rope cosine', 'BS rope sine', 'BS rope width', 'BS rope heads',
              'BS layer', 'BS layer position', 'BS layer head', 'BS kv base', 'BS state base', 'BS fill',
              'BS conv base',
-             'BS dn slot', 'BS attn slot', 'BS layer token', 'BS layer index', 'BS layer sum',
+             'BS dn slot', 'BS attn slot', 'BS decode by id', 'BS layer token', 'BS layer index', 'BS layer sum',
              'BS layer maximum', 'BS layer weight', 'BS layer divisor',
              'BS proj scanned', 'BS proj tile', 'BS proj valid', 'BS settle',
              'BS dn channel', 'BS dn tap', 'BS dn sum', 'BS dn row', 'BS dn index',
@@ -399,6 +401,7 @@ def project(with_text=False, with_benchmark=False):
                   'BS text needle', 'BS text result')
     variables = {var(name)[2]: [name, 0] for name in names}
     variables[var('BS iterations')[2]][1] = 1
+    variables[var('BS token id')[2]][1] = -1  # decode from `BS input` unless a token id is set
     variables[var('BS layer')[2]][1] = 3  # the attention layer by default; the decoder sets it per layer
     variables[var('BS head rows')[2]][1] = 248320
     variables[var('BS head tensor')[2]][1] = 'token_embd.weight'
