@@ -20,6 +20,14 @@ async function main() {
     vm.setCompatibilityMode(false);
     vm.setTurboMode(true);
     vm.setCompilerOptions({enabled: true});
+    // Every generated project declares the storage extension; this runner does not load a package.
+    let loader;
+    const Scratch = {vm, extensions: {unsandboxed: true, register: value => { loader = value; }},
+        BlockType: {COMMAND: 'command', REPORTER: 'reporter'},
+        ArgumentType: {STRING: 'string', NUMBER: 'number'}};
+    require('node:vm').runInNewContext(
+        fs.readFileSync(path.join(__dirname, '../../extension/loader.js'), 'utf8'), {Scratch, TextDecoder});
+    vm.extensionManager.addBuiltinExtension('bonsailoader', class { constructor() { return loader; } });
     try {
         await vm.loadProject(fs.readFileSync(process.argv[2]));
         const stage = vm.runtime.getTargetForStage();
