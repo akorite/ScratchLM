@@ -259,6 +259,9 @@ async function run() {
             process.stdout.write(JSON.stringify(Object.fromEntries(names.map(n => [n, read(n)]))) + '\n');
         } else if (steps > 1) {
             process.stdout.write(JSON.stringify({tokens: produced}) + '\n');
+        } else if (process.argv[4] === '42') {
+            const greedy = stage.lookupVariableByNameAndType('BS greedy token', '');
+            process.stdout.write(JSON.stringify({token: Number(greedy.value)}) + '\n');
         } else if (Number(mode.value) === 18) {
             process.stdout.write(JSON.stringify({output: output.value,
                 top_k_tokens: topTokens.value.map(Number), top_k_logits: topLogits.value.map(Number)}) + '\n');

@@ -147,6 +147,23 @@ class DeltaNetStageTests(unittest.TestCase):
         tokens = json.loads(output.read_text())
         self.assertEqual(int(float(tokens[0])), 11, 'native greedy token from the embedding lookup')
 
+    def decode_token(self, token):
+        env = dict(os.environ, BONSAI_PROMPT_TOKENS=str(token), BONSAI_TIMEOUT_MS='900000')
+        run = subprocess.run(['node', str(ROOT / 'tests/scratch/run-vm.js'), str(self.project), '[]', '42'],
+                             capture_output=True, text=True, timeout=900, env=env)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        return json.loads(run.stdout)['token']
+
+    def test_decoder_matches_the_native_fixture_matrix(self):
+        fixtures = json.loads((ROOT / 'fixtures/native/m5/decode-fixtures.json').read_text())['fixtures']
+        # The whole matrix takes about 16 minutes; three cases cover the fast, the rare and
+        # the near-tie behaviour unless the full sweep is requested.
+        selected = fixtures if os.environ.get('BONSAI_DECODE_MATRIX') else [
+            f for f in fixtures if f['token'] in (1237, 248319, 77777)]
+        for fixture in selected:
+            with self.subTest(token=fixture['token']):
+                self.assertEqual(self.decode_token(fixture['token']), fixture['expected_greedy'])
+
     def test_successive_decode_steps_carry_state(self):
         """Two prompt tokens in one VM: step two must see step one's state and predict 286."""
         env = dict(os.environ, BONSAI_PROMPT_TOKENS='1237,9156', BONSAI_STEPS='2',

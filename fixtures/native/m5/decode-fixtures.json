@@ -1,0 +1,57 @@
+{
+  "schema": "bonsai-decode-fixtures/v1",
+  "note": "Single-token prompts; expected_greedy is the argmax of the pinned native build's logits for that token, margin is the native top-1 minus top-2 logit.",
+  "model_sha256": "d5f01a4ecaf49239653308ee732ad1a0c5f802c0ddb997549fc7b694c8b45928",
+  "fixtures": [
+    {
+      "token": 1237,
+      "expected_greedy": 11,
+      "native_margin": 0.4376
+    },
+    {
+      "token": 9156,
+      "expected_greedy": 11,
+      "native_margin": 0.5649
+    },
+    {
+      "token": 100,
+      "expected_greedy": 11,
+      "native_margin": 0.6802
+    },
+    {
+      "token": 4242,
+      "expected_greedy": 11,
+      "native_margin": 0.3851
+    },
+    {
+      "token": 77777,
+      "expected_greedy": 877,
+      "native_margin": 1.1369
+    },
+    {
+      "token": 150000,
+      "expected_greedy": 3709,
+      "native_margin": 0.2026
+    },
+    {
+      "token": 200000,
+      "expected_greedy": 11,
+      "native_margin": 0.8088
+    },
+    {
+      "token": 248319,
+      "expected_greedy": 3709,
+      "native_margin": 0.1723
+    },
+    {
+      "token": 1,
+      "expected_greedy": 321,
+      "native_margin": 0.9908
+    },
+    {
+      "token": 321,
+      "expected_greedy": 11,
+      "native_margin": 0.9445
+    }
+  ]
+}
