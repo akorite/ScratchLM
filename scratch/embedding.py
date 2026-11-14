@@ -13,6 +13,16 @@ def set_codec_from_loader(h, codec):
                        [conditional(eq(codec, 'bslut4'), [setvar('BS codec', 1)], [setvar('BS codec', 2)])])
 
 
+def settle(h, status):
+    """Wait for a request to leave `pending`; a refill can take several frames."""
+    var, op, setvar, conditional, repeat = (h[n] for n in ('var', 'op', 'setvar', 'conditional', 'repeat'))
+    eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
+    return [setvar('BS settle', 0),
+            repeat(600, [conditional(eq(var('BS settle'), 0), [
+                conditional(eq(status, 'pending'), [('control_wait', {'DURATION': 0}, {}, {})],
+                            [setvar('BS settle', 1)])])])]
+
+
 def load_dense(h, req_id, tensor, list_name, list_id, count_expr, on_error):
     op, length, conditional = h['op'], h['length'], h['conditional']
     eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
@@ -22,6 +32,7 @@ def load_dense(h, req_id, tensor, list_name, list_id, count_expr, on_error):
         ('data_deletealloflist', {}, {'LIST': [list_name, list_id]}, {}),
         ('bonsailoader_loadDense',
          {'ID': req_id, 'TENSOR': tensor, 'START': 0, 'COUNT': count_expr, 'DEST': list_id}, {}, {}),
+        *settle(h, status),
         conditional(op('operator_and', OPERAND1=eq(status, 'ok'),
                        OPERAND2=op('operator_and', OPERAND1=eq(copied, count_expr),
                                    OPERAND2=eq(length(list_name, list_id), count_expr))),

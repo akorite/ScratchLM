@@ -68,6 +68,7 @@ def script(h, head=False):
         transfer = [('bonsailoader_loadGroups',
                      {'ID': 'head', 'TENSOR': v('head tensor'), 'START': mul(v('scanned'), v('groups per row')),
                       'COUNT': mul(v('tile count'), v('groups per row')), 'Q': 'l_packed', 'SCALE': 'l_scales'}, {}, {}),
+                    *embedding.settle(h, status),
                     setvar('BS benchmark transfer', add(v('benchmark transfer'), sub(timer, v('benchmark start')))),
                     conditional(op('operator_and', OPERAND1=eq(status, 'ok'),
                                    OPERAND2=eq(copied, mul(v('tile count'), v('groups per row')))),
@@ -79,7 +80,8 @@ def script(h, head=False):
                     setvar('BS benchmark start', timer), *transfer,
                     ('control_wait', {'DURATION': 0}, {}, {})],
                     [setvar('BS head valid', 0), setvar('BS cancel', 0)])]
-        work += [setvar('BS groups per row', div(length('BS input', 'l_input'), 128)),
+        # token_embd is 2048 wide, so every row is 16 PQ2 groups regardless of the input list.
+        work += [setvar('BS groups per row', 16),
                  setvar('BS scanned', 0), setvar('BS head valid', 1), setvar('BS benchmark transfer', 0),
                  setvar('BS benchmark compute', 0),
                  repeat(floor(div(sub(add(v('head rows'), v('tile size')), 1), v('tile size'))),

@@ -328,7 +328,8 @@ def project(with_text=False, with_benchmark=False):
     layer_body = attention.layer(helpers)
     deltanet_body = deltanet.stage(helpers)
     decode_helpers = dict(helpers, call_deltanet=lambda: call_proc('BS deltanet', 'true'),
-                          call_attention=lambda: call_proc('BS layer', 'true'))
+                          call_attention=lambda: call_proc('BS layer', 'true'),
+                          call_head=lambda: call_proc('BS head', 'false'))
     decoder_body = decoder.stack(decode_helpers)
     fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=40),
                             [call_proc('BS layer', 'true')], fallback)]
@@ -362,9 +363,9 @@ def project(with_text=False, with_benchmark=False):
     add_procedure(graph, 'BS hadamard', transform.hadamard(globals(), inline=True), x=1800, warp='true')
     add_procedure(graph, 'BS layer', layer_body, x=2100, warp='true')
     add_procedure(graph, 'BS deltanet', deltanet_body, x=2400, warp='true')
+    add_procedure(graph, 'BS head', lut.script(globals(), head=True), x=3000, warp='false')
     add_procedure(graph, 'BS decode', decoder_body, x=2700, warp='true')
-    if with_benchmark:
-        add_procedure(graph, 'BS head', lut.script(globals(), head=True), x=2400, warp='false')
+
     svg = (b'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>' if with_text else
            b'<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360"></svg>')
     asset = hashlib.md5(svg).hexdigest()
@@ -390,19 +391,19 @@ def project(with_text=False, with_benchmark=False):
              'BS proj scanned', 'BS proj tile', 'BS proj valid', 'BS settle',
              'BS dn channel', 'BS dn tap', 'BS dn sum', 'BS dn row', 'BS dn index',
              'BS dn head', 'BS dn scale', 'BS dn j', 'BS dn i', 'BS dn delta', 'BS dn sp')
-    if with_benchmark:
-        names += ('BS head rows', 'BS head tensor', 'BS tile size', 'BS tile count', 'BS tile row',
-                  'BS scanned', 'BS head valid', 'BS cancel', 'BS benchmark transfer', 'BS groups per row')
+    # The head procedure is always present (the decoder calls it), so its variables are too.
+    names += ('BS head rows', 'BS head tensor', 'BS tile size', 'BS tile count', 'BS tile row',
+              'BS scanned', 'BS head valid', 'BS cancel', 'BS benchmark transfer', 'BS groups per row')
     if with_text:
         names += ('BS text index', 'BS text unit', 'BS text next', 'BS text code', 'BS text equal',
                   'BS text needle', 'BS text result')
     variables = {var(name)[2]: [name, 0] for name in names}
     variables[var('BS iterations')[2]][1] = 1
     variables[var('BS layer')[2]][1] = 3  # the attention layer by default; the decoder sets it per layer
+    variables[var('BS head rows')[2]][1] = 248320
+    variables[var('BS head tensor')[2]][1] = 'token_embd.weight'
+    variables[var('BS tile size')[2]][1] = 640
     if with_benchmark:
-        variables[var('BS head rows')[2]][1] = 248320
-        variables[var('BS head tensor')[2]][1] = 'token_embd.weight'
-        variables[var('BS tile size')[2]][1] = 640
         variables[var('BS mode')[2]][1] = 11
     stage = {'isStage': True, 'name': 'Stage', 'variables': variables,
              'lists': {'l_input': ['BS input', [0, 1, 15360, 31744]], 'l_output': ['BS output', []],

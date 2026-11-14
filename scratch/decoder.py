@@ -1,6 +1,6 @@
 """Scratch blocks for the 24-layer decoder."""
 
-from scratch import attention
+from scratch import attention, embedding, lut, transform
 
 ATTENTION_LAYERS = (3, 7, 11, 15, 19, 23)
 STATE_SIZE = 262144          # one DeltaNet layer: 16 heads x 128 x 128
@@ -29,4 +29,20 @@ def stack(h):
                     setvar('BS dn slot', add(v('dn slot'), 1))]
         if layer < 23:
             run += [*attention.copy(h, 'BS output', 'l_output', 'BS input', 'l_input')]
-    return [setvar('BS dn slot', 0), setvar('BS attn slot', 0), *run]
+    # Readout: final output_norm, the full head scan over the vocabulary, then greedy selection.
+    readout = [
+        *attention.copy(h, 'BS output', 'l_output', 'BS input', 'l_input'),
+        *embedding.load_dense(h, 'outnorm', 'output_norm.weight', 'BS norm weights', 'l_norm_weights',
+                              2048, [h['addlist']('load failed')]),
+        *embedding.output_norm(h),
+        # token_embd is stored inverse-rotated: signs first, then the Hadamard transform,
+        # matching the primitive pipeline's order.
+        *transform.apply_signs(h),
+        *transform.hadamard(h),
+        *attention.copy(h, 'BS output', 'l_output', 'BS input', 'l_input'),
+        ('data_deletealloflist', {}, {'LIST': ['BS output', 'l_output']}, {}),
+        h['call_head'](),
+        *lut.greedy_select(h),
+        h['addlist'](h['var']('BS greedy token')),
+    ]
+    return [setvar('BS dn slot', 0), setvar('BS attn slot', 0), *run, *readout]
