@@ -86,9 +86,12 @@ The pre-tokenizer reproduces the pinned runtime's own splitter. Its code point c
 ## Tests
 
 ```sh
-python3 -m unittest discover -s tests -v
+python3 -m pytest -q tests/
 node --test tests/transport/*.test.js
+BONSAI_DECODE_MATRIX=1 python3 -m pytest -q tests/scratch/test_deltanet.py::DeltaNetStageTests::test_decoder_matches_the_native_fixture_matrix
 ```
+
+The full suite takes about 90 minutes on the recorded host because three typed prompts run through the compiled VM end to end; the ten-token decode matrix adds about 8 minutes when the environment variable is set. Set `BONSAI_FIXTURE_TMP` to a disk-backed directory: several tests write multi-hundred-megabyte temporaries.
 
 Full model files and large generated manifests and fixtures belong outside Git. Current development measurements on the Intel Xeon host do not establish performance or memory use on the plan's Ryzen-class 16 GB target.
 
