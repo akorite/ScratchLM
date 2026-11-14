@@ -352,6 +352,11 @@ def project(with_text=False, with_benchmark=False):
     if with_text and with_benchmark:
         fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=22),
                                 [call_proc('BS tokenize', 'true')], fallback)]
+        fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=23),
+                                [call_proc('BS detok load', 'true'), call_proc('BS detok render', 'true')],
+                                fallback)]
+        fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=24),
+                                [call_proc('BS generate', 'false')], fallback)]
     for mode in (34, 35):
         fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=mode),
                                 layers.head_norm(globals(), gated=mode == 34), fallback)]
@@ -382,8 +387,16 @@ def project(with_text=False, with_benchmark=False):
     add_procedure(graph, 'BS embed', embedding.make(15, globals()), x=3300, warp='true')
     add_procedure(graph, 'BS decode', decoder_body, x=2700, warp='true')
     if with_text and with_benchmark:
-        for index, (name, body) in enumerate(tokenizer.make(helpers).items()):
-            add_procedure(graph, name, body, x=3600 + 300 * index, warp='true')
+        tokenizer_bodies = tokenizer.make(helpers)
+        warp = {'BS generate': 'false'}
+        for index, (name, body) in enumerate(tokenizer_bodies.items()):
+            add_procedure(graph, name, body, x=3600 + 300 * index, warp=warp.get(name, 'true'))
+        # One broadcast per decode step: a warp procedure call inside a repeat would run the
+        # whole loop in one frame, so the loop yields and the hat runs the step.
+        step_hat = graph.add('event_whenbroadcastreceived',
+                             fields={'BROADCAST_OPTION': ['BS decode step', 'bs-decode-step']}, top=True)
+        step_call = call_proc('BS decode', 'true')
+        graph.blocks[step_hat]['next'] = graph.stack([step_call], step_hat)
 
     svg = (b'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>' if with_text else
            b'<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360"></svg>')
@@ -422,7 +435,10 @@ def project(with_text=False, with_benchmark=False):
                   'BS search lo', 'BS search hi', 'BS search mid', 'BS scan index',
                   'BS pair l', 'BS pair r', 'BS pair found', 'BS pair merged',
                   'BS best rank', 'BS best merged', 'BS merge at', 'BS pair position',
-                  'BS ids count', 'BS ids index', 'BS lower', 'BS lower2', 'BS ws count', 'BS nl end')
+                  'BS ids count', 'BS ids index', 'BS lower', 'BS lower2', 'BS ws count', 'BS nl end',
+                  'BS detok index', 'BS detok position', 'BS detok unit', 'BS detok byte',
+                  'BS detok code', 'BS detok piece', 'BS detok slot', 'BS text', 'BS byte index',
+                  'BS generate index', 'BS max tokens', 'BS eos token')
     variables = {var(name)[2]: [name, 0] for name in names}
     variables[var('BS iterations')[2]][1] = 1
     variables[var('BS token id')[2]][1] = -1  # decode from `BS input` unless a token id is set
@@ -432,6 +448,8 @@ def project(with_text=False, with_benchmark=False):
     variables[var('BS tile size')[2]][1] = 640
     if with_text and with_benchmark:
         variables[var('BS prompt')[2]][1] = ''
+        variables[var('BS max tokens')[2]][1] = 8
+        variables[var('BS eos token')[2]][1] = 248046
     if with_benchmark:
         variables[var('BS mode')[2]][1] = 11
     stage = {'isStage': True, 'name': 'Stage', 'variables': variables,
@@ -471,6 +489,9 @@ def project(with_text=False, with_benchmark=False):
                      'l_dt': ['BS dt', []], 'l_ssm_a': ['BS ssm a', []],
                      'l_prompt': ['BS prompt tokens', []],
                      'l_cp': ['BS cp', []], 'l_ids': ['BS ids', []],
+                     'l_units': ['BS units', [chr(code) for code in range(0x10000)]],
+                     'l_bytes': ['BS bytes', []], 'l_vocab': ['BS vocab', []],
+                     'l_out_tokens': ['BS out tokens', []],
                      'l_bpe_byte': ['BS bpe byte', []], 'l_bpe_left': ['BS bpe left', []],
                      'l_bpe_right': ['BS bpe right', []], 'l_bpe_rank': ['BS bpe rank', []],
                      'l_bpe_result': ['BS bpe result', []],
@@ -493,6 +514,8 @@ def project(with_text=False, with_benchmark=False):
     targets = [stage]
     if with_text:
         stage['broadcasts'] = {'bs-lookup': 'BS lookup'}
+        if with_benchmark:
+            stage['broadcasts'].update({'bs-decode-step': 'BS decode step', 'bs-show': 'BS show'})
         costume_number = ('looks_costumenumbername', {}, {'NUMBER_NAME': ['number', None]}, False)
         for high in range(256):
             lookup = Blocks()
@@ -508,6 +531,18 @@ def project(with_text=False, with_benchmark=False):
                             'costumes': text.costume_data(asset, high), 'sounds': [], 'volume': 100,
                             'layerOrder': high + 1, 'visible': False, 'x': 0, 'y': 0, 'size': 100,
                             'direction': 90, 'draggable': False, 'rotationStyle': 'all around'})
+    if with_text and with_benchmark:
+        speaker = Blocks()
+        show_hat = speaker.add('event_whenbroadcastreceived',
+                                fields={'BROADCAST_OPTION': ['BS show', 'bs-show']}, top=True)
+        say = ('looks_say', {'MESSAGE': var('BS text')}, {}, {})
+        speaker.blocks[show_hat]['next'] = speaker.stack([say], show_hat)
+        targets.append({'isStage': False, 'name': 'Bonsai', 'variables': {}, 'lists': {},
+                        'broadcasts': {}, 'blocks': speaker.blocks, 'comments': {}, 'currentCostume': 0,
+                        'costumes': [{'name': 'backdrop', 'dataFormat': 'svg', 'assetId': asset,
+                                      'md5ext': asset + '.svg', 'rotationCenterX': 240, 'rotationCenterY': 180}],
+                        'sounds': [], 'volume': 100, 'layerOrder': 300, 'visible': True, 'x': 0, 'y': 0,
+                        'size': 100, 'direction': 90, 'draggable': False, 'rotationStyle': 'all around'})
     content = {'targets': targets, 'monitors': [], 'extensions': ['bonsailoader'] if with_benchmark else ['bonsailoader'],
                'meta': {'semver': '3.0.0', 'vm': '0.2.0', 'agent': 'BonsaiScratch'}}
     return json.dumps(content, ensure_ascii=True, separators=(',', ':')).encode('utf-8'), asset + '.svg', svg

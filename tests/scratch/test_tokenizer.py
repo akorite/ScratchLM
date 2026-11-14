@@ -44,5 +44,20 @@ class ScratchTokenizerTests(unittest.TestCase):
                     self.assertEqual(row['tokens'], expected)
 
 
+    def test_detokenizer_round_trips_the_fixture_text(self):
+        tokens = [424, 579, 220, 109266, 26594]
+        with tempfile.TemporaryDirectory() as temp:
+            project = Path(temp) / 'detok.sb3'
+            generated = subprocess.run([sys.executable, str(ROOT / 'tools/generate_project.py'), str(project),
+                                        '--text', '--benchmark'], capture_output=True, text=True)
+            self.assertEqual(generated.returncode, 0, generated.stderr)
+            env = dict(os.environ, BONSAI_OUT_TOKENS=json.dumps(tokens), BONSAI_TIMEOUT_MS='240000',
+                       BONSAI_DEBUG_VARS='BS text')
+            run = subprocess.run(['node', str(ROOT / 'tests/scratch/run-vm.js'), str(project), '--detokenize', '23'],
+                                 env=env, capture_output=True, text=True, timeout=600)
+            self.assertEqual(run.returncode, 0, run.stderr)
+            self.assertEqual(json.loads(run.stdout)['BS text'], " it's 你好 🙂")
+
+
 if __name__ == '__main__':
     unittest.main()

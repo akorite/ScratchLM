@@ -287,5 +287,116 @@ def make(h):
             ]),
         ]
 
+    def load_strings(h_, key, name, list_id, request):
+        """Copy a metadata string array into a list through the storage extension."""
+        eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
+        status = ('bonsailoader_status', {'ID': request}, {}, False)
+        copied = ('bonsailoader_copied', {'ID': request}, {}, False)
+        return [('data_deletealloflist', {}, {'LIST': [name, list_id]}, {}),
+                ('bonsailoader_loadStrings', {'KEY': key, 'DEST': list_id, 'ID': request}, {}, {}),
+                until(not_(eq(status, 'pending')), [('control_wait', {'DURATION': 0}, {}, {})])]
+
+    # --- 'BS detokenize': token ids -> text ---------------------------------
+    def detokenize():
+        """Map ids through the loaded vocabulary, undo the byte alphabet, decode UTF-8."""
+        index, unit = var('BS detok index'), var('BS detok unit')
+        byte, code = var('BS detok byte'), var('BS detok code')
+        position, cursor = var('BS detok position'), var('BS byte index')
+        text = var('BS text')
+        piece = var('BS detok piece')
+        data = lambda at: item('BS bytes', 'l_bytes', at)
+        continuation = lambda at: sub(data(at), 128)
+        bytes_of = lambda: length('BS bytes', 'l_bytes')
+
+        def inverse_alphabet():
+            """The byte a byte-level character stands for; the alphabet is a fixed bijection."""
+            # 0x21..0x7E, 0xA1..0xAC and 0xAE..0xFF stand for themselves; everything else
+            # is written as 0x100 + the position among the remaining bytes.
+            identity = either(either(both(gt(unit, 32), lt(unit, 127)), both(gt(unit, 160), lt(unit, 173))),
+                              both(gt(unit, 173), lt(unit, 256)))
+            return [conditional(identity, [setvar('BS detok byte', unit)], [
+                conditional(eq(unit, 173), [setvar('BS detok byte', 160)], [
+                    setvar('BS detok slot', sub(unit, 256)),
+                    conditional(lt(var('BS detok slot'), 33), [
+                        setvar('BS detok byte', var('BS detok slot'))], [
+                        conditional(lt(var('BS detok slot'), 67), [
+                            setvar('BS detok byte', add(127, sub(var('BS detok slot'), 33)))], [
+                            setvar('BS detok byte', 173)])])])])]
+
+        def append_text():
+            return [conditional(lt(code, 65536), [
+                setvar('BS text', op('operator_join', STRING1=text,
+                    STRING2=item('BS units', 'l_units', add(code, 1))))], [
+                setvar('BS text', op('operator_join', STRING1=text, STRING2=op('operator_join',
+                    STRING1=item('BS units', 'l_units', add(add(55296, floor(div(sub(code, 65536), 1024))), 1)),
+                    STRING2=item('BS units', 'l_units',
+                                 add(add(56320, mod(sub(code, 65536), 1024)), 1)))))])]
+
+        def read_piece_bytes():
+            return [
+                ('data_deletealloflist', {}, {'LIST': ['BS bytes', 'l_bytes']}, {}),
+                setvar('BS detok index', 1),
+                until(gt(index, length('BS out tokens', 'l_out_tokens')), [
+                    setvar('BS detok piece',
+                           item('BS vocab', 'l_vocab',
+                                add(item('BS out tokens', 'l_out_tokens', index), 1))),
+                    setvar('BS detok position', 1),
+                    until(gt(position, textlen(piece)), [
+                        *read_unit(piece, position, 'BS detok unit'),
+                        *inverse_alphabet(),
+                        addlist(byte, 'BS bytes', 'l_bytes'),
+                        change('BS detok position', 1)]),
+                    change('BS detok index', 1)])]
+
+        def decode_bytes():
+            return [
+                setvar('BS text', ''), setvar('BS byte index', 1),
+                until(gt(cursor, bytes_of()), [
+                    setvar('BS detok byte', data(cursor)),
+                    conditional(lt(byte, 128), [
+                        setvar('BS detok code', byte), change('BS byte index', 1)], [
+                        conditional(lt(byte, 224), [
+                            setvar('BS detok code', add(mul(sub(byte, 192), 64), continuation(add(cursor, 1)))),
+                            change('BS byte index', 2)], [
+                            conditional(lt(byte, 240), [
+                                setvar('BS detok code', add(add(mul(sub(byte, 224), 4096),
+                                    mul(continuation(add(cursor, 1)), 64)), continuation(add(cursor, 2)))),
+                                change('BS byte index', 3)], [
+                                setvar('BS detok code', add(add(add(
+                                    mul(sub(byte, 240), 262144),
+                                    mul(continuation(add(cursor, 1)), 4096)),
+                                    mul(continuation(add(cursor, 2)), 64)), continuation(add(cursor, 3)))),
+                                change('BS byte index', 4)])])]),
+                    *append_text()])]
+
+        return {'load': load_strings(h, 'tokenizer.ggml.tokens', 'BS vocab', 'l_vocab', 'detok-vocab'),
+                'render': [*read_piece_bytes(), *decode_bytes()]}
+
+    # --- 'BS generate': prompt -> tokens -> decode steps -> text ------------
+    def generate():
+        """One flag run: tokenize the prompt, then one decode broadcast per token."""
+        index = var('BS generate index')
+        eos = var('BS greedy token')
+        return [
+            ('procedures_call', {}, {'PROCCODE': ('BS tokenize', 'true')}, {}),
+            ('data_deletealloflist', {}, {'LIST': ['BS out tokens', 'l_out_tokens']}, {}),
+            setvar('BS generate index', 1),
+            until(gt(index, length('BS prompt tokens', 'l_prompt')), [
+                addlist(item('BS prompt tokens', 'l_prompt', index), 'BS out tokens', 'l_out_tokens'),
+                change('BS generate index', 1)]),
+            ('procedures_call', {}, {'PROCCODE': ('BS detok load', 'true')}, {}),
+            setvar('BS step', 0),
+            repeat(var('BS max tokens'), [
+                ('event_broadcastandwait', {'BROADCAST_INPUT': 'BS decode step'}, {}, {}),
+                addlist(eos, 'BS out tokens', 'l_out_tokens'),
+                ('procedures_call', {}, {'PROCCODE': ('BS detok render', 'true')}, {}),
+                ('event_broadcastandwait', {'BROADCAST_INPUT': 'BS show'}, {}, {}),
+                conditional(eq(eos, var('BS eos token')), [setvar('BS generate index', 1000000000)]),
+            ]),
+        ]
+
+    detok = detokenize()
     return {'BS class of': class_of(), 'BS pair rank': pair_rank(),
-            'BS encode piece': encode_piece(), 'BS tokenize': tokenize()}
+            'BS encode piece': encode_piece(), 'BS tokenize': tokenize(),
+            'BS detok load': detok['load'], 'BS detok render': detok['render'],
+            'BS generate': generate()}
