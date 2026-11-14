@@ -1,0 +1,53 @@
+{
+  "schema": "bonsai-decode-step/v1",
+  "cpu": "Intel(R) Xeon(R) Platinum 8488C",
+  "turbowarp_vm": "scratch-vm-0cb82afe62506f3d9f2ff849c95593f0473b5d2c",
+  "turbomode": true,
+  "tiles": [
+    640
+  ],
+  "stubs": [
+    "attention-core"
+  ],
+  "framerate": 250,
+  "token_id": 1237,
+  "project_sha256": {
+    "640": "2052f4448d4e7937d353d5cc2538a72a344c9d5bdf2011c501410aa36c6d5a60"
+  },
+  "source_sha256": {
+    "scratch/attention.py": "355f2ef9ec96de296d8c0a82c07e3cc8f6b1b312b8334ba32d3e575bbac8548d",
+    "scratch/decoder.py": "2ce4d50206a980b2f0b7af573e8ca79a55c53b2881f4e40de225103802b66832",
+    "scratch/deltanet.py": "663326eddc3430e01429fc03b589f0ae2d429baae3957629b92e5fcc9bb2b385",
+    "scratch/embedding.py": "b84579012816170b6c295df44a8db89f41ba9325a70cb6aa1883fd6a45c5258e",
+    "scratch/layers.py": "8ca670ba075e863e11f5ee7282294740f29a1fed40b2bd46646bb834779d0fbd",
+    "scratch/lut.py": "bcee413a1f29b8f9037457a31c09fce1db8c3add5e9203c8d45fff2254396370",
+    "scratch/numeric.py": "8c0e74d47b70ed40439558b102727d30c22df65b9c2687388ce02be1baf6c88c",
+    "scratch/text.py": "355f2ce1180cf66072dc5b8d1de4c578efe51d653815cc09b0fa9b5afcef5ff2",
+    "scratch/transform.py": "ac3f90259433ac840a6c948b4e295870b88a043f3b132cf0e3a3a89368450745"
+  },
+  "generator_sha256": "bbcec87b979ad6a9ccfaa9062f7d81c8f65df47aa75be5f85bd39930069fb9b3",
+  "note": "One mode-42 decode step (24 layers + output_norm + head scan + greedy), Node VM, no renderer.",
+  "runs": [
+    {
+      "wall_seconds": 82.44544795504771,
+      "cpu_seconds": 68.641982,
+      "tile": 640,
+      "framerate": 250,
+      "BS greedy token": 846,
+      "BS greedy logit": 7.9554362297058105,
+      "BS second logit": 7.815563201904297
+    }
+  ],
+  "summary_by_tile": {
+    "640": {
+      "wall_seconds": [
+        82.44544795504771
+      ],
+      "cpu_seconds": [
+        68.641982
+      ],
+      "median_wall_seconds": 82.44544795504771,
+      "median_cpu_seconds": 68.641982
+    }
+  }
+}
