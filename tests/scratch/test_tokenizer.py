@@ -48,6 +48,23 @@ class ScratchTokenizerTests(unittest.TestCase):
                     self.assertEqual(row['tokens'], expected)
 
 
+    def test_detokenizer_holds_a_split_character(self):
+        """Token 127 ends with the lead byte 0xC3 and token 102 starts with 0xA9: bytes C3 A9 are "é"."""
+        project = Path(tempfile.mkdtemp(dir=os.environ.get('BONSAI_FIXTURE_TMP'))) / 'split.sb3'
+        generated = subprocess.run([sys.executable, str(ROOT / 'tools/generate_project.py'), str(project),
+                                    '--text', '--benchmark'], capture_output=True, text=True)
+        self.assertEqual(generated.returncode, 0, generated.stderr)
+        for tokens, expected in (([127], ''), ([127, 102], 'é')):
+            with self.subTest(tokens=tokens):
+                env = {key: value for key, value in os.environ.items()
+                       if key in ('BONSAI_TURBOWARP_VM', 'BONSAI_MODEL_PACKAGE', 'NODE_PATH')}
+                env.update(BONSAI_OUT_TOKENS=json.dumps(tokens), BONSAI_TIMEOUT_MS='240000',
+                           BONSAI_DEBUG_VARS='BS text')
+                run = subprocess.run(['node', str(ROOT / 'tests/scratch/run-vm.js'), str(project),
+                                      '--detokenize', '23'], env=env, capture_output=True, text=True, timeout=600)
+                self.assertEqual(run.returncode, 0, run.stderr)
+                self.assertEqual(json.loads(run.stdout)['BS text'], expected)
+
     def test_detokenizer_round_trips_the_fixture_text(self):
         tokens = [424, 579, 220, 109266, 26594]
         with tempfile.TemporaryDirectory() as temp:
