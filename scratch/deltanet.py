@@ -147,9 +147,12 @@ def delta(h):
     q = lambda hd, d: item('BS q', 'l_q', add(add(mul(hd, 128), d), 1))
     vv = lambda hd, d: item('BS v', 'l_v', add(add(mul(hd, 128), d), 1))
     state = lambda hd, row, col: item('BS state', 'l_state',
-                                      add(add(mul(hd, 16384), mul(row, 128)), add(col, 1)))
+                                      add(add(add(mul(v('state base'), 1),
+                                                  add(mul(hd, 16384), mul(row, 128))), add(col, 1)), 0))
     replace_state = lambda hd, row, col, value: ('data_replaceitemoflist',
-                                                 {'INDEX': add(add(mul(hd, 16384), mul(row, 128)), add(col, 1)),
+                                                 {'INDEX': add(add(add(mul(v('state base'), 1),
+                                                                       add(mul(hd, 16384), mul(row, 128))),
+                                                                   add(col, 1)), 0),
                                                   'ITEM': value}, {'LIST': ['BS state', 'l_state']}, {})
     decay = item('BS decay', 'l_decay', add(head, 1))
     # The state is stored transposed: row j of M is column j of S.
@@ -177,9 +180,7 @@ def delta(h):
     fill = [setvar('BS dn i', 0),
             repeat(128, [addlist(0, 'BS state', 'l_state'), change('BS dn i', 1)])]
     return [('data_deletealloflist', {}, {'LIST': ['BS gdn out', 'l_gdn_out']}, {}),
-            conditional(eq(length('BS state', 'l_state'), 262144), [],
-                        [('data_deletealloflist', {}, {'LIST': ['BS state', 'l_state']}, {}),
-                         repeat(16, [repeat(128, fill)])]),
+            *attention.ensure(h, 'BS state', 'l_state', add(mul(v('state base'), 1), 262144)),
             setvar('BS dn head', 0), repeat(16, per_head)]
 
 

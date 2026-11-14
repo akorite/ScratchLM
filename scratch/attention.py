@@ -101,6 +101,37 @@ def matvec(h, tensor, rows, dest_name, dest_id, request='layer'):
                         [setvar('BS proj valid', 0)])]
 
 
+def ensure(h, dest, dest_id, size):
+    """Grow a list with zeros until it holds at least `size` items."""
+    var, op, length, addlist, repeat, change = (
+        h[n] for n in ('var', 'op', 'length', 'addlist', 'repeat', 'change'))
+    sub = lambda a, b: op('operator_subtract', NUM1=a, NUM2=b)
+    idx = var('BS fill')
+    return [setvar_zero(h), repeat(sub(size, length(dest, dest_id)),
+                                   [addlist(0, dest, dest_id), change('BS fill', 1)])]
+
+
+def setvar_zero(h):
+    return h['setvar']('BS fill', 0)
+
+
+def cache_write(h, source, source_id, dest, dest_id, position):
+    """Write one token's 512-float K or V cell at `base + position * 512`."""
+    var, op, item, setvar, repeat, change = (
+        h[n] for n in ('var', 'op', 'item', 'setvar', 'repeat', 'change'))
+    add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
+    mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
+    sub = lambda a, b: op('operator_subtract', NUM1=a, NUM2=b)
+    v = lambda name: var('BS ' + name)
+    cell = add(mul(v('kv base'), 1), mul(position, 512))
+    idx = v('fill')
+    return [*ensure(h, dest, dest_id, add(cell, 512)),
+            setvar_zero(h),
+            repeat(512, [transform.replace_item(add(cell, add(idx, 1)),
+                                                item(source, source_id, add(idx, 1)), dest, dest_id),
+                         change('BS fill', 1)])]
+
+
 def copy(h, source, source_id, dest, dest_id):
     """Replace the destination list with a copy of the source list."""
     var, item, length, setvar, addlist, repeat, change = (
@@ -211,8 +242,9 @@ def attention(h):
         'layer head', 'layer token', 'layer index', 'layer sum', 'layer maximum', 'layer weight'))
     query = lambda j: item('BS q', 'l_q', add(mul(head, 256), add(j, 1)))
     kv_head = h['floor'](div(head, 4))
-    kv = lambda cache: lambda j: item(cache[0], cache[1], add(add(mul(token, 512),
-                                                              mul(kv_head, 256)), add(j, 1)))
+    kv = lambda cache: lambda j: item(cache[0], cache[1],
+                                      add(add(add(mul(v('kv base'), 1), mul(token, 512)),
+                                              mul(kv_head, 256)), add(j, 1)))
     score = lambda t: item('BS scores', 'l_scores', add(t, 1))
     scores = [setvar('BS layer sum', 0), setvar('BS layer index', 0),
               repeat(256, [h['setvar']('BS f32 input', add(total, h['op'](
@@ -306,8 +338,8 @@ def layer(h):
         *copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
         *matvec(h, weight(h, '.attn_v.weight'), 512, 'BS v', 'l_v', request='layer-v'),
-        *append(h, 'BS k', 'l_k', 'BS k cache', 'l_k_cache'),
-        *append(h, 'BS v', 'l_v', 'BS v cache', 'l_v_cache'),
+        *cache_write(h, 'BS k', 'l_k', 'BS k cache', 'l_k_cache', v('layer position')),
+        *cache_write(h, 'BS v', 'l_v', 'BS v cache', 'l_v_cache', v('layer position')),
         ('data_deletealloflist', {}, {'LIST': ['BS attn', 'l_attn']}, {}),
         setvar('BS index', 0),
         repeat(2048, [addlist(0, 'BS attn', 'l_attn'), change('BS index', 1)]),
