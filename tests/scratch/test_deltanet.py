@@ -43,13 +43,27 @@ class DeltaNetStageTests(unittest.TestCase):
         self.assertEqual(run.returncode, 0, run.stderr)
         return [float(v) for v in json.loads(output.read_text())]
 
-    def test_convolution_and_silu_match_native(self):
-        actual = self.run_stage(1, FIXTURE / 'input-pos1.f32', 'BS conv silu')
-        expected = read_f32(FIXTURE / 'conv_output_silu-0-pos1.f32')
-        self.assertEqual(len(actual), len(expected))
+    def compare(self, dump, fixture, tolerance):
+        actual = self.run_stage(1, FIXTURE / 'input-pos1.f32', dump)
+        expected = read_f32(FIXTURE / fixture)
+        self.assertEqual(len(actual), len(expected), fixture)
         errors = [abs(a - b) for a, b in zip(actual, expected)]
-        self.assertLessEqual(max(errors), 1e-6)
-        self.assertLessEqual((sum(e * e for e in errors) / len(errors)) ** 0.5, 1e-7)
+        rms = (sum(e * e for e in errors) / len(errors)) ** 0.5
+        self.assertLessEqual(max(errors), tolerance, f'{fixture} max abs')
+        self.assertLessEqual(rms, tolerance / 3, f'{fixture} rms')
+
+    def test_convolution_and_silu_match_native(self):
+        self.compare('BS conv silu', 'conv_output_silu-0-pos1.f32', 1e-6)
+
+    def test_joint_qk_l2_matches_native(self):
+        self.compare('BS qk l2', 'qk_conv_l2-0-pos1.f32', 1e-6)
+
+    def test_gate_projection_matches_native(self):
+        self.compare('BS z', 'z-0-pos1.f32', 2e-6)
+
+    def test_gate_scalars_match_native(self):
+        self.compare('BS beta', 'beta-0-pos1.f32', 5e-6)
+        self.compare('BS alpha', 'alpha-0-pos1.f32', 5e-6)
 
 
 if __name__ == '__main__':

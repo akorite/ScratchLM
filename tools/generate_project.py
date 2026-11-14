@@ -380,7 +380,8 @@ def project(with_text=False, with_benchmark=False):
              'BS layer position', 'BS layer head', 'BS layer token', 'BS layer index', 'BS layer sum',
              'BS layer maximum', 'BS layer weight', 'BS layer divisor',
              'BS proj scanned', 'BS proj tile', 'BS proj valid', 'BS settle',
-             'BS dn channel', 'BS dn tap', 'BS dn sum')
+             'BS dn channel', 'BS dn tap', 'BS dn sum', 'BS dn row', 'BS dn index',
+             'BS dn head', 'BS dn scale')
     if with_benchmark:
         names += ('BS head rows', 'BS head tensor', 'BS tile size', 'BS tile count', 'BS tile row',
                   'BS scanned', 'BS head valid', 'BS cancel', 'BS benchmark transfer', 'BS groups per row')
@@ -420,7 +421,11 @@ def project(with_text=False, with_benchmark=False):
                      'l_conv_w': ['BS conv w', []], 'l_qkv': ['BS qkv', []],
                      'l_taps': ['BS taps', []], 'l_conv_raw': ['BS conv raw', []],
                      'l_conv_silu': ['BS conv silu', []], 'l_conv_state': ['BS conv state', []],
-                     'l_next_state': ['BS next state', []]},
+                     'l_next_state': ['BS next state', []],
+                     'l_z': ['BS z', []], 'l_beta_w': ['BS beta w', []], 'l_beta': ['BS beta', []],
+                     'l_alpha_w': ['BS alpha w', []], 'l_alpha': ['BS alpha', []],
+                     'l_qk': ['BS qk', []], 'l_qk_l2': ['BS qk l2', []],
+                     'l_q': ['BS q', []], 'l_k': ['BS k', []], 'l_v': ['BS v', []]},
              'broadcasts': {}, 'blocks': graph.blocks, 'comments': {}, 'currentCostume': 0,
              'costumes': [{'name': 'backdrop', 'dataFormat': 'svg', 'assetId': asset,
                            'md5ext': asset + '.svg', 'rotationCenterX': 240, 'rotationCenterY': 180}],
