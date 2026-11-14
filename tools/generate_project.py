@@ -8,7 +8,7 @@ import sys
 import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scratch import attention, decoder, deltanet, embedding, layers, lut, numeric, text, transform
+from scratch import attention, decoder, deltanet, embedding, layers, lut, numeric, text, tokenizer, transform
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -349,6 +349,9 @@ def project(with_text=False, with_benchmark=False):
                             [call_proc('BS deltanet', 'true')], fallback)]
     fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=42),
                             [call_proc('BS decode', 'true')], fallback)]
+    if with_text and with_benchmark:
+        fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=22),
+                                [call_proc('BS tokenize', 'true')], fallback)]
     for mode in (34, 35):
         fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=mode),
                                 layers.head_norm(globals(), gated=mode == 34), fallback)]
@@ -378,6 +381,9 @@ def project(with_text=False, with_benchmark=False):
     add_procedure(graph, 'BS head', lut.script(globals(), head=True), x=3000, warp='false')
     add_procedure(graph, 'BS embed', embedding.make(15, globals()), x=3300, warp='true')
     add_procedure(graph, 'BS decode', decoder_body, x=2700, warp='true')
+    if with_text and with_benchmark:
+        for index, (name, body) in enumerate(tokenizer.make(helpers).items()):
+            add_procedure(graph, name, body, x=3600 + 300 * index, warp='true')
 
     svg = (b'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>' if with_text else
            b'<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360"></svg>')
@@ -410,6 +416,13 @@ def project(with_text=False, with_benchmark=False):
     if with_text:
         names += ('BS text index', 'BS text unit', 'BS text next', 'BS text code', 'BS text equal',
                   'BS text needle', 'BS text result')
+    if with_text and with_benchmark:
+        names += ('BS prompt', 'BS cp index', 'BS pos', 'BS piece start', 'BS piece end', 'BS hit',
+                  'BS class', 'BS class here', 'BS class next', 'BS class scan', 'BS cp at',
+                  'BS search lo', 'BS search hi', 'BS search mid', 'BS scan index',
+                  'BS pair l', 'BS pair r', 'BS pair found', 'BS pair merged',
+                  'BS best rank', 'BS best merged', 'BS merge at', 'BS pair position',
+                  'BS ids count', 'BS ids index', 'BS lower', 'BS lower2', 'BS ws count', 'BS nl end')
     variables = {var(name)[2]: [name, 0] for name in names}
     variables[var('BS iterations')[2]][1] = 1
     variables[var('BS token id')[2]][1] = -1  # decode from `BS input` unless a token id is set
@@ -417,6 +430,8 @@ def project(with_text=False, with_benchmark=False):
     variables[var('BS head rows')[2]][1] = 248320
     variables[var('BS head tensor')[2]][1] = 'token_embd.weight'
     variables[var('BS tile size')[2]][1] = 640
+    if with_text and with_benchmark:
+        variables[var('BS prompt')[2]][1] = ''
     if with_benchmark:
         variables[var('BS mode')[2]][1] = 11
     stage = {'isStage': True, 'name': 'Stage', 'variables': variables,
@@ -455,6 +470,10 @@ def project(with_text=False, with_benchmark=False):
                      'l_state': ['BS state', []], 'l_gdn_out': ['BS gdn out', []],
                      'l_dt': ['BS dt', []], 'l_ssm_a': ['BS ssm a', []],
                      'l_prompt': ['BS prompt tokens', []],
+                     'l_cp': ['BS cp', []], 'l_ids': ['BS ids', []],
+                     'l_bpe_byte': ['BS bpe byte', []], 'l_bpe_left': ['BS bpe left', []],
+                     'l_bpe_right': ['BS bpe right', []], 'l_bpe_rank': ['BS bpe rank', []],
+                     'l_bpe_result': ['BS bpe result', []],
                      'l_cat_start': ['BS cat start', category_runs()[0]],
                      'l_cat_class': ['BS cat class', category_runs()[1]],
                      'l_final_out': ['BS final out', []], 'l_ssm_norm': ['BS ssm norm', []],
@@ -495,8 +514,9 @@ def project(with_text=False, with_benchmark=False):
 
 
 def main():
-    if len(sys.argv) not in (2, 3) or (len(sys.argv) == 3 and sys.argv[2] not in ('--text', '--benchmark')):
-        raise SystemExit('usage: generate_project.py OUTPUT.sb3 [--text|--benchmark]')
+    flags = set(sys.argv[2:])
+    if not sys.argv[1:] or flags - {'--text', '--benchmark'}:
+        raise SystemExit('usage: generate_project.py OUTPUT.sb3 [--text] [--benchmark]')
     data, name, svg = project(with_text='--text' in sys.argv, with_benchmark='--benchmark' in sys.argv)
     with zipfile.ZipFile(Path(sys.argv[1]), 'w', compression=zipfile.ZIP_DEFLATED) as archive:
         for filename, contents in (('project.json', data), (name, svg)):

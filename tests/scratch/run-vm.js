@@ -127,6 +127,11 @@ async function run() {
             if (process.env.BONSAI_DN_STATE) load(process.env.BONSAI_DN_STATE, 'BS state');
             if (process.env.BONSAI_CONV_STATE) load(process.env.BONSAI_CONV_STATE, 'BS conv state');
         }
+        if (process.env.BONSAI_PROMPT !== undefined) {
+            const promptVar = stage.lookupVariableByNameAndType('BS prompt', '');
+            if (!promptVar) throw new Error('project prompt variable is missing');
+            promptVar.value = process.env.BONSAI_PROMPT;
+        }
         if (process.env.BONSAI_PROMPT_TOKENS) {
             const prompt = stage.lookupVariableByNameAndType('BS prompt tokens', 'list');
             if (!prompt) throw new Error('project prompt token list is missing');
@@ -172,9 +177,16 @@ async function run() {
             worstGap = Math.max(worstGap, now - lastTick);
             lastTick = now;
         }, 5);
-        const steps = Number(process.env.BONSAI_STEPS || 1);
+        const prompts = process.env.BONSAI_PROMPTS ? JSON.parse(process.env.BONSAI_PROMPTS) : null;
+        const promptVar = stage.lookupVariableByNameAndType('BS prompt', '');
+        const steps = prompts ? prompts.length : Number(process.env.BONSAI_STEPS || 1);
         const produced = [];
         for (let step = 0; step < steps; step++) {
+            if (prompts) {
+                if (!promptVar) throw new Error('project prompt variable is missing');
+                promptVar.value = prompts[step];
+                output.value = [];
+            }
             done.value = 0;
             await vm.greenFlag();
             await new Promise((resolve, reject) => {
@@ -190,7 +202,8 @@ async function run() {
             }, 5);
             });
             const producedToken = stage.lookupVariableByNameAndType('BS greedy token', '');
-            if (producedToken) produced.push(Number(producedToken.value));
+            if (prompts) produced.push({prompt: prompts[step], tokens: output.value.map(Number)});
+            else if (producedToken) produced.push(Number(producedToken.value));
         }
         clearInterval(heartbeat);
         worstGap = Math.max(worstGap, performance.now() - lastTick);
@@ -257,6 +270,8 @@ async function run() {
                 return `list:${l.value.length}:${JSON.stringify(l.value.slice(0, 4))}:${JSON.stringify(l.value.slice(-4))}`;
             };
             process.stdout.write(JSON.stringify(Object.fromEntries(names.map(n => [n, read(n)]))) + '\n');
+        } else if (prompts) {
+            process.stdout.write(JSON.stringify({prompts: produced}) + '\n');
         } else if (steps > 1) {
             process.stdout.write(JSON.stringify({tokens: produced}) + '\n');
         } else if (process.argv[4] === '42') {
