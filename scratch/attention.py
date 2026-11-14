@@ -224,7 +224,8 @@ def gate_mul(h, vec, vec_id, gate, gate_id, dest, dest_id):
                         [h['setvar']('BS f32 input', div(value, add(1, math('e ^', mul(-1, g)))))],
                         [h['setvar']('BS f32 input', mul(value, div(math('e ^', g), add(1, math('e ^', g))))) ]),
             h['call_f32'](), addlist(var('BS f32 output'), dest, dest_id), change('BS index', 1)]
-    return [setvar('BS index', 1), repeat(length(vec, vec_id), body)]
+    return [('data_deletealloflist', {}, {'LIST': [dest, dest_id]}, {}),
+            setvar('BS index', 1), repeat(length(vec, vec_id), body)]
 
 
 def attention(h):
@@ -293,7 +294,9 @@ def layer(h):
     lt = lambda a, b: op('operator_lt', OPERAND1=a, OPERAND2=b)
     v = lambda name: var('BS ' + name)
     codec = ('bonsailoader_codec', {}, {}, False)
-    split = [setvar('BS layer head', 0),
+    split = [('data_deletealloflist', {}, {'LIST': ['BS q', 'l_q']}, {}),
+             ('data_deletealloflist', {}, {'LIST': ['BS gate', 'l_gate']}, {}),
+             setvar('BS layer head', 0),
              repeat(8, [setvar('BS index', 0),
                         repeat(256, [addlist(item('BS q full', 'l_q_full',
                                                   add(add(mul(v('layer head'), 512), v('index')), 1)),

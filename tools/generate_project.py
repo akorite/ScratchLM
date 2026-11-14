@@ -8,7 +8,7 @@ import sys
 import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scratch import attention, deltanet, embedding, layers, lut, numeric, text, transform
+from scratch import attention, decoder, deltanet, embedding, layers, lut, numeric, text, transform
 
 
 class Blocks:
@@ -327,10 +327,15 @@ def project(with_text=False, with_benchmark=False):
     # Keep the layer body in a procedure: the main script must stay small enough to compile.
     layer_body = attention.layer(helpers)
     deltanet_body = deltanet.stage(helpers)
+    decode_helpers = dict(helpers, call_deltanet=lambda: call_proc('BS deltanet', 'true'),
+                          call_attention=lambda: call_proc('BS layer', 'true'))
+    decoder_body = decoder.stack(decode_helpers)
     fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=40),
                             [call_proc('BS layer', 'true')], fallback)]
     fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=41),
                             [call_proc('BS deltanet', 'true')], fallback)]
+    fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=42),
+                            [call_proc('BS decode', 'true')], fallback)]
     for mode in (34, 35):
         fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=mode),
                                 layers.head_norm(globals(), gated=mode == 34), fallback)]
@@ -357,6 +362,7 @@ def project(with_text=False, with_benchmark=False):
     add_procedure(graph, 'BS hadamard', transform.hadamard(globals(), inline=True), x=1800, warp='true')
     add_procedure(graph, 'BS layer', layer_body, x=2100, warp='true')
     add_procedure(graph, 'BS deltanet', deltanet_body, x=2400, warp='true')
+    add_procedure(graph, 'BS decode', decoder_body, x=2700, warp='true')
     if with_benchmark:
         add_procedure(graph, 'BS head', lut.script(globals(), head=True), x=2400, warp='false')
     svg = (b'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>' if with_text else
@@ -377,7 +383,9 @@ def project(with_text=False, with_benchmark=False):
              'BS iterations', 'BS benchmark start', 'BS benchmark quant', 'BS benchmark setup', 'BS benchmark compute',
              'BS rope position', 'BS rope head', 'BS rope pair', 'BS rope x', 'BS rope y',
              'BS rope theta', 'BS rope cosine', 'BS rope sine', 'BS rope width', 'BS rope heads',
-             'BS layer', 'BS layer position', 'BS layer head', 'BS kv base', 'BS state base', 'BS fill', 'BS layer token', 'BS layer index', 'BS layer sum',
+             'BS layer', 'BS layer position', 'BS layer head', 'BS kv base', 'BS state base', 'BS fill',
+             'BS conv base',
+             'BS dn slot', 'BS attn slot', 'BS layer token', 'BS layer index', 'BS layer sum',
              'BS layer maximum', 'BS layer weight', 'BS layer divisor',
              'BS proj scanned', 'BS proj tile', 'BS proj valid', 'BS settle',
              'BS dn channel', 'BS dn tap', 'BS dn sum', 'BS dn row', 'BS dn index',

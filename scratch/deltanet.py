@@ -5,7 +5,7 @@ the delta rule, the gated norm and the output projection. All arithmetic stays
 in Scratch; weight tiles come from the selected package through the loader.
 """
 
-from scratch import attention, embedding
+from scratch import attention, embedding, transform
 
 weight = attention.weight
 
@@ -27,11 +27,12 @@ def conv(h):
     channel, tap, total = v('dn channel'), v('dn tap'), v('dn sum')
     # The dense conv1d tensor is channel-major: tap t of channel c lives at c*4+t.
     weight = lambda t: item('BS conv w', 'l_conv_w', add(mul(channel, TAPS), add(t, 1)))
-    # Taps 0..2 are history; tap 3 is this token's fused QKV projection.
+    # Taps 0..2 are history for this layer; tap 3 is this token's fused QKV projection.
+    conv_base = add(mul(v('conv base'), 1), mul(tap, CONV_WIDTH))
     sample = [conditional(eq(tap, TAPS - 1),
                           [addlist(item('BS qkv', 'l_qkv', add(channel, 1)), 'BS taps', 'l_taps')],
                           [addlist(item('BS conv state', 'l_conv_state',
-                                        add(mul(tap, CONV_WIDTH), add(channel, 1))), 'BS taps', 'l_taps')]),
+                                        add(conv_base, add(channel, 1))), 'BS taps', 'l_taps')]),
               change('BS dn tap', 1)]
     accumulate = [h['setvar']('BS f32 input', add(total, mul(item('BS taps', 'l_taps', add(tap, 1)),
                                                               weight(tap)))), h['call_f32'](),
@@ -49,22 +50,35 @@ def conv(h):
 
 
 def shift_state(h):
-    """Roll the circular buffer: the new history is old taps 1..2 plus this token."""
-    var, op, item, setvar, addlist, repeat, change = (
-        h[name] for name in ('var', 'op', 'item', 'setvar', 'addlist', 'repeat', 'change'))
+    """Roll the circular buffer: the new taps are old taps 1..2 plus this token."""
+    var, op, item, setvar, addlist, conditional, repeat, change = (
+        h[name] for name in ('var', 'op', 'item', 'setvar', 'addlist', 'conditional', 'repeat', 'change'))
     add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
     mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
+    eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
     v = lambda name: var('BS ' + name)
-    roll = [setvar('BS dn tap', 0),
-            repeat(TAPS - 2, [addlist(item('BS conv state', 'l_conv_state',
-                                           add(mul(add(v('dn tap'), 1), CONV_WIDTH), add(v('dn channel'), 1))),
-                                    'BS next state', 'l_next_state'),
-                              change('BS dn tap', 1)]),
-            addlist(item('BS qkv', 'l_qkv', add(v('dn channel'), 1)), 'BS next state', 'l_next_state'),
-            change('BS dn channel', 1)]
+    base = mul(v('conv base'), 1)
+    # Next state stays tap-major, matching the buffer layout: tap t of channel c at t*6144+c.
+    per_channel = [conditional(eq(v('dn tap'), TAPS - 2),
+                               [addlist(item('BS qkv', 'l_qkv', add(v('dn channel'), 1)),
+                                        'BS next state', 'l_next_state')],
+                               [addlist(item('BS conv state', 'l_conv_state',
+                                             add(add(base, mul(add(v('dn tap'), 1), CONV_WIDTH)),
+                                                 add(v('dn channel'), 1))),
+                                        'BS next state', 'l_next_state')]),
+                   change('BS dn channel', 1)]
+    build = [setvar('BS dn tap', 0),
+             repeat(TAPS - 1, [setvar('BS dn channel', 0), repeat(CONV_WIDTH, per_channel),
+                               change('BS dn tap', 1)])]
+    write = [transform.replace_item(add(add(base, v('dn channel')), 1),
+                                    item('BS next state', 'l_next_state', add(v('dn channel'), 1)),
+                                    'BS conv state', 'l_conv_state'),
+             change('BS dn channel', 1)]
     return [('data_deletealloflist', {}, {'LIST': ['BS next state', 'l_next_state']}, {}),
-            setvar('BS dn channel', 0), repeat(CONV_WIDTH, roll),
-            *attention.copy(h, 'BS next state', 'l_next_state', 'BS conv state', 'l_conv_state')]
+            *build,
+            *attention.ensure(h, 'BS conv state', 'l_conv_state',
+                              add(base, (TAPS - 1) * CONV_WIDTH)),
+            setvar('BS dn channel', 0), repeat((TAPS - 1) * CONV_WIDTH, write)]
 
 
 def dense_rows(h, weight_name, weight_id, rows, dest, dest_id):
