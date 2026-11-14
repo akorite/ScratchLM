@@ -23,7 +23,7 @@ def main():
     parser.add_argument('--bslut4', required=True, type=Path)
     parser.add_argument('--bslut5', type=Path)
     parser.add_argument('--output', required=True, type=Path)
-    parser.add_argument('--tile-rows-2048', type=int, default=1280)
+    parser.add_argument('--tile-rows-2048', type=int, default=640)
     parser.add_argument('--repetitions', type=int, default=3)
     args = parser.parse_args()
     if args.repetitions < 1:

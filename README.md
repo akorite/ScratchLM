@@ -42,7 +42,9 @@ The [storage-only extension](docs/extension.md) loads a locally selected package
 
 The compiled VM integration tests insert the real loader block into a test copy, load a real model row, disable further loader reads, and execute the resident Scratch arithmetic. They use the audited VM source pin; this does not pin a deployed TurboWarp application build.
 
-Generate the separate text proof with `python3 tools/generate_project.py dist/text-proof.sb3 --text`. It uses 256 hidden sprites for exact UTF-16 code-unit lookup; see the numerical contract for its substantial measured startup and memory cost. `python3 tools/generate_project.py dist/head-benchmark.sb3 --benchmark` generates the streaming head project (1,280-row default tiles, 250 fps pacing): mode 11 scans all 248,320 rows from a transformed input, while mode 17 runs the end-to-end M4 head (`output_norm` → signs+Hadamard → Q8_K → all 248,320 rows → greedy token); load the storage extension and select a package first.
+Generate the separate text proof with `python3 tools/generate_project.py dist/text-proof.sb3 --text`. It uses 256 hidden sprites for exact UTF-16 code-unit lookup; see the numerical contract for its substantial measured startup and memory cost. `python3 tools/generate_project.py dist/head-benchmark.sb3 --benchmark` generates the streaming head project (640-row default tiles, 250 fps pacing): mode 11 scans all 248,320 rows from a transformed input, while mode 17 runs the end-to-end M4 head (`output_norm` → signs+Hadamard → Q8_K → all 248,320 rows → top-8 and greedy token); load the storage extension and select a package first.
+
+For full-logit head validation, generate an external native reference using `tools/reference/reference.py run` with token `1`, context `8`, and `--capture result`; pass its `manifest.json` and `logits-0.f32` to `benchmarks/head.py` using `--native-manifest` and `--native-logits` alongside `--m4-manifest fixtures/native/m4/head/manifest.json`. The benchmark verifies provenance and compares every logit; the native vector is not stored in Git.
 
 ## Tests
 

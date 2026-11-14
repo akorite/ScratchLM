@@ -137,7 +137,9 @@ def script(h, head=False):
                                            repeat(length('BS weight scales', 'l_scales'), group)]),
                  setvar('BS benchmark compute', sub(timer, v('benchmark start'))),
                  conditional(eq(v('dot valid'), 1), [addlist(v('total'))], [addlist('nonfinite')])]
-    return [conditional(valid, work, ([setvar('BS head valid', 0)] if head else []) + [addlist('invalid dimensions')])]
+    result = [conditional(valid, work, ([setvar('BS head valid', 0)] if head else []) + [addlist('invalid dimensions')])]
+    # A post-completion flag is indistinguishable from a new pre-tile request.
+    return result + ([setvar('BS cancel', 0)] if head else [])
 
 
 def greedy_select(h, list_name='BS output', list_id='l_output'):
@@ -145,26 +147,42 @@ def greedy_select(h, list_name='BS output', list_id='l_output'):
         h[name] for name in ('var', 'op', 'item', 'length', 'setvar', 'conditional', 'repeat', 'change'))
     gt = lambda a, b: op('operator_gt', OPERAND1=a, OPERAND2=b)
     sub = lambda a, b: op('operator_subtract', NUM1=a, NUM2=b)
-    val = var('BS x')
-    idx = var('BS index')
+    add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
+    eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
+    tokens, logits = ('BS top tokens', 'l_top_tokens'), ('BS top logits', 'l_top_logits')
+    n = length(*logits)
+    value, index, pos, scan = (var('BS x'), var('BS index'), var('BS top position'), var('BS top scan'))
+    insert = lambda target, value: ('data_insertatlist', {'INDEX': pos, 'ITEM': value},
+                                    {'LIST': list(target)}, {})
+    delete = lambda target, index: ('data_deleteoflist', {'INDEX': index}, {'LIST': list(target)}, {})
+    clear = lambda target: ('data_deletealloflist', {}, {'LIST': list(target)}, {})
+    # Ascending token scan and strict comparisons keep lower IDs first on ties.
     step = [
-        setvar('BS x', item(list_name, list_id, idx)),
-        conditional(gt(val, var('BS greedy logit')), [
-            setvar('BS second logit', var('BS greedy logit')),
-            setvar('BS greedy logit', val),
-            setvar('BS greedy token', sub(idx, 1)),
-        ], [
-            conditional(gt(val, var('BS second logit')), [setvar('BS second logit', val)]),
+        setvar('BS x', item(list_name, list_id, index)),
+        conditional(op('operator_or', OPERAND1=op('operator_lt', OPERAND1=n, OPERAND2=8),
+                       OPERAND2=gt(value, item(*logits, n))), [
+            setvar('BS top position', add(n, 1)),
+            setvar('BS top scan', 1),
+            repeat(n, [
+                conditional(op('operator_and', OPERAND1=eq(pos, add(n, 1)),
+                               OPERAND2=gt(value, item(*logits, scan))),
+                            [setvar('BS top position', scan)]),
+                change('BS top scan', 1),
+            ]),
+            insert(tokens, sub(index, 1)), insert(logits, value),
+            conditional(gt(n, 8), [delete(tokens, 9), delete(logits, 9)]),
         ]),
         change('BS index', 1),
     ]
     return [
-        conditional(gt(length(list_name, list_id), 0), [
-            setvar('BS greedy token', 0),
-            setvar('BS greedy logit', item(list_name, list_id, 1)),
+        clear(tokens), clear(logits),
+        setvar('BS index', 1),
+        repeat(length(list_name, list_id), step),
+        conditional(gt(n, 0), [
+            setvar('BS greedy token', item(*tokens, 1)),
+            setvar('BS greedy logit', item(*logits, 1)),
             setvar('BS second logit', -1e38),
-            setvar('BS index', 2),
-            repeat(sub(length(list_name, list_id), 1), step),
+            conditional(gt(n, 1), [setvar('BS second logit', item(*logits, 2))]),
         ]),
     ]
 
@@ -201,10 +219,14 @@ def pipeline(h, call_head=None):
                   OPERAND1=op('operator_gt', OPERAND1=in_len, OPERAND2=0),
                   OPERAND2=eq(op('operator_mod', NUM1=in_len, NUM2=512), 0))
     return [
+        ('data_deletealloflist', {}, {'LIST': ['BS top tokens', 'l_top_tokens']}, {}),
+        ('data_deletealloflist', {}, {'LIST': ['BS top logits', 'l_top_logits']}, {}),
         setvar('BS head valid', 1),
         conditional(valid_in,
                     load_norm + load_signs + [
                         conditional(eq(var('BS head valid'), 1), run_pipeline, [addlist('error')]),
                     ],
                     [setvar('BS head valid', 0), addlist('invalid dimensions')]),
+        # As with the head, post-completion flags belong to the next run.
+        setvar('BS cancel', 0),
     ]

@@ -149,6 +149,8 @@ async function run() {
         const greedyLogitVar = stage.lookupVariableByNameAndType('BS greedy logit', '');
         const secondLogitVar = stage.lookupVariableByNameAndType('BS second logit', '');
         const scannedVar = stage.lookupVariableByNameAndType('BS scanned', '');
+        const topTokens = stage.lookupVariableByNameAndType('BS top tokens', 'list');
+        const topLogits = stage.lookupVariableByNameAndType('BS top logits', 'list');
         if (process.env.BONSAI_BENCHMARK) {
             const get = name => stage.lookupVariableByNameAndType(`BS benchmark ${name}`, '').value;
             process.stdout.write(JSON.stringify({output: output.value, quant_tick_seconds: get('quant'),
@@ -159,6 +161,8 @@ async function run() {
                 greedy_token: m4 && greedyVar ? Number(greedyVar.value) : null,
                 greedy_logit: m4 && greedyLogitVar ? Number(greedyLogitVar.value) : null,
                 second_logit: m4 && secondLogitVar ? Number(secondLogitVar.value) : null,
+                top_k_tokens: m4 ? topTokens.value.map(Number) : null,
+                top_k_logits: m4 ? topLogits.value.map(Number) : null,
                 loader_requests: loaderRequests, loader_read_ms: loaderReadMs,
                 loader_command_ms: loaderCommandMs,
                 worst_event_loop_gap_ms: worstGap, peak_rss_bytes: process.resourceUsage().maxRSS * 1024}) + '\n');
@@ -168,8 +172,13 @@ async function run() {
                 greedy_token: Number(greedyVar.value),
                 greedy_logit: Number(greedyLogitVar.value),
                 second_logit: Number(secondLogitVar.value),
+                top_k_tokens: topTokens.value.map(Number),
+                top_k_logits: topLogits.value.map(Number),
                 logits: output.value,
             }) + '\n');
+        } else if (Number(mode.value) === 18) {
+            process.stdout.write(JSON.stringify({output: output.value,
+                top_k_tokens: topTokens.value.map(Number), top_k_logits: topLogits.value.map(Number)}) + '\n');
         } else {
             process.stdout.write(JSON.stringify(output.value) + '\n');
         }

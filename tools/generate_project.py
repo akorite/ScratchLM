@@ -353,7 +353,7 @@ def project(with_text=False, with_benchmark=False):
              'BS lut level', 'BS lut next',
              'BS hadamard block', 'BS hadamard step', 'BS hadamard outer', 'BS hadamard pair',
              'BS hadamard u', 'BS hadamard v', 'BS token id',
-             'BS greedy token', 'BS greedy logit', 'BS second logit',
+             'BS greedy token', 'BS greedy logit', 'BS second logit', 'BS top position', 'BS top scan',
              'BS iterations', 'BS benchmark start', 'BS benchmark quant', 'BS benchmark setup', 'BS benchmark compute')
     if with_benchmark:
         names += ('BS head rows', 'BS head tensor', 'BS tile size', 'BS tile count', 'BS tile row',
@@ -366,7 +366,7 @@ def project(with_text=False, with_benchmark=False):
     if with_benchmark:
         variables[var('BS head rows')[2]][1] = 248320
         variables[var('BS head tensor')[2]][1] = 'token_embd.weight'
-        variables[var('BS tile size')[2]][1] = 1280
+        variables[var('BS tile size')[2]][1] = 640
         variables[var('BS mode')[2]][1] = 11
     stage = {'isStage': True, 'name': 'Stage', 'variables': variables,
              'lists': {'l_input': ['BS input', [0, 1, 15360, 31744]], 'l_output': ['BS output', []],
@@ -375,7 +375,8 @@ def project(with_text=False, with_benchmark=False):
                        'l_packed': ['BS packed bytes', []], 'l_scales': ['BS weight scales', []],
                        'l_q8': ['BS q8', []], 'l_raw_powers': ['BS raw powers', [1, 4, 16, 64]],
                       'l_trit_powers': ['BS trit powers', [1, 3, 9, 27, 81]], 'l_lut': ['BS lut', []],
-                     'l_signs': ['BS signs', []], 'l_norm_weights': ['BS norm weights', []]},
+                     'l_signs': ['BS signs', []], 'l_norm_weights': ['BS norm weights', []],
+                     'l_top_tokens': ['BS top tokens', []], 'l_top_logits': ['BS top logits', []]},
              'broadcasts': {}, 'blocks': graph.blocks, 'comments': {}, 'currentCostume': 0,
              'costumes': [{'name': 'backdrop', 'dataFormat': 'svg', 'assetId': asset,
                            'md5ext': asset + '.svg', 'rotationCenterX': 240, 'rotationCenterY': 180}],

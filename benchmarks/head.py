@@ -16,6 +16,50 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 
+def load_m4_native(fixture, manifest, path):
+    if fixture['schema'] != 'bonsai-native-m4-head/v1' or manifest['schema'] != 'bonsai-native-reference/v1':
+        raise ValueError('unexpected native manifest schema')
+    for key in ('model', 'runtime', 'requested_context', 'vocabulary_size'):
+        if fixture[key] != manifest[key]:
+            raise ValueError(f'native {key} does not match M4 fixture')
+    if (fixture['build']['binary']['sha256'] != manifest['build']['binary']['sha256']
+            or manifest['input_tokens'] != fixture['input_tokens'][:1]
+            or manifest['vocabulary_size'] != 248320):
+        raise ValueError('native build, input tokens, or vocabulary does not match M4 fixture')
+    captures = [c for c in manifest['captures'] if c['name'] == 'result_norm' and c['role'] == 'out']
+    if len(captures) != 1 or captures[0]['payload']['sha256'] != fixture['post_norm']['sha256']:
+        raise ValueError('native result_norm capture does not match M4 fixture')
+    step = manifest['steps'][0]
+    if step['index'] != 0 or step['token'] != fixture['input_tokens'][0]:
+        raise ValueError('native logits step does not match M4 fixture')
+    data = path.read_bytes()
+    sha = hashlib.sha256(data).hexdigest()
+    info = step['logits']
+    if len(data) != 248320 * 4 or info['bytes'] != len(data) or info['sha256'] != sha:
+        raise ValueError('native full logits size or SHA-256 mismatch')
+    values = struct.unpack('<248320f', data)
+    if not all(math.isfinite(v) for v in values):
+        raise ValueError('native full logits contain nonfinite values')
+    order = sorted(range(len(values)), key=lambda i: (-values[i], i))[:len(fixture['top_k'])]
+    if ([{'token': i, 'logit': values[i]} for i in order] != fixture['top_k']):
+        raise ValueError('native full logits top-k does not match M4 fixture')
+    return values, sha
+
+
+def logit_metrics(logits, native):
+    if len(logits) != len(native) or not logits or not all(
+            isinstance(v, (int, float)) and math.isfinite(v) for v in (*logits, *native)):
+        raise ValueError('incomplete or nonfinite head logits')
+    errors = [value - reference for value, reference in zip(logits, native)]
+    cosine = math.fsum(value * reference for value, reference in zip(logits, native))
+    norm = math.sqrt(math.fsum(value * value for value in logits) *
+                     math.fsum(value * value for value in native))
+    return {'max_abs_error': max(abs(value) for value in errors),
+            'max_relative_error': max(abs(value - reference) / max(abs(reference), 1e-12)
+                                      for value, reference in zip(logits, native)),
+            'rms_error': math.sqrt(math.fsum(value * value for value in errors) / len(errors)),
+            'cosine': cosine / norm if norm else None}
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -25,25 +69,36 @@ def main():
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--native-projection', type=Path)
     parser.add_argument('--m4-manifest', type=Path)
+    parser.add_argument('--native-logits', type=Path, help='full logits from reference.py run')
+    parser.add_argument('--native-manifest', type=Path, help='manifest from the same reference.py run')
     parser.add_argument('--repetitions', type=int, default=3)
-    parser.add_argument('--tile-rows', type=int, default=1280)
+    parser.add_argument('--tile-rows', type=int, default=640)
     args = parser.parse_args()
     if args.repetitions < 1 or not 1 <= args.tile_rows <= 7710:
         parser.error('repetitions must be positive and tile-rows in 1..7710')
     if args.m4_manifest:
         if not args.bslut5 and not args.bslut4 and not args.raw:
             parser.error('--m4-manifest requires at least one package flag')
+        if not args.native_logits or not args.native_manifest:
+            parser.error('--m4-manifest requires --native-logits and --native-manifest')
         m4_manifest = json.loads(args.m4_manifest.read_text())
         pre_norm_path = (args.m4_manifest.parent / m4_manifest['pre_norm']['file']).resolve()
-        native = None
-        native_bytes = b''
+        pre_norm = pre_norm_path.read_bytes()
+        if (len(pre_norm) != m4_manifest['pre_norm']['bytes'] or
+                hashlib.sha256(pre_norm).hexdigest() != m4_manifest['pre_norm']['sha256']):
+            parser.error('M4 pre-norm activation size or SHA-256 mismatch')
+        native, native_sha = load_m4_native(m4_manifest, json.loads(args.native_manifest.read_text()),
+                                            args.native_logits)
     else:
+        if args.native_logits or args.native_manifest:
+            parser.error('--native-logits and --native-manifest require --m4-manifest')
         if not args.raw or not args.bslut4 or not args.native_projection:
             parser.error('--raw, --bslut4, and --native-projection are required without --m4-manifest')
         native_bytes = args.native_projection.read_bytes()
         if len(native_bytes) != 248320 * 4:
             parser.error('native projection must contain 248320 little-endian F32 values')
         native = struct.unpack('<248320f', native_bytes)
+        native_sha = hashlib.sha256(native_bytes).hexdigest()
     cpu = platform.processor()
     cpuinfo = Path('/proc/cpuinfo')
     if cpuinfo.exists():
@@ -77,23 +132,17 @@ def main():
                     checksum = digest
                 if digest != checksum:
                     raise RuntimeError('head output differs across repeated runs or codecs')
+                result.update(logit_metrics(logits, native))
                 if args.m4_manifest:
-                    order = sorted(range(len(logits)), key=lambda i: -logits[i])[:len(m4_manifest['top_k'])]
+                    tokens = result['top_k_tokens']
                     top_errs = [logits[entry['token']] - entry['logit'] for entry in m4_manifest['top_k']]
-                    result.update({'top_k_tokens': order,
-                                   'top_k_match': order == [entry['token'] for entry in m4_manifest['top_k']],
+                    margin = m4_manifest['margin_top1_top2']
+                    result.update({'top_k_match': tokens == [entry['token'] for entry in m4_manifest['top_k']],
+                                   'greedy_match': result['greedy_token'] == m4_manifest['greedy_token'],
                                    'top_k_max_abs_error': max(abs(x) for x in top_errs),
-                                   'margin': result['greedy_logit'] - result['second_logit']})
-                else:
-                    errors = [value - reference for value, reference in zip(logits, native)]
-                    cosine = math.fsum(value * reference for value, reference in zip(logits, native))
-                    norm = math.sqrt(math.fsum(value * value for value in logits) *
-                                     math.fsum(value * value for value in native))
-                    result.update({'max_abs_error': max(abs(value) for value in errors),
-                                   'max_relative_error': max(abs(value - reference) / max(abs(reference), 1e-12)
-                                                             for value, reference in zip(logits, native)),
-                                   'rms_error': math.sqrt(math.fsum(value * value for value in errors) / len(errors)),
-                                   'cosine': cosine / norm if norm else None})
+                                   'margin': result['greedy_logit'] - result['second_logit'],
+                                   'native_margin': margin,
+                                   'native_margin_exceeds_twice_max_error': margin > 2 * result['max_abs_error']})
                 result.update({'wall_seconds': wall, 'rows': len(logits), 'output_f32_sha256': digest})
                 runs.append(result)
             times = [run['wall_seconds'] for run in runs]
@@ -107,7 +156,9 @@ def main():
                'benchmark_project_sha256': project_sha256, 'warp_timer': False,
                'framerate': int(os.environ.get('BONSAI_FRAMERATE', 250)),
                'node_version': subprocess.check_output(['node', '--version'], text=True).strip(),
-               'native_projection_sha256': hashlib.sha256(native_bytes).hexdigest() if native_bytes else None,
+               'native_projection_sha256': native_sha,
+               'native_manifest_sha256': (hashlib.sha256(args.native_manifest.read_bytes()).hexdigest()
+                                          if args.m4_manifest else None),
                'tile_rows': args.tile_rows, 'tile_group_bytes': args.tile_rows * 16 * 34,
                'note': ('End-to-end M4 head (output_norm -> signs+Hadamard -> Q8_K -> 248,320-row scan -> greedy).'
                         if args.m4_manifest else

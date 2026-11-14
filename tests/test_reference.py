@@ -13,6 +13,67 @@ spec = importlib.util.spec_from_file_location("reference", SCRIPT)
 reference = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(reference)
 
+HEAD_SCRIPT = SCRIPT.parents[2] / "benchmarks/head.py"
+head_spec = importlib.util.spec_from_file_location("head_benchmark", HEAD_SCRIPT)
+head = importlib.util.module_from_spec(head_spec)
+head_spec.loader.exec_module(head)
+
+
+class HeadEvidenceTests(unittest.TestCase):
+    def test_full_native_evidence_checks_hash_provenance_and_all_rows(self):
+        import copy
+        import hashlib
+        import struct
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            data = struct.pack("<248320f", *([0.0] * 248319 + [2.0]))
+            path = root / "logits-0.f32"
+            path.write_bytes(data)
+            fixture = {
+                "schema": "bonsai-native-m4-head/v1", "model": {"sha256": "model"},
+                "runtime": {"threads": 1}, "build": {"binary": {"sha256": "binary"}},
+                "requested_context": 8, "input_tokens": [1, 321], "vocabulary_size": 248320,
+                "post_norm": {"sha256": "activation"}, "top_k": [{"token": 248319, "logit": 2.0}],
+            }
+            native = {
+                "schema": "bonsai-native-reference/v1", "model": fixture["model"],
+                "runtime": fixture["runtime"], "build": fixture["build"],
+                "requested_context": 8, "input_tokens": [1], "vocabulary_size": 248320,
+                "captures": [{"name": "result_norm", "role": "out",
+                              "payload": {"sha256": "activation"}}],
+                "steps": [{"index": 0, "token": 1, "logits": {
+                    "file": path.name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}}],
+            }
+            values, sha = head.load_m4_native(fixture, native, path)
+            self.assertEqual(values[-1], 2.0)
+            self.assertEqual(sha, hashlib.sha256(data).hexdigest())
+            metrics = head.logit_metrics([0.0] * 248320, values)
+            self.assertEqual(metrics["max_abs_error"], 2.0)
+            wrong = copy.deepcopy(fixture)
+            wrong["top_k"][0]["logit"] = 1.0
+            with self.assertRaises(ValueError):
+                head.load_m4_native(wrong, native, path)
+            for key in ("model", "runtime", "requested_context", "input_tokens", "build", "captures"):
+                wrong = copy.deepcopy(native)
+                wrong[key] = None
+                with self.subTest(key=key), self.assertRaises((ValueError, KeyError, TypeError)):
+                    head.load_m4_native(fixture, wrong, path)
+            path.write_bytes(data[:-1] + b"\x01")
+            with self.assertRaises(ValueError):
+                head.load_m4_native(fixture, native, path)
+
+    def test_full_native_evidence_rejects_nonfinite(self):
+        with self.assertRaises(ValueError):
+            head.logit_metrics([0.0, float("nan")], [0.0, 0.0])
+
+    def test_m4_benchmark_requires_full_native_evidence(self):
+        result = subprocess.run(
+            [sys.executable, str(HEAD_SCRIPT), "--m4-manifest", "missing.json",
+             "--bslut5", "missing.sb3", "--output", "missing-output.json"],
+            capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("--native-logits and --native-manifest", result.stderr)
+
 
 class ReferenceTests(unittest.TestCase):
     def test_explicit_token_parser_rejects_bad_ids(self):

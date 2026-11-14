@@ -105,7 +105,7 @@ const Storage = require('scratch-storage');
     const stage = vm.runtime.getTargetForStage();
     stage.lookupVariableByNameAndType('BS codec', '').value = loader.codec() === 'raw' ? 0 : loader.codec() === 'bslut4' ? 1 : 2;
     stage.lookupVariableByNameAndType('BS head rows', '').value = 248320;
-    stage.lookupVariableByNameAndType('BS tile size', '').value = 1280;
+    stage.lookupVariableByNameAndType('BS tile size', '').value = 640;
     const done = stage.lookupVariableByNameAndType('BS done', '');
     const cancel = stage.lookupVariableByNameAndType('BS cancel', '');
     const orig = loader.loadGroups.bind(loader);
@@ -135,57 +135,82 @@ const Storage = require('scratch-storage');
             self.assertEqual(run.returncode, 0, run.stderr)
             info = json.loads(run.stdout)
             self.assertEqual(info['requests'], 4)
-            self.assertEqual(info['scanned'], 4 * 1280)
+            self.assertEqual(info['scanned'], 4 * 640)
             self.assertEqual(info['tail'], 'error')
             self.assertLess(info['elapsedMs'], 250.0)
 
-    def test_greedy_tie_rule_and_near_tie(self):
+
+@unittest.skipUnless(os.environ.get('BONSAI_TURBOWARP_VM'), 'set BONSAI_TURBOWARP_VM')
+class TopKTests(unittest.TestCase):
+    def test_topk_ties_cutoff_and_short_inputs(self):
         with tempfile.TemporaryDirectory() as temp:
-            project = Path(temp) / 'greedy.sb3'
+            project = Path(temp) / 'topk.sb3'
             generated = subprocess.run([sys.executable, str(ROOT / 'tools/generate_project.py'), str(project)],
                                        capture_output=True, text=True)
             self.assertEqual(generated.returncode, 0, generated.stderr)
             cases = [
-                ([5.0, 5.0, 4.0], 0),
-                ([4.0, 5.0, 5.0], 1),
-                ([5.0, 5.0 + 1e-6, 4.0], 1),
-                ([5.0 + 1e-6, 5.0, 4.0], 0),
+                ([5.0, 5.0, 4.0], [(0, 5.0), (1, 5.0), (2, 4.0)]),
+                ([4.0, 5.000001, 5.0], [(1, 5.000001), (2, 5.0), (0, 4.0)]),
+                ([2, 5, 5, 1, 4, 3, 5, 0, 4, 5, 5, -1],
+                 [(1, 5), (2, 5), (6, 5), (9, 5), (10, 5), (4, 4), (8, 4), (5, 3)]),
+                ([1] * 10, [(i, 1) for i in range(8)]),
+                ([-3e38, -3.1e38], [(0, -3e38), (1, -3.1e38)]),
+                ([], []),
             ]
-            for logits, expected_token in cases:
+            for logits, expected in cases:
                 with self.subTest(logits=logits):
                     run = subprocess.run(['node', str(ROOT / 'tests/scratch/run-vm.js'),
                                           str(project), json.dumps(logits), '18'],
                                          capture_output=True, text=True, timeout=30)
                     self.assertEqual(run.returncode, 0, run.stderr)
-                    token, top1, top2 = json.loads(run.stdout)
-                    self.assertEqual(token, expected_token)
-                    self.assertGreaterEqual(top1, top2)
+                    result = json.loads(run.stdout)
+                    self.assertEqual(list(zip(result['top_k_tokens'], result['top_k_logits'])), expected)
+                    if expected:
+                        self.assertEqual(result['output'][0:2], list(expected[0]))
+                        if len(expected) > 1:
+                            self.assertEqual(result['output'][2], expected[1][1])
 
+
+@unittest.skipUnless(os.environ.get('BONSAI_TURBOWARP_VM') and os.environ.get('BONSAI_MODEL_PACKAGE'),
+                     'set BONSAI_TURBOWARP_VM and BONSAI_MODEL_PACKAGE')
+class PipelineHeadTests(unittest.TestCase):
     def test_m4_end_to_end_head_matches_native_greedy_and_topk(self):
         m4_head = ROOT / 'fixtures/native/m4/head'
         manifest = json.loads((m4_head / 'manifest.json').read_text())
+        native_manifest = os.environ.get('BONSAI_NATIVE_MANIFEST')
+        native_logits = os.environ.get('BONSAI_NATIVE_LOGITS')
+        self.assertEqual(bool(native_manifest), bool(native_logits),
+                         'set both BONSAI_NATIVE_MANIFEST and BONSAI_NATIVE_LOGITS')
+        native = None
+        if native_manifest:
+            from benchmarks.head import load_m4_native
+            native, _ = load_m4_native(manifest, json.loads(Path(native_manifest).read_text()), Path(native_logits))
         env = dict(os.environ, BONSAI_ACTIVATION_F32=str(m4_head / manifest['pre_norm']['file']),
-                   BONSAI_TIMEOUT_MS='600000')
+                   BONSAI_TIMEOUT_MS='600000', BONSAI_BENCHMARK='1')
         with tempfile.TemporaryDirectory() as temp:
             project = Path(temp) / 'm4-head.sb3'
             generated = subprocess.run([sys.executable, str(ROOT / 'tools/generate_project.py'), str(project), '--benchmark'],
                                        capture_output=True, text=True)
             self.assertEqual(generated.returncode, 0, generated.stderr)
             run = subprocess.run(['node', str(ROOT / 'tests/scratch/run-vm.js'), str(project),
-                                  '--m4', '248320', 'token_embd.weight', '1280'],
+                                  '--m4', '248320', 'token_embd.weight', '640'],
                                  env=env, capture_output=True, text=True, timeout=620)
             self.assertEqual(run.returncode, 0, run.stderr)
             result = json.loads(run.stdout)
-            logits = result['logits']
+            logits = result['output']
             self.assertEqual(result['scanned'], 248320)
             self.assertEqual(len(logits), 248320)
             self.assertEqual(result['greedy_token'], manifest['greedy_token'])
-            order = sorted(range(len(logits)), key=lambda i: -logits[i])[:len(manifest['top_k'])]
-            self.assertEqual(order, [entry['token'] for entry in manifest['top_k']])
-            max_err = max(abs(logits[entry['token']] - entry['logit']) for entry in manifest['top_k'])
+            self.assertEqual(result['top_k_tokens'], [entry['token'] for entry in manifest['top_k']])
+            self.assertEqual(result['top_k_logits'], [logits[token] for token in result['top_k_tokens']])
+            max_err = max(abs(got - want['logit'])
+                          for got, want in zip(result['top_k_logits'], manifest['top_k']))
             margin = result['greedy_logit'] - result['second_logit']
             self.assertLessEqual(max_err, 1e-5)
             self.assertGreater(margin, 2 * max_err)
+            if native is not None:
+                full_max_err = max(abs(got - want) for got, want in zip(logits, native))
+                self.assertGreater(manifest['margin_top1_top2'], 2 * full_max_err)
 
     def test_m4_cancellation_aborts_at_tile_boundary(self):
         script = r"""
@@ -209,7 +234,7 @@ const Storage = require('scratch-storage');
         Array.from({length: bytes.length / 4}, (_, i) => bytes.readFloatLE(i * 4));
     stage.lookupVariableByNameAndType('BS mode', '').value = 17;
     stage.lookupVariableByNameAndType('BS head rows', '').value = 248320;
-    stage.lookupVariableByNameAndType('BS tile size', '').value = 1280;
+    stage.lookupVariableByNameAndType('BS tile size', '').value = 640;
     const done = stage.lookupVariableByNameAndType('BS done', '');
     const cancel = stage.lookupVariableByNameAndType('BS cancel', '');
     const orig = loader.loadGroups.bind(loader);
@@ -240,7 +265,7 @@ const Storage = require('scratch-storage');
             self.assertEqual(run.returncode, 0, run.stderr)
             info = json.loads(run.stdout)
             self.assertEqual(info['requests'], 4)
-            self.assertEqual(info['scanned'], 4 * 1280)
+            self.assertEqual(info['scanned'], 4 * 640)
             self.assertEqual(info['tail'], 'error')
             self.assertLess(info['elapsedMs'], 250.0)
 
@@ -268,9 +293,10 @@ Thread.prototype.tryCompile = function () { compile.call(this); attempts.push(Bo
     const stage = vm.runtime.getTargetForStage();
     const scalar = name => stage.lookupVariableByNameAndType('BS ' + name, '');
     const list = name => stage.lookupVariableByNameAndType('BS ' + name, 'list');
-    async function run(size, tile, cancel) {
+    async function run(size, tile, cancel, mode = 17, tensor = 'token_embd.weight') {
         list('input').value = Array(size).fill(1);
-        scalar('mode').value = 17; scalar('head rows').value = 1;
+        scalar('mode').value = mode; scalar('head rows').value = 1;
+        scalar('head tensor').value = tensor;
         scalar('tile size').value = tile;
         if (cancel !== null) scalar('cancel').value = cancel;
         scalar('greedy token').value = 777; scalar('done').value = 0;
@@ -280,19 +306,35 @@ Thread.prototype.tryCompile = function () { compile.call(this); attempts.push(Bo
             await new Promise(r => setTimeout(r, 5));
         }
         return {output: list('output').value.slice(), valid: Number(scalar('head valid').value),
-                token: Number(scalar('greedy token').value)};
+                token: Number(scalar('greedy token').value), top: list('top tokens').value.slice()};
     }
     const baseline = await run(2048, 1, 0);
     list('signs').value = Array(512).fill(0); list('norm weights').value = Array(512).fill(0);
     const short = await run(2048, 1, 0);
     list('signs').value = Array(2048).fill(0); list('norm weights').value = Array(2048).fill(0);
     const same = await run(2048, 1, 0);
-    const invalid = await run(2048, 0, 0);
+    const invalid = await run(2048, 0, 1);
+    const afterInvalid = await run(2048, 1, null);
+    const invalidInput = await run(1, 1, 1);
+    const afterInvalidInput = await run(2048, 1, null);
+    const missing = await run(4096, 1, 1);
+    const afterMissing = await run(2048, 1, null);
     const cancelled = await run(2048, 1, 1);
     const afterCancel = await run(2048, 1, null);
-    const missing = await run(4096, 1, 0);
+    const headBaseline = await run(2048, 1, 0, 11);
+    const headInvalid = await run(2048, 0, 1, 11);
+    const headAfterInvalid = await run(2048, 1, null, 11);
+    const loadGroups = loader.loadGroups.bind(loader);
+    loader.loadGroups = (...args) => {
+        if (args[0].TENSOR === 'missing.tensor') scalar('cancel').value = 1;
+        return loadGroups(...args);
+    };
+    const headFailed = await run(2048, 1, 0, 11, 'missing.tensor');
+    const headAfterFailed = await run(2048, 1, null, 11);
     if (!attempts.length || attempts.some(x => !x)) throw Error('Scratch thread did not compile');
-    process.stdout.write(JSON.stringify({baseline, short, same, invalid, cancelled, afterCancel, missing}));
+    process.stdout.write(JSON.stringify({baseline, short, same, invalid, afterInvalid, invalidInput,
+        afterInvalidInput, missing, afterMissing, cancelled, afterCancel,
+        headBaseline, headInvalid, headAfterInvalid, headFailed, headAfterFailed}));
     vm.quit();
 })().catch(e => { console.error(e); process.exit(1); });
 """
@@ -307,11 +349,18 @@ Thread.prototype.tryCompile = function () { compile.call(this); attempts.push(Bo
             result = json.loads(run.stdout)
             self.assertEqual(result['baseline']['valid'], 1)
             self.assertEqual(len(result['baseline']['output']), 1)
+            self.assertEqual(result['baseline']['top'], [0])
             self.assertEqual(result['short'], result['baseline'])
             self.assertEqual(result['same'], result['baseline'])
-            self.assertEqual(result['afterCancel'], result['baseline'])
-            for name, error in (('invalid', 'invalid dimensions'), ('cancelled', 'error'), ('missing', 'error')):
-                self.assertEqual(result[name], {'output': [error], 'valid': 0, 'token': 777})
+            for name in ('afterCancel', 'afterInvalid', 'afterInvalidInput', 'afterMissing'):
+                self.assertEqual(result[name], result['baseline'])
+            for name, error in (('invalid', 'invalid dimensions'), ('invalidInput', 'invalid dimensions'),
+                                ('cancelled', 'error'), ('missing', 'error')):
+                self.assertEqual(result[name], {'output': [error], 'valid': 0, 'token': 777, 'top': []})
+            self.assertEqual(result['headInvalid']['output'], ['invalid dimensions'])
+            self.assertEqual(result['headFailed']['output'], ['error'])
+            self.assertEqual(result['headAfterInvalid'], result['headBaseline'])
+            self.assertEqual(result['headAfterFailed'], result['headBaseline'])
 
 if __name__ == '__main__':
     unittest.main()
