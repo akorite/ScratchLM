@@ -318,6 +318,8 @@ Resolved without touching the package format or the extension: the generator emb
 
 ### U8 status note
 
+Verification of this pass: `pytest -q tests/` covers the M5 layer and state fixtures, the ten-token decode matrix (three cases by default, the full sweep with `BONSAI_DECODE_MATRIX=1`), the head and tokenizer suites, the artifact hash check, and the release end-to-end tests — three typed prompts compared byte for byte against native captures, the 128-cell KV clamp, and a second prompt inside one VM session. `node --test tests/transport/*.test.js` covers the storage transport. The end-to-end prompt test takes about 53 minutes and the reset test about 17, so the full suite is long; both are listed by name in a passing run.
+
 Release work in this pass: the two standard packages now embed the tokenizer pair tables (recorded and reproducible in `fixtures/package-checksums.json`), the detokenizer holds incomplete multi-byte tails instead of guessing, generation is bounded at 128 tokens and stops early on `<|im_end|>`, the tokenizer suite covers CRLF and literal `<|im_end|>` text, and `benchmarks/decoder.py` plus `tests/scratch/test_e2e_prompts.py` record and check prompt-to-text at the production configuration. The e2e expectations come from `tools/e2e_fixtures.py`, which captures the pinned build's greedy tokens and renders their bytes through the model vocabulary.
 
 ### U8. Release validation and documentation
