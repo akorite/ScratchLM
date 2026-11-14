@@ -123,12 +123,18 @@ class DeltaNetStageTests(unittest.TestCase):
         output = Path(self.temp.name) / 'decode.json'
         env = dict(os.environ, BONSAI_ACTIVATION_F32=str(FIXTURE / 'input-pos1.f32'),
                    BONSAI_LAYER_POSITION='0', BONSAI_TIMEOUT_MS='600000',
-                   BONSAI_DUMP=f'BS top tokens:{output}')
+                   BONSAI_DUMP=f'BS output:{output}')
         run = subprocess.run(['node', str(ROOT / 'tests/scratch/run-vm.js'), str(self.project), '[]', '42'],
                              capture_output=True, text=True, timeout=600, env=env)
         self.assertEqual(run.returncode, 0, run.stderr)
-        tokens = json.loads(output.read_text())
-        self.assertEqual(int(float(tokens[0])), 11, 'native greedy token at position 1')
+        logits = [float(v) for v in json.loads(output.read_text())][:248320]
+        self.assertEqual(len(logits), 248320, 'full vocabulary scan')
+        self.assertEqual(max(range(len(logits)), key=logits.__getitem__), 11, 'native greedy token')
+        if STATE:
+            native = read_f32(Path(STATE) / 'logits-pos1.f32')
+            errors = [abs(a - b) for a, b in zip(logits, native)]
+            self.assertLessEqual(max(errors), 0.15, 'logit max abs')
+            self.assertLessEqual((sum(e * e for e in errors) / len(errors)) ** 0.5, 0.03, 'logit rms')
 
     @unittest.skipUnless(STATE, 'set BONSAI_LAYER_STATE to the captured state directory')
     def test_layer_output_matches_native_with_seeded_state(self):

@@ -30,6 +30,12 @@ Mode 41 computes one complete Gated DeltaNet layer (layer 0): weighted RMS norm,
 
 Against `fixtures/native/m5/deltanet/`, the compiled VM reproduces `l_out-0` with maximum absolute error 1.8e-7 at position 1, 8.9e-8 at position 2 and 3.6e-7 at position 16, and the written recurrent state with 3.0e-7 / 1.2e-7 / 1.2e-7. The frozen layer tolerance is maximum absolute error <=1e-6 and RMS <=1e-7. Positions after the first need the previous token's state and convolution taps: the taps come from the captured `conv_input` for that position, because the captured `conv_state_update` is a ring-buffer snapshot rather than a chronological history. `tests/scratch/test_deltanet.py` runs all of these with `BONSAI_LAYER_STATE` naming the captured state directory.
 
+Mode 42 runs the locked 24-layer schedule (18 Gated DeltaNet, 6 full-attention), addressing each layer's recurrent state, convolution history and KV cells through per-layer base offsets, then the final `output_norm`, the inverse `token_embd` rotation applied as signs-then-Hadamard, the full 248320-row head scan and greedy selection.
+
+Against the captured chain the layers reproduce `l_out-0`..`l_out-17` within 1e-4 but drift after that: `l_out-17` (after 18 layers) has maximum absolute error 1.8e-3 and `l_out-23` 5.6e-2. Each layer matches its native boundary to about 1e-7 when given the native input; the drift comes from Q8_K activation quantization flipping on inputs that differ in the last bits, so it is not removable by local arithmetic changes.
+
+The decoded result still tracks the reference: for the first token of the locked prompt the top-5 tokens and their order are identical, the greedy token is 11 (native 11), the margin is 0.427 (native 0.438), and the full logit vector differs by maximum absolute error 0.11 and RMS 0.023. `tests/scratch/test_deltanet.py::test_decoder_predicts_the_native_next_token` asserts the scan length, the top-1 token and those logit bounds.
+
 The native M5 fixture records layer 0 and layer 3 inputs and intermediates, all 24 layer outputs, and recurrent, convolution and strided KV state at positions 1, 2, 16 and 64. Full state and logits are external; the manifest records their checksums and state probes. Convolution history is captured after its copy operation, not from the pre-copy view. Reproduce into new directories with the pinned build:
 
 ```sh
