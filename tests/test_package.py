@@ -180,6 +180,33 @@ class PackageTests(unittest.TestCase):
             with self.assertRaises(package_model.InvalidGGUF):
                 package_model.decode5(bytes(corrupt))
 
+    def test_hadamard_signs_emitted_as_dense_f32_tensors(self):
+        def kv_i32_arr(key, vals):
+            k = key.encode()
+            return struct.pack('<Q', len(k)) + k + struct.pack('<IIQ', 9, 5, len(vals)) + struct.pack(f'<{len(vals)}i', *vals)
+        def kv_f32_arr(key, vals):
+            k = key.encode()
+            return struct.pack('<Q', len(k)) + k + struct.pack('<IIQ', 9, 6, len(vals)) + struct.pack(f'<{len(vals)}f', *vals)
+        name = b'w'
+        tensor = struct.pack('<Q', len(name)) + name + struct.pack('<IQQIQ', 2, 128, 1, 142, 0)
+        kvs = kv_i32_arr('prism.hadamard.sign_widths', [4, 8]) + kv_f32_arr('prism.hadamard.sign_values', [1.0, -1.0] * 6)
+        header = b'GGUF' + struct.pack('<IQQ', 3, 1, 2) + kvs + tensor
+        header += bytes((-len(header)) % 32)
+        model = header + b'\x00\x3c' + bytes([0x55] * 32)
+        self.model.write_bytes(model)
+        self.lock.write_text(json.dumps({'size_bytes': len(model), 'sha256': hashlib.sha256(model).hexdigest()}))
+        out = self.root / 'with-signs.bsp'
+        res = self.package('bslut5', out)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        manifest, payload = self.unpack(out)
+        by_name = {t['name']: t for t in manifest['tensors']}
+        self.assertEqual(by_name['prism.hadamard.signs.4']['type_id'], 0)
+        self.assertEqual(by_name['prism.hadamard.signs.4']['dimensions'], [4])
+        s4 = struct.unpack('<4f', payload[by_name['prism.hadamard.signs.4']['offset']:][:16])
+        self.assertEqual(s4, (1.0, -1.0, 1.0, -1.0))
+        s8 = struct.unpack('<8f', payload[by_name['prism.hadamard.signs.8']['offset']:][:32])
+        self.assertEqual(s8, (1.0, -1.0) * 4)
+
 
 if __name__ == '__main__':
     unittest.main()

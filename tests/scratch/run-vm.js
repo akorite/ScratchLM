@@ -70,6 +70,13 @@ async function run() {
             if (bytes.length % 4) throw new Error('invalid F32 fixture');
             input.value = Array.from({length: bytes.length / 4}, (_, i) => bytes.readFloatLE(i * 4));
         }
+        if (process.env.BONSAI_SIGNS_F32) {
+            const signs = stage.lookupVariableByNameAndType('BS signs', 'list');
+            if (!signs) throw new Error('project signs list is missing');
+            const bytes = fs.readFileSync(process.env.BONSAI_SIGNS_F32);
+            if (bytes.length % 4) throw new Error('invalid F32 signs fixture');
+            signs.value = Array.from({length: bytes.length / 4}, (_, i) => bytes.readFloatLE(i * 4));
+        }
         if (process.argv[3] === '--dot' || head) {
             const codec = stage.lookupVariableByNameAndType('BS codec', '');
             if (!codec) throw new Error('project codec variable is missing');

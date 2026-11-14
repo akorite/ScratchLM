@@ -22,6 +22,8 @@ For the captured one-thread CPU build on the recorded Xeon host, the frozen *pro
 
 The primitive project's mode 10 accepts radians and converts to degrees before Scratch `sin`/`cos`; the audited compiler rounds those trig results to ten decimal places. Modes 4–8 implement diagnostic dense dot, RMS normalization with the locked model's F32 epsilon (approximately 1e-6), L2 normalization, SiLU, and softmax. Their tests use mathematical examples, not frozen native-operator tolerances.
 
+Modes 12–13 implement the normalized block-512 Sylvester-Walsh-Hadamard transform with explicit ±1 signs (pre-rotation in mode 12 for forward folded weights, post-rotation in mode 13 for inverse embedding rows), applying F32 rounding to each normalized output element. Inputs must have positive length divisible by 512 and matching sign-vector length when signs are provided; partial blocks return `invalid dimensions`. Against the captured Xeon one-thread native pairs (`fixtures/native/m4/transforms/`), the frozen transform tolerances are maximum absolute error ≤1e-6 and RMS error ≤3e-7 for widths 2048 and 6144.
+
 The separate `--text` proof uses named costumes across 256 hidden sprites because Scratch string comparisons are case-insensitive. It does not switch the stage backdrop. Compiled-VM tests cover case, UTF-16 surrogate pairs and unpaired-surrogate replacement, UTF-8 boundaries, CJK, and combining marks. Each code unit invokes 256 searches via broadcast-and-wait. On the Xeon host, a single no-renderer run took 58.50 seconds to load and execute and peaked at 3,393,016 KiB RSS. Browser renderer memory, target hardware, and production tokenizer suitability remain unverified.
 
 ## Boundaries and validation

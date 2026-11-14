@@ -234,6 +234,22 @@ def package(model, output, codec, lock_path):
                                    'dimensions': tensor['dimensions'], 'source_offset': tensor['offset'],
                                    'offset': payload_offset, 'length': tensor['size_bytes']})
             payload_offset += tensor['size_bytes']
+        extra_tensors = []
+        if 'prism.hadamard.sign_widths' in values and 'prism.hadamard.sign_values' in values:
+            widths = values['prism.hadamard.sign_widths']['value']
+            sign_vals = values['prism.hadamard.sign_values']['value']
+            if sum(widths) != len(sign_vals) or any(v not in (-1, 1, -1.0, 1.0) for v in sign_vals):
+                raise InvalidGGUF('invalid prism.hadamard sign metadata')
+            pos = 0
+            for width in widths:
+                chunk = sign_vals[pos:pos + width]
+                pos += width
+                blob = struct.pack(f'<{width}f', *[float(v) for v in chunk])
+                name = f'prism.hadamard.signs.{width}'
+                packed_tensors.append({'name': name, 'type_id': 0, 'dimensions': [width],
+                                       'source_offset': None, 'offset': payload_offset, 'length': len(blob)})
+                extra_tensors.append((name, blob))
+                payload_offset += len(blob)
         manifest = {'schema': 'bonsaiscratch-package/v1', 'codec': codec, 'endianness': 'little',
                     'source': {'size_bytes': size, 'sha256': source_hash}, 'alignment': alignment,
                     'gguf_header': {'offset': 0, 'length': header_size}, 'metadata': values,
@@ -249,6 +265,8 @@ def package(model, output, codec, lock_path):
                 for tensor in tensors:
                     source.seek(tensor['offset'])
                     copy_exact(source, target, tensor['size_bytes'], codec if tensor['type_id'] == 142 else None)
+                for _, blob in extra_tensors:
+                    target.write(blob)
                 target.flush()
                 target.seek(payload_start)
                 source.seek(0)
@@ -272,6 +290,9 @@ def package(model, output, codec, lock_path):
                         if len(original) != length or original != packed:
                             raise InvalidGGUF(f"tensor round-trip mismatch: {tensor['name']}")
                         remaining -= length
+                for name, blob in extra_tensors:
+                    if target.read(len(blob)) != blob:
+                        raise InvalidGGUF(f'dense sign round-trip mismatch: {name}')
                 if digest(source) != source_hash:
                     raise InvalidGGUF('source changed during packaging')
                 target.seek(0)

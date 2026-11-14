@@ -8,7 +8,7 @@ import sys
 import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scratch import lut, numeric, text
+from scratch import lut, numeric, text, transform
 
 
 class Blocks:
@@ -280,6 +280,9 @@ def project(with_text=False, with_benchmark=False):
                                     text.make(mode, globals()), fallback)]
     fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=9),
                             lut.script(globals()), fallback)]
+    for mode in (13, 12):
+        fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=mode),
+                                transform.make(mode, globals()), fallback)]
     for mode in reversed((4, 5, 6, 7, 8, 10)):
         fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=mode),
                                 numeric.make(mode, globals()), fallback)]
@@ -312,6 +315,8 @@ def project(with_text=False, with_benchmark=False):
              'BS lut chunk', 'BS lut pattern', 'BS lut sum', 'BS lut pow', 'BS lut digit',
              'BS lut groups', 'BS lut stride', 'BS lut cur', 'BS byte cur', 'BS lut a0',
              'BS lut level', 'BS lut next',
+             'BS hadamard block', 'BS hadamard step', 'BS hadamard outer', 'BS hadamard pair',
+             'BS hadamard u', 'BS hadamard v',
              'BS iterations', 'BS benchmark start', 'BS benchmark quant', 'BS benchmark setup', 'BS benchmark compute')
     if with_benchmark:
         names += ('BS head rows', 'BS head tensor', 'BS tile size', 'BS tile count', 'BS tile row',
@@ -324,7 +329,7 @@ def project(with_text=False, with_benchmark=False):
     if with_benchmark:
         variables[var('BS head rows')[2]][1] = 248320
         variables[var('BS head tensor')[2]][1] = 'token_embd.weight'
-        variables[var('BS tile size')[2]][1] = 1920
+        variables[var('BS tile size')[2]][1] = 1280
         variables[var('BS mode')[2]][1] = 11
     stage = {'isStage': True, 'name': 'Stage', 'variables': variables,
              'lists': {'l_input': ['BS input', [0, 1, 15360, 31744]], 'l_output': ['BS output', []],
@@ -332,7 +337,8 @@ def project(with_text=False, with_benchmark=False):
                        'l_f32_powers': ['BS f32 powers', [2**i for i in range(-149, 128)]],
                        'l_packed': ['BS packed bytes', []], 'l_scales': ['BS weight scales', []],
                        'l_q8': ['BS q8', []], 'l_raw_powers': ['BS raw powers', [1, 4, 16, 64]],
-                       'l_trit_powers': ['BS trit powers', [1, 3, 9, 27]], 'l_lut': ['BS lut', []]},
+                      'l_trit_powers': ['BS trit powers', [1, 3, 9, 27]], 'l_lut': ['BS lut', []],
+                      'l_signs': ['BS signs', []]},
              'broadcasts': {}, 'blocks': graph.blocks, 'comments': {}, 'currentCostume': 0,
              'costumes': [{'name': 'backdrop', 'dataFormat': 'svg', 'assetId': asset,
                            'md5ext': asset + '.svg', 'rotationCenterX': 240, 'rotationCenterY': 180}],
