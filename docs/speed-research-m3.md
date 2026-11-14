@@ -48,8 +48,9 @@ From `docs/research/ternary-matvec-literature.md` (T-MAC arXiv:2407.00088, bitne
 - Dead ends confirmed: MADDNESS/a4.8-style activation quantization (no int8 fast path in binary64), mirror-consolidated LUTs (conditional negate per lookup costs more than halved build), trit-packing into numbers for the index stream (marginal vs flat index list), Scratch thread parallelism (single-threaded; adds scheduler overhead only).
 - Community technique file `docs/research/scratch-speed-techniques.md` corroborates: batch all extension→list transfer in one unsandboxed call (already our design), hide monitors, avoid `item # of`/`contains` (O(n) scans), keep lists homogeneously numeric (V8 `PACKED_DOUBLE_ELEMENTS`), decode strings via `letter of`/`unicode of` if a packed-string transport is ever needed (~14 M chars/s in warp).
 
-## 4. Revised outlook vs the M3 record
+## 4. Revised outlook vs the M3 record (provisional; superseded by `docs/m3-decision.md`)
 
+> **Superseded:** The provisional estimates below were measured after shipping the synchronous read-ahead window, 250 fps pacing, 1,280-row tiles, and the cursor-form `bslut5` kernel. See `docs/m3-decision.md` for the authoritative measured head, kernel, transport, and decode projections.
 | Stage | M3 estimate | Post-research estimate (same host) |
 |---|---|---|
 | Decode/token | 129–155 s | ~75–85 s (transport fixes) → ~50–65 s (g=5–6 LUT) |

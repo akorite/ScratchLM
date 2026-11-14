@@ -21,10 +21,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--raw', required=True, type=Path)
     parser.add_argument('--bslut4', required=True, type=Path)
+    parser.add_argument('--bslut5', type=Path)
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--native-projection', required=True, type=Path)
     parser.add_argument('--repetitions', type=int, default=3)
-    parser.add_argument('--tile-rows', type=int, default=1920)
+    parser.add_argument('--tile-rows', type=int, default=1280)
     args = parser.parse_args()
     if args.repetitions < 1 or not 1 <= args.tile_rows <= 7710:
         parser.error('repetitions must be positive and tile-rows in 1..7710')
@@ -43,7 +44,10 @@ def main():
         project = Path(temp) / 'head.sb3'
         subprocess.run([sys.executable, str(ROOT / 'tools/generate_project.py'), str(project), '--benchmark'], check=True)
         project_sha256 = hashlib.sha256(project.read_bytes()).hexdigest()
-        for codec, package in [('raw', args.raw), ('bslut4', args.bslut4)]:
+        cases = [('raw', args.raw), ('bslut4', args.bslut4)]
+        if args.bslut5:
+            cases.append(('bslut5', args.bslut5))
+        for codec, package in cases:
             runs = []
             for _ in range(args.repetitions):
                 env = dict(os.environ, BONSAI_MODEL_PACKAGE=str(package), BONSAI_BENCHMARK='1', BONSAI_TIMEOUT_MS='1800000')
@@ -79,8 +83,9 @@ def main():
                'turbowarp_vm': '0cb82afe62506f3d9f2ff849c95593f0473b5d2c',
                'compiler': True, 'turbo_mode': True, 'tensor': 'token_embd.weight',
                'input': 'fixtures/native/layer3-q-input.f32', 'rows': 248320, 'width': 2048,
-               'benchmark_project_sha256': project_sha256, 'warp_timer': False,
-               'node_version': subprocess.check_output(['node', '--version'], text=True).strip(),
+              'benchmark_project_sha256': project_sha256, 'warp_timer': False,
+              'framerate': int(os.environ.get('BONSAI_FRAMERATE', 250)),
+              'node_version': subprocess.check_output(['node', '--version'], text=True).strip(),
                'native_projection_sha256': hashlib.sha256(native_bytes).hexdigest(),
                'tile_rows': args.tile_rows, 'tile_group_bytes': args.tile_rows * 16 * 34,
                'note': 'Head scan only; input is a captured transformed activation, not final normalized model output. Node VM, no browser renderer.',

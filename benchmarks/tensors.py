@@ -21,7 +21,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--raw', required=True, type=Path)
     parser.add_argument('--bslut4', required=True, type=Path)
+    parser.add_argument('--bslut5', type=Path)
     parser.add_argument('--output', required=True, type=Path)
+    parser.add_argument('--tile-rows-2048', type=int, default=1280)
     parser.add_argument('--repetitions', type=int, default=3)
     args = parser.parse_args()
     if args.repetitions < 1:
@@ -36,14 +38,18 @@ def main():
         for width, rows, tensor, activation, output in cases:
             native = struct.unpack(f'<{rows}f', (ROOT / 'fixtures/native' / output).read_bytes())
             digest = None
-            for codec, package in [('raw', args.raw), ('bslut4', args.bslut4)]:
+            tile_rows = args.tile_rows_2048 // (width // 2048)
+            cases = [('raw', args.raw), ('bslut4', args.bslut4)]
+            if args.bslut5:
+                cases.append(('bslut5', args.bslut5))
+            for codec, package in cases:
                 runs = []
                 for _ in range(args.repetitions):
                     env = dict(os.environ, BONSAI_MODEL_PACKAGE=str(package), BONSAI_BENCHMARK='1',
                                BONSAI_ACTIVATION_F32=str(ROOT / 'fixtures/native' / activation), BONSAI_TIMEOUT_MS='600000')
                     start = time.perf_counter()
                     completed = subprocess.run(['node', str(ROOT / 'tests/scratch/run-vm.js'), str(project), '--head',
-                                                str(rows), tensor, '120'], env=env, capture_output=True, text=True,
+                                                str(rows), tensor, str(tile_rows)], env=env, capture_output=True, text=True,
                                                timeout=620, check=True)
                     wall = time.perf_counter() - start
                     run = json.loads(completed.stdout)
@@ -65,11 +71,13 @@ def main():
                                 'cosine': dot / norm if norm else None})
                     runs.append(run)
                 times = [run['wall_seconds'] for run in runs]
-                results.append({'width': width, 'tensor': tensor, 'codec': codec,
+                results.append({'width': width, 'tensor': tensor, 'codec': codec, 'tile_rows': tile_rows,
                                 'median_wall_seconds': statistics.median(times), 'worst_wall_seconds': max(times), 'runs': runs})
         payload = {'schema': 'bonsai-full-tensors/v1', 'platform': platform.platform(),
                    'vm_revision': '0cb82afe62506f3d9f2ff849c95593f0473b5d2c', 'compiler': True,
-                   'turbo_mode': True, 'warp_timer': False, 'tile_rows': 120, 'benchmark_project_sha256': project_hash,
+                   'turbo_mode': True, 'warp_timer': False, 'tile_rows_2048': args.tile_rows_2048,
+                   'framerate': int(os.environ.get('BONSAI_FRAMERATE', 250)),
+                   'benchmark_project_sha256': project_hash,
                    'note': 'Captured native transformed input and CPU SIMD output; Node VM without renderer. Scratch tick times are coarse.',
                    'results': results}
         args.output.parent.mkdir(parents=True, exist_ok=True)

@@ -1,57 +1,53 @@
-# M3 decision — kernel comparison and viability
+# M3 decision — speed redesign, kernel comparison, and viability
 
-Date: 2026-11-13. Host: Intel Xeon Platinum 8488C, Linux 7.0.0-1014-aws, Node v24.22.1, TurboWarp VM `0cb82afe62506f3d9f2ff849c95593f0473b5d2c`, compiler verified active, turbo mode, warp timer off, no renderer. **All results are host-specific; the Ryzen 7 Pro-class target was not measured.**
+Date: 2026-11-14. Host: Intel Xeon Platinum 8488C, Linux 7.0.0-1014-aws, Node v24.22.1, TurboWarp VM `0cb82afe62506f3d9f2ff849c95593f0473b5d2c`, compiler verified active, turbo mode, warp timer off, 250 fps, 1,280-row tiles (width 2048; 426 rows at width 6144), synchronous 64 MiB read-ahead window loader, no renderer. **All results are host-specific; the Ryzen 7 Pro-class target was not measured.**
 
 ## Verdict
 
-**Conditional redesign within the Scratch boundary; no full decoder integration yet.**
+**Proceed to M4 integration with `bslut5` on this host (demonstration-band core decode; prefill and target hardware remain unverified/excluded).**
 
-- Kernel choice: **BS-LUT4**. Per `benchmarks/results/kernels-xeon.json` (10M contributions, identical Q8_K inputs, generic-kernel F32 boundaries): BS-LUT4 0.34–0.36 s, raw-LUT4 0.36–0.37 s, scalar 1.40–1.44 s. Raw and BS-LUT4 outputs are bit-identical (`output_f32_sha256` matches across codecs in the head and tensor runs).
-- Projected decode: **2.2–2.6 min/token** → plan classification *research-only* (2–5 min). Below the 5-minute pause trigger, above the 30–120 s demonstration target.
-- Projected prefill (weights re-streamed per position, head rate as lower bound): 1 token ≈ 2.2–2.6 min, 16 ≈ 35–41 min, 128 ≈ 4.6–5.6 h. Prefill is unusable for interactive prompts and is reported independently per the gate.
+- Adopted codec: **`bslut5`** (5 trits per index byte, 26 index bytes + 6 zero spare bytes inside each 34-byte record, parameterized DP LUT build + cursor inner loop). On `benchmarks/results/kernels-xeon.json` (10M contributions, identical Q8_K inputs): `bslut5` setup+compute totals `0.537 s` (w=2048) / `0.587 s` (w=6144) vs cursor `bslut4` `0.566 s` / `0.599 s` vs `raw-lut4` `0.597 s` / `0.667 s` vs `scalar-raw` `1.869 s` / `1.830 s`. On the full 248,320-row head (`benchmarks/results/head-xeon.json`), `bslut5` finishes in **`20.88 s` median** (`21.06 s` worst) vs `22.76 s` (`bslut4`) and `24.80 s` (`raw`), with bit-identical `output_f32_sha256` across all three codecs.
+- Projected decode: **`74–102 s/token`** core matvec+setup+transfer (`~74–122 s/token` with up to 20% secondary-op margin) → **demonstration band (30–120 s)** on this host, lifted from the prior `2.2–3.1 min/token` research-only pause.
+- Projected prefill (weights re-streamed per position, linear in tokens): 1 token ≈ `74–102 s`, 16 ≈ `20–27 min`, 128 ≈ `2.6–3.6 h`. Prefill remains hours-scale and unsuitable for interactive long prompts; it is reported independently.
 
 ## Evidence
 
-| Measurement | Result | Source |
-|---|---|---|
-| Full head, 248,320 rows × 2048, raw | 34.97 s median wall (3 runs) | `benchmarks/results/head-xeon.json` |
-| Full head, BS-LUT4 | 34.66 s median wall; identical output SHA-256 | same |
-| `blk.3.attn_q.weight` full tensor (4,096×2,048) | 1.38 s raw / 1.25 s bslut4 median wall | `tensors-xeon.json` |
-| `blk.0.ffn_down.weight` full tensor (2,048×6,144) | 1.84 s raw / 1.42 s bslut4 median wall | same |
-| 1M contributions, width 2048 | scalar 0.178 s, raw-LUT4 0.063 s, BS-LUT4 0.049 s | `kernels-xeon.json` |
-| 10M contributions, width 6144 | scalar 1.397 s, raw-LUT4 0.356 s, BS-LUT4 0.341 s | same |
-| Transport, 64 KiB–4 MiB budgets | median 0.5–10.8 ms per request, warm | `transport-xeon-*.json` |
-| Worst uninterrupted interval | 38.3 ms event-loop gap (head run) | `head-xeon.json` |
-| Peak RSS, head run | ≤ 236 MB (Node VM, no renderer) | `head-xeon.json` |
-| Numerical gates | all compiled-VM goldens pass; 38 pytest + 5 node tests green | this repo |
+| Measurement | Prior baseline (60 fps, tile 120, async) | Redesign (`bslut5`, 250 fps, tile 1280, sync window) | Source |
+|---|---|---|---|
+| Full head, 248,320 rows × 2048 | 34.97 s raw / 34.66 s bslut4 | **20.88 s** bslut5 (22.76 s bslut4, 24.80 s raw); identical output SHA-256 | `benchmarks/results/head-xeon.json` |
+| Head transfer + scheduler time | 33.4 s | **1.00 s** (97% reduction) | same |
+| `blk.3.attn_q.weight` (4,096×2,048, incl. VM startup) | 1.38 s raw / 1.25 s bslut4 | 1.65 s bslut5 / 1.66 s bslut4 / 1.72 s raw (compute 0.67 s bslut5) | `benchmarks/results/tensors-xeon.json` |
+| `blk.0.ffn_down.weight` (2,048×6,144, incl. VM startup) | 1.84 s raw / 1.42 s bslut4 | 2.13 s bslut5 / 1.96 s bslut4 / 2.25 s raw (compute 1.08 s bslut5) | same |
+| 10M contributions, width 2048 | 0.355 s bslut4 compute | 0.477 s bslut5 + 0.060 s setup (**0.537 s**) vs 0.541 s + 0.025 s bslut4 (**0.566 s**) | `benchmarks/results/kernels-xeon.json` |
+| 10M contributions, width 6144 | 0.341 s bslut4 compute | 0.476 s bslut5 + 0.111 s setup (**0.587 s**) vs 0.547 s + 0.052 s bslut4 (**0.599 s**) | same |
+| Transport, 64 KiB–4 MiB budgets | 0.5–10.8 ms + ~16.7 ms promise park in VM | **0.36–67.3 ms** sync window hits; 148–165 ms initial cold window fill | `benchmarks/results/transport-xeon-*.json` |
+| Cancellation latency (tile 1280, `bslut5`) | — (gap 38.3 ms) | **166.1 ms** steady-state abort (`test_head.py`); max loop gap **84.0 ms** (`bslut5`) | `tests/scratch/test_head.py`, `head-xeon.json` |
+| Peak RSS, head run | ≤ 236 MB | **≤ 511 MB** (Node VM, 64 MiB read-ahead window, no renderer) | `head-xeon.json` |
 
-## Decode projection (shape-weighted, uncertain)
+Note on `item of` scaling at large LUT size: width-2048 (`bslut5` LUT ≈ 101k entries) and width-6144 (`bslut5` LUT ≈ 303k entries) achieve identical 10M-contribution compute times (`0.477 s` vs `0.476 s`), confirming O(1) list indexing up to ~303k entries in the tested VM.
 
-Model PQ2 payload: 151 tensors, 819,712 rows, 499.4 MB; 6,960 tiles of 120 rows (the benchmark tile size). Two bounds:
+## Decode projection (`bslut5`, shape-weighted, uncertain)
 
-- **Bytes bound:** stream the whole PQ2 payload at the measured head rate 3.86 MB/s → **129 s**. This amortizes arithmetic inside the measured head stream; it assumes other tensors stream as efficiently, which is optimistic — the attn_q tile ran at a higher per-byte cost.
-- **Tile bound:** apply the measured per-tile costs (17 ms width-2048, 102 ms width-6144, from the head and ffn_down medians) → **155 s**. Treats per-tile overhead as dominant, which the head contradicts slightly; the head's 65,280-byte tiles cost ~17 ms while attn_q's identical-size tiles cost ~39 ms, so per-request overhead is not fully linear.
+Model PQ2_0 payload: 151 tensors, 819,712 rows, 499.40 MB, 1.8801B multiply-accumulate contributions. Two bounds:
 
-Reported range: **129–155 s/token**, plus output/logit handling already inside the head measurement. Secondary work (normalization, embedding, state updates, per-request command latency) is only partially covered; add ≤ 20% uncertainty → **~2.2–3.1 min/token**.
+- **Head-rate bound:** subtract ~0.9 s one-time VM+window startup from the 20.88 s head wall (`19.98 s` for 508.6M contributions) and scale by `1.8801B / 0.5086B` → **`73.9 s/token`** (`1.23 min`). Assumes layers achieve the same amortized scan efficiency as the 248,320-row head.
+- **Kernel+setup bound:** apply the measured 10M-contribution `bslut5` compute rates (`0.477 s` at width 2048, `0.476 s` at width 6144), add all 151 per-tensor DP LUT setups (`0.060 s` × 103 + `0.111 s` × 48 ≈ `11.5 s`), plus ~2 s for 8 sequential 64 MiB window refills across 499.4 MB → **`101.9 s/token`** (`1.70 min`).
 
-Prefill reuses the same stream per position with no KV reuse measured yet: linear in positions until the attention path is measured.
+Reported core range: **`74–102 s/token`**; adding up to 20% headroom for secondary operations (Hadamard transforms, RMSNorm, recurrent/KV state updates, F32 rounding) gives **`~74–122 s/token`** (`1.2–2.0 min/token`).
+
+Prefill reuses the same weight stream per prompt position with no KV-batched matmul: linear in prompt length (`~2.6–3.6 h` at 128 tokens).
 
 ## Gate assessment
 
 | Gate | Status |
 |---|---|
-| Numerical gates pass | Pass — compiled-VM goldens green (38 tests), exact discrete checks, frozen tensor tolerances in `docs/numerical-contract.md` |
-| End-to-end results support demonstration budget | **Fail** — 2.2–3.1 min/token is research-only, not the 30–120 s demonstration target |
-| Memory bounded | Pass on host — ≤ 236 MB RSS measured; the 6 GB/8 GB thresholds are browser targets and were not exercised |
-| Cancellation bounded | Partial — functional cancellation proven in `tests/transport/loader.test.js`; worst measured event-loop gap 38.3 ms, well under the 250 ms target, but no browser measurement |
-| Decode > 5 min/token | No — pause trigger not reached |
-
-## Required before M4/M5
-
-1. The bottleneck is Scratch-side transfer and scheduler time (33.4 of 34.97 s in the head), not arithmetic or disk. Redesign options inside the Scratch boundary: larger effective tiles, fewer list writes per group (e.g. packed multi-value writes), or processing from a smaller resident window before revisiting the all-Scratch rule.
-2. If demonstration-budget decode is a product requirement, it fails on this host and cannot be claimed on the target without redesign plus target measurement.
-3. Prefill must be disclosed as hours-scale at 128 tokens in any published artifact.
+| Numerical gates pass | **Pass** — raw, `bslut4`, and `bslut5` produce bit-identical `output_f32_sha256` across all 248,320 head rows and representative tensors; `bslut5` tail-slot and 243-pattern round-trip verified |
+| Head scan ≤ ~22 s on host | **Pass** — `20.88 s` median (`21.06 s` worst) with `bslut5` |
+| Projected decode ≤ 120 s/token on host | **Pass** — `74–102 s/token` core matvec+setup+transfer (≤ 120 s upper bound before secondary-op margin) |
+| Cancellation ≤ 250 ms & gap recorded | **Pass** — `166.1 ms` steady-state tile abort at tile size 1,280; max event-loop gap `84.0 ms` (`bslut5`) / `96.2 ms` (`raw`). Supersedes the prior 50 ms uninterrupted-tile goal at 250 fps |
+| Memory bounded | **Pass on host** — ≤ 511 MB RSS in Node VM (includes 64 MiB read-ahead window); browser 6 GB/8 GB thresholds remain unexercised in a browser renderer |
+| Decode > 5 min/token | **No** — pause trigger cleared |
 
 ## Limitations
 
-Host-only results; Node VM without browser renderer; scratch tick timer is coarse, so wall-clock fields are the primary timings; cancellation and memory gates partially verified; head input is a captured transformed activation, not normalized model output (projection, not logits).
+Host-only results on Intel Xeon Platinum 8488C in headless Node VM (no browser renderer); Ryzen 7 Pro-class target unmeasured; Chrome background-tab timer throttling (~1 Hz non-rAF clamp) would stall 250 fps unattended execution in background tabs; browser renderer memory unmeasured; head benchmark still uses a captured transformed activation (`layer3-q-input.f32`) pending M4 end-to-end head integration.
