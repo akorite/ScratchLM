@@ -345,4 +345,4 @@ def stage(h):
         *attention.copy(h, 'BS dn layer out', 'l_dn_layer_out', 'BS output', 'l_output'),
     ]
     valid = eq(length('BS input', 'l_input'), 2048)
-    return [conditional(valid, body, [h['addlist']('invalid dimensions delta-layer')])]
+    return [conditional(valid, body, [h['addlist']('invalid dimensions')])]

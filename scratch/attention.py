@@ -371,4 +371,4 @@ def layer(h):
         ('data_deletealloflist', {}, {'LIST': ['BS output', 'l_output']}, {}),
         *copy(h, 'BS layer out', 'l_layer_out', 'BS output', 'l_output'),
     ]
-    return [conditional(valid, body, [addlist('invalid dimensions attn-layer')])]
+    return [conditional(valid, body, [addlist('invalid dimensions')])]
