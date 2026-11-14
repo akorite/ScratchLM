@@ -146,3 +146,85 @@ def script(h, head=False):
                  setvar('BS benchmark compute', sub(timer, v('benchmark start'))),
                  conditional(eq(v('dot valid'), 1), [addlist(v('total'))], [addlist('nonfinite')])]
     return [conditional(valid, work, [addlist('invalid dimensions')])]
+
+
+def greedy_select(h, list_name='BS output', list_id='l_output'):
+    var, op, item, length, setvar, conditional, repeat, change = (
+        h[name] for name in ('var', 'op', 'item', 'length', 'setvar', 'conditional', 'repeat', 'change'))
+    gt = lambda a, b: op('operator_gt', OPERAND1=a, OPERAND2=b)
+    sub = lambda a, b: op('operator_subtract', NUM1=a, NUM2=b)
+    val = var('BS x')
+    idx = var('BS index')
+    step = [
+        setvar('BS x', item(list_name, list_id, idx)),
+        conditional(gt(val, var('BS greedy logit')), [
+            setvar('BS second logit', var('BS greedy logit')),
+            setvar('BS greedy logit', val),
+            setvar('BS greedy token', sub(idx, 1)),
+        ], [
+            conditional(gt(val, var('BS second logit')), [setvar('BS second logit', val)]),
+        ]),
+        change('BS index', 1),
+    ]
+    return [
+        conditional(gt(length(list_name, list_id), 0), [
+            setvar('BS greedy token', 0),
+            setvar('BS greedy logit', item(list_name, list_id, 1)),
+            setvar('BS second logit', -1e38),
+            setvar('BS index', 2),
+            repeat(sub(length(list_name, list_id), 1), step),
+        ]),
+    ]
+
+
+def pipeline(h, call_head=None):
+    from scratch import embedding, transform
+    var, op, item, length, setvar, addlist, conditional, repeat, change = (
+        h[name] for name in ('var', 'op', 'item', 'length', 'setvar',
+                             'addlist', 'conditional', 'repeat', 'change'))
+    eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
+    in_len = length('BS input', 'l_input')
+    n_status = ('bonsailoader_status', {'ID': 'norm_w'}, {}, False)
+    n_copied = ('bonsailoader_copied', {'ID': 'norm_w'}, {}, False)
+    s_status = ('bonsailoader_status', {'ID': 'head_signs'}, {}, False)
+    s_copied = ('bonsailoader_copied', {'ID': 'head_signs'}, {}, False)
+    load_norm = [conditional(eq(length('BS norm weights', 'l_norm_weights'), 0), [
+        ('bonsailoader_loadDense',
+         {'ID': 'norm_w', 'TENSOR': 'output_norm.weight', 'START': 0, 'COUNT': in_len, 'DEST': 'l_norm_weights'}, {}, {}),
+        conditional(op('operator_and', OPERAND1=eq(n_status, 'ok'), OPERAND2=eq(n_copied, in_len)),
+                    [], [setvar('BS head valid', 0)]),
+    ])]
+    load_signs = [conditional(eq(length('BS signs', 'l_signs'), 0), [
+        ('bonsailoader_loadDense',
+         {'ID': 'head_signs', 'TENSOR': 'prism.hadamard.signs.2048', 'START': 0, 'COUNT': in_len, 'DEST': 'l_signs'}, {}, {}),
+        conditional(op('operator_and', OPERAND1=eq(s_status, 'ok'), OPERAND2=eq(s_copied, in_len)),
+                    [], [setvar('BS head valid', 0)]),
+    ])]
+    idx = var('BS index')
+    copy_to_input = [
+        setvar('BS index', 1),
+        repeat(in_len, [
+            transform.replace_item(idx, item('BS output', 'l_output', idx), 'BS input', 'l_input'),
+            change('BS index', 1),
+        ]),
+        ('data_deletealloflist', {}, {'LIST': ['BS output', 'l_output']}, {}),
+    ]
+    run_pipeline = (
+        embedding.output_norm(h)
+        + transform.apply_signs(h)
+        + transform.hadamard(h)
+        + copy_to_input
+        + ([call_head()] if call_head else script(h, head=True))
+        + [conditional(eq(var('BS head valid'), 1), greedy_select(h))]
+    )
+    valid_in = op('operator_and',
+                  OPERAND1=op('operator_gt', OPERAND1=in_len, OPERAND2=0),
+                  OPERAND2=eq(op('operator_mod', NUM1=in_len, NUM2=512), 0))
+    return [
+        setvar('BS head valid', 1),
+        conditional(valid_in,
+                    load_norm + load_signs + [
+                        conditional(eq(var('BS head valid'), 1), run_pipeline, [addlist('error')]),
+                    ],
+                    [addlist('invalid dimensions')]),
+    ]

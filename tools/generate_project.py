@@ -41,10 +41,12 @@ class Blocks:
     def stack(self, instructions, parent):
         first = previous = None
         for opcode, inputs, fields, branches in instructions:
-            block = self.add(opcode, parent if previous is None else previous, fields=fields)
+            proccode, warp = fields.get('PROCCODE', ('BS f32', 'true')) if fields else ('BS f32', 'true')
+            clean_fields = {k: v for k, v in fields.items() if k != 'PROCCODE'} if fields else {}
+            block = self.add(opcode, parent if previous is None else previous, fields=clean_fields)
             if opcode == 'procedures_call':
                 self.blocks[block]['mutation'] = {'tagName': 'mutation', 'children': [],
-                                                  'proccode': 'BS f32', 'argumentids': '[]', 'warp': 'true'}
+                                                  'proccode': proccode, 'argumentids': '[]', 'warp': warp}
             if previous:
                 self.blocks[previous]['next'] = block
             if first is None:
@@ -99,19 +101,31 @@ def change(name, amount):
     return ('data_changevariableby', {'VALUE': amount}, {'VARIABLE': [name, var(name)[2]]}, {})
 
 
+def call_proc(name, warp='true'):
+    return ('procedures_call', {}, {'PROCCODE': (name, warp)}, {})
+
+
 def call_f32():
-    return ('procedures_call', {}, {}, {})
+    return call_proc('BS f32', 'true')
+
+
+def call_hadamard():
+    return call_proc('BS hadamard', 'true')
+
+
+def add_procedure(graph, name, body, x=1200, warp='true'):
+    definition = graph.add('procedures_definition', top=True)
+    graph.blocks[definition]['x'] = x
+    prototype = graph.add('procedures_prototype', definition)
+    graph.blocks[prototype]['shadow'] = True
+    graph.blocks[prototype]['mutation'] = {'tagName': 'mutation', 'children': [], 'proccode': name,
+                                           'argumentids': '[]', 'argumentnames': '[]',
+                                           'argumentdefaults': '[]', 'warp': warp}
+    graph.blocks[definition]['inputs']['custom_block'] = [1, prototype]
+    graph.blocks[definition]['next'] = graph.stack(body, definition)
 
 
 def f32_procedure(graph):
-    definition = graph.add('procedures_definition', top=True)
-    graph.blocks[definition]['x'] = 1200
-    prototype = graph.add('procedures_prototype', definition)
-    graph.blocks[prototype]['shadow'] = True
-    graph.blocks[prototype]['mutation'] = {'tagName': 'mutation', 'children': [], 'proccode': 'BS f32',
-                                           'argumentids': '[]', 'argumentnames': '[]',
-                                           'argumentdefaults': '[]', 'warp': 'true'}
-    graph.blocks[definition]['inputs']['custom_block'] = [1, prototype]
     x, absolute, exponent, power, unit, number, fraction, sign = map(var, (
         'BS f32 input', 'BS f32 abs', 'BS f32 exponent', 'BS f32 power',
         'BS f32 unit', 'BS f32 integer', 'BS f32 fraction', 'BS f32 sign'))
@@ -146,7 +160,7 @@ def f32_procedure(graph):
             setvar('BS f32 output', op('operator_multiply', NUM1=sign, NUM2=op('operator_multiply', NUM1=number, NUM2=unit))),
         ]),
     ]
-    graph.blocks[definition]['next'] = graph.stack(body, definition)
+    add_procedure(graph, 'BS f32', body, x=1200, warp='true')
 
 
 def q8_script(output_name='BS output', output_id='l_output'):
@@ -195,21 +209,28 @@ def scalar_dot_script():
         'BS dot group', 'BS dot position', 'BS word', 'BS exponent', 'BS mantissa', 'BS sign',
         'BS weight scale', 'BS subtotal', 'BS total', 'BS divisor', 'BS base'))
     g0 = op('operator_subtract', NUM1=group, NUM2=1)
-    packed_index = op('operator_add', NUM1=op('operator_add', NUM1=op('operator_multiply', NUM1=g0, NUM2=32),
-                                             NUM2=floor(op('operator_divide', NUM1=position, NUM2=4))), NUM2=1)
+    packed_index = lambda stride: op('operator_add', NUM1=op('operator_add', NUM1=op('operator_multiply', NUM1=g0, NUM2=32),
+                                                             NUM2=floor(op('operator_divide', NUM1=position, NUM2=stride))), NUM2=1)
     q8_base = op('operator_multiply', NUM1=floor(op('operator_divide', NUM1=g0, NUM2=2)), NUM2=257)
     q8_index = op('operator_add', NUM1=op('operator_add', NUM1=q8_base, NUM2=2),
                   NUM2=op('operator_add', NUM1=op('operator_multiply', NUM1=op('operator_mod', NUM1=g0, NUM2=2), NUM2=128),
                           NUM2=position))
-    power_index = op('operator_add', NUM1=op('operator_mod', NUM1=position, NUM2=4), NUM2=1)
-    digit = op('operator_mod', NUM1=floor(op('operator_divide', NUM1=item('BS packed bytes', 'l_packed', packed_index),
-                                            NUM2=divisor)), NUM2=base)
+    power_index = lambda stride: op('operator_add', NUM1=op('operator_mod', NUM1=position, NUM2=stride), NUM2=1)
+    byte5 = op('operator_subtract',
+               NUM1=item('BS packed bytes', 'l_packed', packed_index(5)),
+               NUM2=op('operator_multiply', NUM1=op('operator_gt', OPERAND1=position, OPERAND2=124), NUM2=108))
+    digit = op('operator_mod', NUM1=floor(op('operator_divide', NUM1=var('BS word'), NUM2=divisor)), NUM2=base)
     product = op('operator_multiply', NUM1=op('operator_subtract', NUM1=digit, NUM2=1),
                  NUM2=item('BS q8', 'l_q8', q8_index))
     inner = [
         conditional(op('operator_equals', OPERAND1=var('BS codec'), OPERAND2=0),
-                    [setvar('BS divisor', item('BS raw powers', 'l_raw_powers', power_index)), setvar('BS base', 4)],
-                    [setvar('BS divisor', item('BS trit powers', 'l_trit_powers', power_index)), setvar('BS base', 3)]),
+                    [setvar('BS word', item('BS packed bytes', 'l_packed', packed_index(4))),
+                     setvar('BS divisor', item('BS raw powers', 'l_raw_powers', power_index(4))), setvar('BS base', 4)],
+                    [conditional(op('operator_equals', OPERAND1=var('BS codec'), OPERAND2=1),
+                                 [setvar('BS word', item('BS packed bytes', 'l_packed', packed_index(4))),
+                                  setvar('BS divisor', item('BS trit powers', 'l_trit_powers', power_index(4))), setvar('BS base', 3)],
+                                 [setvar('BS word', byte5),
+                                  setvar('BS divisor', item('BS trit powers', 'l_trit_powers', power_index(5))), setvar('BS base', 3)])]),
         setvar('BS subtotal', op('operator_add', NUM1=subtotal, NUM2=product)),
         change('BS dot position', 1),
     ]
@@ -272,8 +293,10 @@ def project(with_text=False, with_benchmark=False):
     ]
     fallback = [repeat(length('BS input', 'l_input'), loop)]
     if with_benchmark:
+        fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=17),
+                                lut.pipeline(globals(), call_head=lambda: call_proc('BS head', 'false')), fallback)]
         fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=11),
-                                lut.script(globals(), head=True), fallback)]
+                                [call_proc('BS head', 'false')], fallback)]
         fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=15),
                                 embedding.make(15, globals(), with_benchmark=True), fallback)]
     if with_text:
@@ -282,6 +305,12 @@ def project(with_text=False, with_benchmark=False):
                                     text.make(mode, globals()), fallback)]
     fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=9),
                             lut.script(globals()), fallback)]
+    greedy_mode = (
+        lut.greedy_select(globals(), 'BS input', 'l_input')
+        + [addlist(var('BS greedy token')), addlist(var('BS greedy logit')), addlist(var('BS second logit'))]
+    )
+    fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=18),
+                            greedy_mode, fallback)]
     for mode in (16, 14, 13, 12):
         spec = embedding.make(mode, globals(), with_benchmark=with_benchmark) if mode in (14, 16) else transform.make(mode, globals())
         fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=mode), spec, fallback)]
@@ -305,6 +334,9 @@ def project(with_text=False, with_benchmark=False):
     ]
     graph.blocks[hat]['next'] = graph.stack(script, hat)
     f32_procedure(graph)
+    add_procedure(graph, 'BS hadamard', transform.hadamard_inline(globals()), x=1800, warp='true')
+    if with_benchmark:
+        add_procedure(graph, 'BS head', lut.script(globals(), head=True), x=2400, warp='false')
     svg = (b'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>' if with_text else
            b'<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360"></svg>')
     asset = hashlib.md5(svg).hexdigest()
@@ -319,6 +351,7 @@ def project(with_text=False, with_benchmark=False):
              'BS lut level', 'BS lut next',
              'BS hadamard block', 'BS hadamard step', 'BS hadamard outer', 'BS hadamard pair',
              'BS hadamard u', 'BS hadamard v', 'BS token id',
+             'BS greedy token', 'BS greedy logit', 'BS second logit',
              'BS iterations', 'BS benchmark start', 'BS benchmark quant', 'BS benchmark setup', 'BS benchmark compute')
     if with_benchmark:
         names += ('BS head rows', 'BS head tensor', 'BS tile size', 'BS tile count', 'BS tile row',
@@ -339,7 +372,7 @@ def project(with_text=False, with_benchmark=False):
                        'l_f32_powers': ['BS f32 powers', [2**i for i in range(-149, 128)]],
                        'l_packed': ['BS packed bytes', []], 'l_scales': ['BS weight scales', []],
                        'l_q8': ['BS q8', []], 'l_raw_powers': ['BS raw powers', [1, 4, 16, 64]],
-                      'l_trit_powers': ['BS trit powers', [1, 3, 9, 27]], 'l_lut': ['BS lut', []],
+                      'l_trit_powers': ['BS trit powers', [1, 3, 9, 27, 81]], 'l_lut': ['BS lut', []],
                      'l_signs': ['BS signs', []], 'l_norm_weights': ['BS norm weights', []]},
              'broadcasts': {}, 'blocks': graph.blocks, 'comments': {}, 'currentCostume': 0,
              'costumes': [{'name': 'backdrop', 'dataFormat': 'svg', 'assetId': asset,

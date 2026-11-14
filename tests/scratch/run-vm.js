@@ -25,7 +25,8 @@ async function run() {
     vm.setCompilerOptions({enabled: true});
     vm.runtime.setFramerate(Number(process.env.BONSAI_FRAMERATE || 250));
     let loader, heartbeat, loaderReadMs = 0, loaderCommandMs = 0, loaderRequests = 0;
-    const head = process.argv[3] === '--head';
+    const m4 = process.argv[3] === '--m4';
+    const head = process.argv[3] === '--head' || m4;
     const stream = head || process.argv[3] === '--stream';
     if (process.argv[3] === '--package' || process.argv[3] === '--dot' || stream) {
         const Scratch = {vm, extensions: {unsandboxed: true, register: value => { loader = value; }},
@@ -98,7 +99,7 @@ async function run() {
         done.value = 0;
         const mode = stage.lookupVariableByNameAndType('BS mode', '');
         if (process.argv[4] && !mode) throw new Error('project mode variable is missing');
-        if (mode) mode.value = head ? 11 : process.argv[3] === '--dot' ? Number(process.argv[4] || 2) : Number(process.argv[4] || 0);
+        if (mode) mode.value = m4 ? 17 : process.argv[3] === '--head' ? 11 : process.argv[3] === '--dot' ? Number(process.argv[4] || 2) : Number(process.argv[4] || 0);
         if (head) {
             stage.lookupVariableByNameAndType('BS head rows', '').value = Number(process.argv[4]);
             stage.lookupVariableByNameAndType('BS head tensor', '').value = process.argv[5];
@@ -138,15 +139,31 @@ async function run() {
                      Number(stage.lookupVariableByNameAndType('BS scanned', '').value) !== Number(process.argv[4]))) {
             throw new Error(`head scan failed: ${loader.status({ID: 'head'})} ${loader.error({ID: 'head'})}`);
         }
+        const greedyVar = stage.lookupVariableByNameAndType('BS greedy token', '');
+        const greedyLogitVar = stage.lookupVariableByNameAndType('BS greedy logit', '');
+        const secondLogitVar = stage.lookupVariableByNameAndType('BS second logit', '');
+        const scannedVar = stage.lookupVariableByNameAndType('BS scanned', '');
         if (process.env.BONSAI_BENCHMARK) {
             const get = name => stage.lookupVariableByNameAndType(`BS benchmark ${name}`, '').value;
             process.stdout.write(JSON.stringify({output: output.value, quant_tick_seconds: get('quant'),
                 setup_tick_seconds: get('setup'), compute_tick_seconds: get('compute'),
                 scratch_transfer_and_scheduler_seconds: head ? get('transfer') : null,
                 framerate: vm.runtime.frameLoop ? vm.runtime.frameLoop.framerate : null,
+                scanned: scannedVar ? Number(scannedVar.value) : null,
+                greedy_token: m4 && greedyVar ? Number(greedyVar.value) : null,
+                greedy_logit: m4 && greedyLogitVar ? Number(greedyLogitVar.value) : null,
+                second_logit: m4 && secondLogitVar ? Number(secondLogitVar.value) : null,
                 loader_requests: loaderRequests, loader_read_ms: loaderReadMs,
                 loader_command_ms: loaderCommandMs, loader_copy_and_overhead_ms: loaderCommandMs - loaderReadMs,
                 worst_event_loop_gap_ms: worstGap, peak_rss_bytes: process.resourceUsage().maxRSS * 1024}) + '\n');
+        } else if (m4) {
+            process.stdout.write(JSON.stringify({
+                scanned: Number(scannedVar.value),
+                greedy_token: Number(greedyVar.value),
+                greedy_logit: Number(greedyLogitVar.value),
+                second_logit: Number(secondLogitVar.value),
+                logits: output.value,
+            }) + '\n');
         } else {
             process.stdout.write(JSON.stringify(output.value) + '\n');
         }

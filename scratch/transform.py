@@ -49,10 +49,17 @@ def hadamard(h, list_name='BS output', list_id='l_output'):
         repeat(512, scale),
         change('BS hadamard block', 512),
     ]
-    return [
+    steps = [
         setvar('BS hadamard block', 1),
         repeat(div(length(list_name, list_id), 512), per_block),
     ]
+    if list_name == 'BS output' and list_id == 'l_output' and h.get('call_hadamard'):
+        return [h['call_hadamard']()]
+    return steps
+
+
+def hadamard_inline(h, list_name='BS output', list_id='l_output'):
+    return hadamard({k: v for k, v in h.items() if k != 'call_hadamard'}, list_name, list_id)
 
 
 def apply_signs(h, list_name='BS output', list_id='l_output', signs_name='BS signs', signs_id='l_signs'):

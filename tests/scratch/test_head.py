@@ -139,5 +139,110 @@ const Storage = require('scratch-storage');
             self.assertEqual(info['tail'], 'error')
             self.assertLess(info['elapsedMs'], 250.0)
 
+    def test_greedy_tie_rule_and_near_tie(self):
+        with tempfile.TemporaryDirectory() as temp:
+            project = Path(temp) / 'greedy.sb3'
+            generated = subprocess.run([sys.executable, str(ROOT / 'tools/generate_project.py'), str(project)],
+                                       capture_output=True, text=True)
+            self.assertEqual(generated.returncode, 0, generated.stderr)
+            cases = [
+                ([5.0, 5.0, 4.0], 0),
+                ([4.0, 5.0, 5.0], 1),
+                ([5.0, 5.0 + 1e-6, 4.0], 1),
+                ([5.0 + 1e-6, 5.0, 4.0], 0),
+            ]
+            for logits, expected_token in cases:
+                with self.subTest(logits=logits):
+                    run = subprocess.run(['node', str(ROOT / 'tests/scratch/run-vm.js'),
+                                          str(project), json.dumps(logits), '18'],
+                                         capture_output=True, text=True, timeout=30)
+                    self.assertEqual(run.returncode, 0, run.stderr)
+                    token, top1, top2 = json.loads(run.stdout)
+                    self.assertEqual(token, expected_token)
+                    self.assertGreaterEqual(top1, top2)
+
+    def test_m4_end_to_end_head_matches_native_greedy_and_topk(self):
+        m4_head = ROOT / 'fixtures/native/m4/head'
+        manifest = json.loads((m4_head / 'manifest.json').read_text())
+        env = dict(os.environ, BONSAI_ACTIVATION_F32=str(m4_head / manifest['pre_norm']['file']),
+                   BONSAI_TIMEOUT_MS='600000')
+        with tempfile.TemporaryDirectory() as temp:
+            project = Path(temp) / 'm4-head.sb3'
+            generated = subprocess.run([sys.executable, str(ROOT / 'tools/generate_project.py'), str(project), '--benchmark'],
+                                       capture_output=True, text=True)
+            self.assertEqual(generated.returncode, 0, generated.stderr)
+            run = subprocess.run(['node', str(ROOT / 'tests/scratch/run-vm.js'), str(project),
+                                  '--m4', '248320', 'token_embd.weight', '1280'],
+                                 env=env, capture_output=True, text=True, timeout=620)
+            self.assertEqual(run.returncode, 0, run.stderr)
+            result = json.loads(run.stdout)
+            logits = result['logits']
+            self.assertEqual(result['scanned'], 248320)
+            self.assertEqual(len(logits), 248320)
+            self.assertEqual(result['greedy_token'], manifest['greedy_token'])
+            order = sorted(range(len(logits)), key=lambda i: -logits[i])[:len(manifest['top_k'])]
+            self.assertEqual(order, [entry['token'] for entry in manifest['top_k']])
+            max_err = max(abs(logits[entry['token']] - entry['logit']) for entry in manifest['top_k'])
+            margin = result['greedy_logit'] - result['second_logit']
+            self.assertLessEqual(max_err, 1e-5)
+            self.assertGreater(margin, 2 * max_err)
+
+    def test_m4_cancellation_aborts_at_tile_boundary(self):
+        script = r"""
+const fs = require('fs'), path = require('path');
+const {performance} = require('node:perf_hooks');
+const VM = require(path.join(process.env.BONSAI_TURBOWARP_VM, 'src/index.js'));
+const Storage = require('scratch-storage');
+(async () => {
+    const vm = new VM(); vm.attachStorage(new Storage());
+    vm.setCompatibilityMode(false); vm.setTurboMode(true); vm.setCompilerOptions({enabled: true});
+    let loader;
+    const Scratch = {vm, extensions: {unsandboxed: true, register: x => { loader = x; }},
+        BlockType: {COMMAND: 'command', REPORTER: 'reporter'}, ArgumentType: {STRING: 'string', NUMBER: 'number'}};
+    require('node:vm').runInNewContext(fs.readFileSync(process.argv[2], 'utf8'), {Scratch, TextDecoder});
+    await loader.openFile(await fs.openAsBlob(process.env.BONSAI_MODEL_PACKAGE));
+    vm.extensionManager.addBuiltinExtension('bonsailoader', class { constructor() { return loader; } });
+    vm.start(); await vm.loadProject(fs.readFileSync(process.argv[1]));
+    const stage = vm.runtime.getTargetForStage();
+    const bytes = fs.readFileSync(process.argv[3]);
+    stage.lookupVariableByNameAndType('BS input', 'list').value =
+        Array.from({length: bytes.length / 4}, (_, i) => bytes.readFloatLE(i * 4));
+    stage.lookupVariableByNameAndType('BS mode', '').value = 17;
+    stage.lookupVariableByNameAndType('BS head rows', '').value = 248320;
+    stage.lookupVariableByNameAndType('BS tile size', '').value = 1280;
+    const done = stage.lookupVariableByNameAndType('BS done', '');
+    const cancel = stage.lookupVariableByNameAndType('BS cancel', '');
+    const orig = loader.loadGroups.bind(loader);
+    let requests = 0, cancelAt = 0;
+    loader.loadGroups = (...args) => {
+        requests++;
+        const res = orig(...args);
+        if (requests === 4) { cancel.value = 1; cancelAt = performance.now(); }
+        return res;
+    };
+    await vm.greenFlag();
+    while (Number(done.value) !== 1) await new Promise(r => setTimeout(r, 5));
+    const elapsedMs = performance.now() - cancelAt;
+    const scanned = Number(stage.lookupVariableByNameAndType('BS scanned', '').value);
+    const output = stage.lookupVariableByNameAndType('BS output', 'list').value;
+    process.stdout.write(JSON.stringify({requests, scanned, elapsedMs, tail: output[output.length - 1]}) + '\n');
+    vm.quit();
+})().catch(e => { console.error(e); process.exit(1); });
+"""
+        with tempfile.TemporaryDirectory() as temp:
+            project = Path(temp) / 'cancel-m4.sb3'
+            generated = subprocess.run([sys.executable, str(ROOT / 'tools/generate_project.py'), str(project), '--benchmark'],
+                                       capture_output=True, text=True)
+            self.assertEqual(generated.returncode, 0, generated.stderr)
+            pre_norm = ROOT / 'fixtures/native/m4/head/output-norm-input.f32'
+            run = subprocess.run(['node', '-e', script, str(project), str(ROOT / 'extension/loader.js'), str(pre_norm)],
+                                 capture_output=True, text=True, timeout=60)
+            self.assertEqual(run.returncode, 0, run.stderr)
+            info = json.loads(run.stdout)
+            self.assertEqual(info['requests'], 4)
+            self.assertEqual(info['scanned'], 4 * 1280)
+            self.assertEqual(info['tail'], 'error')
+            self.assertLess(info['elapsedMs'], 250.0)
+
 if __name__ == '__main__':
     unittest.main()
