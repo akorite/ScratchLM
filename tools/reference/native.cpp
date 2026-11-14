@@ -15,9 +15,12 @@
 #include <string>
 #include <vector>
 
+#include <set>
+
 struct Capture {
     std::string dir, filter;
     std::ofstream index, staging;
+    std::set<const ggml_tensor *> seen;
     size_t serial = 0, stage_serial = 0;
     int step = 0;
     bool failed = false;
@@ -87,14 +90,48 @@ static void capture_tensor(Capture & c, const ggml_tensor * t, const ggml_tensor
     if (!c.index) c.failed = true;
 }
 
+static bool is_hadamard(const ggml_tensor * t) {
+    // The op hint is lost on scheduler graph copies; the loaded rotation
+    // tensors carry the prism.hadamard.<block> name instead.
+    return t && t->op == GGML_OP_MUL_MAT && t->src[0] &&
+           std::string(t->src[0]->name).rfind("prism.hadamard.", 0) == 0;
+}
+
+// Walk the activation-side chain below a Hadamard rotation MUL_MAT through the
+// reshape/sign-mul plumbing only, so pre-sign inputs and sign vectors land in
+// the capture with path roles; other upstream ops stop the walk.
+static void capture_chain(Capture & c, const ggml_tensor * t, const std::string & path, int depth) {
+    if (!t || depth <= 0 || !c.seen.insert(t).second) return;
+    capture_tensor(c, t, t, "s" + path);
+    if (t->op != GGML_OP_RESHAPE && t->op != GGML_OP_VIEW && t->op != GGML_OP_MUL &&
+        t->op != GGML_OP_PERMUTE && t->op != GGML_OP_CONT) return;
+    for (int i = 0; i < GGML_MAX_SRC; ++i) {
+        if (t->src[i]) capture_chain(c, t->src[i], path + "." + std::to_string(i), depth - 1);
+    }
+}
+
 static bool callback(ggml_tensor * t, bool ask, void * data) {
     auto & c = *static_cast<Capture *>(data);
-    const bool selected = std::string(t->name).find(c.filter) != std::string::npos;
+    const bool magic = c.filter == "hadamard";
+    auto via_reshape = [](const ggml_tensor * s) {
+        return s && (s->op == GGML_OP_RESHAPE || s->op == GGML_OP_VIEW) && is_hadamard(s->src[0]);
+    };
+    const bool selected = magic
+        ? (is_hadamard(t) || is_hadamard(t->src[0]) || is_hadamard(t->src[1]) ||
+           via_reshape(t->src[0]) || via_reshape(t->src[1]))
+        : std::string(t->name).find(c.filter) != std::string::npos;
     if (ask) return selected;
-    if (selected) {
+    if (selected && c.seen.insert(t).second) {
         capture_tensor(c, t, t, "out");
+        if (is_hadamard(t)) {
+            for (int i = 0; i < GGML_MAX_SRC; ++i) {
+                if (t->src[i]) capture_chain(c, t->src[i], std::to_string(i), 12);
+            }
+        }
         for (int i = 0; i < GGML_MAX_SRC; ++i) {
-            if (t->src[i]) capture_tensor(c, t->src[i], t, "src" + std::to_string(i));
+            if (t->src[i] && c.seen.insert(t->src[i]).second) {
+                capture_tensor(c, t->src[i], t, "src" + std::to_string(i));
+            }
         }
     }
     return !c.failed;
