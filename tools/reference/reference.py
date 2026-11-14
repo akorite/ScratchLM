@@ -318,6 +318,9 @@ def m4(args):
     runs["result"] = work / "result"
     runs["result"].mkdir(parents=True)
     run_command([binary, args.model.resolve(), runs["result"], args.context, 0, "result", str(args.tokens[0])])
+    runs["pre_norm"] = work / "pre_norm"
+    runs["pre_norm"].mkdir(parents=True)
+    run_command([binary, args.model.resolve(), runs["pre_norm"], args.context, 0, "l_out-23", str(args.tokens[0])])
     caps = capture_manifest(runs["hadamard-0"])
     provenance = {"model": identity, "runtime": settings, "build": build_meta, "machine": machine(),
                   "requested_context": args.context, "input_tokens": args.tokens,
@@ -451,14 +454,15 @@ def m4(args):
 
     result_caps = capture_manifest(runs["result"])
     norm_out = next(c for c in result_caps if c["name"] == "result_norm" and c["role"] == "out")
-    norm_in = next(c for c in result_caps if c["name"] == "norm" and c["role"] == "src0")
+    pre_norm_caps = capture_manifest(runs["pre_norm"])
+    norm_in = next(c for c in pre_norm_caps if c["name"] == "l_out-23" and c["role"] == "out")
     logits = f32_values(runs["result"] / "logits-0.f32")
     order = sorted(range(len(logits)), key=lambda i: -logits[i])
     top = [{"token": i, "logit": logits[i]} for i in order[:8]]
     head_chain = next(c for c in chains if c["input_leaf"]["name"] == "result_norm")
     write_json(head_dir / "manifest.json",
                {"schema": "bonsai-native-m4-head/v1", **provenance,
-                "pre_norm": copy_artifact(head_dir, runs["result"], norm_in["payload"], "output-norm-input.f32"),
+                "pre_norm": copy_artifact(head_dir, runs["pre_norm"], norm_in["payload"], "output-norm-input.f32"),
                 "post_norm": copy_artifact(head_dir, runs["result"], norm_out["payload"], "output-norm-output.f32"),
                 "transformed_activation": copy_artifact(head_dir, trans, head_chain["rotation_out"], "head-input-transformed.f32"),
                 "head_chain": head_chain["node"], "weight": tensors["token_embd.weight"],

@@ -1362,7 +1362,7 @@
   "pre_norm": {
     "bytes": 8192,
     "file": "output-norm-input.f32",
-    "sha256": "49a851e3cb7ba7d5232bc024366314e19503ccf056606af3a26c110686563d57"
+    "sha256": "0b52300966620a1ce9b3ef36ca71ff035efc1033c755de9877e53a43c38825cc"
   },
   "requested_context": 8,
   "runtime": {

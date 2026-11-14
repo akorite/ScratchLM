@@ -136,9 +136,9 @@ class M4FixtureTests(unittest.TestCase):
         emb = json.loads((M4 / "embedding/manifest.json").read_text())
         self.assertEqual([r["token_id"] for r in emb["rows"]], [1, 321, 248046])
         head = json.loads((M4 / "head/manifest.json").read_text())
+        self.assertNotEqual(head["pre_norm"]["sha256"], head["post_norm"]["sha256"])
         self.assertGreater(head["margin_top1_top2"], 0)
         self.assertEqual(head["greedy_token"], head["top_k"][0]["token"])
-
     @unittest.skipUnless(M4.is_dir(), "run tools/reference/reference.py m4 first")
     def test_transform_pairs_satisfy_documented_math(self):
         trans = json.loads((M4 / "transforms/manifest.json").read_text())
