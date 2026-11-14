@@ -296,7 +296,7 @@ It uses Unicode general categories (`\p{L}`, `\p{M}`, `\p{N}`) and a negative lo
 
 Two further constraints measured so far: Scratch string equality is case-insensitive, which is why the existing text primitives resolve characters through 256 costume-lookup sprites and a broadcast per code unit (58.5 s for the current no-renderer proof run), and Scratch does not execute a warp procedure call inside a `repeat`, so the generation loop has to be driven one script run per token (the harness does this today; a Scratch-side loop would need broadcast hats).
 
-Decision needed before U7 implementation: package a category table (changes `tools/package_model.py` and the package manifest) or accept a documented tokenizer limitation.
+Resolved without touching the package format or the extension: the generator embeds a run-length Unicode category table (built from Python's `unicodedata`) directly in the generated project as a list, and the Scratch pre-tokenizer scans the prompt against it. This keeps the package lossless as-is and the extension storage-only.
 
 ### U7. Scratch tokenizer, detokenizer, and generation loop
 
