@@ -184,20 +184,36 @@ class PackageTests(unittest.TestCase):
                 package_model.decode5(bytes(corrupt))
 
     def test_bpe_tables_emitted_as_dense_tensors(self):
+        def kv_str_array(key, values):
+            k = key.encode()
+            body = b''.join(struct.pack('<Q', len(v.encode())) + v.encode() for v in values)
+            return struct.pack('<Q', len(k)) + k + struct.pack('<IIQ', 9, 8, len(values)) + body
+        name = b'w'
+        tensor = struct.pack('<Q', len(name)) + name + struct.pack('<IQQIQ', 2, 128, 1, 142, 0)
+        import sys
+        sys.path.insert(0, str(SCRIPT.parent))
+        from tokenizer_tables import bytes_to_unicode
+        alphabet = bytes_to_unicode()
+        tokens = [alphabet[b] for b in range(256)] + ['ab', 'ba']
+        kvs = kv_str_array('tokenizer.ggml.tokens', tokens) + kv_str_array('tokenizer.ggml.merges', ['a b'])
+        header = b'GGUF' + struct.pack('<IQQ', 3, 1, 2) + kvs + tensor
+        header += bytes((-len(header)) % 32)
+        model = header + b'\x00\x3c' + bytes([0x55] * 32)
+        self.model.write_bytes(model)
+        self.lock.write_text(json.dumps({'size_bytes': len(model), 'sha256': hashlib.sha256(model).hexdigest()}))
         out = self.root / 'bpe.bsp'
         result = self.package('raw', out)
         self.assertEqual(result.returncode, 0, result.stderr)
         manifest, payload = self.unpack(out)
         by_name = {t['name']: t for t in manifest['tensors']}
-        for name in ('prism.bpe.byte', 'prism.bpe.left', 'prism.bpe.right',
-                     'prism.bpe.rank', 'prism.bpe.result'):
-            self.assertIn(name, by_name)
-            tensor = by_name[name]
-            self.assertEqual(tensor['type_id'], 0)
-            values = struct.unpack(f"<{tensor['dimensions'][0]}f",
-                                   payload[tensor['offset']:tensor['offset'] + tensor['length']])
-            self.assertEqual(len(values), tensor['dimensions'][0])
+        read = lambda name: struct.unpack(f"<{by_name[name]['dimensions'][0]}f",
+                                          payload[by_name[name]['offset']:][:by_name[name]['length']])
         self.assertEqual(by_name['prism.bpe.byte']['dimensions'], [256])
+        self.assertEqual(read('prism.bpe.byte')[0x61], 0x61)
+        self.assertEqual(list(read('prism.bpe.left')), [0x61])
+        self.assertEqual(list(read('prism.bpe.right')), [0x62])
+        self.assertEqual(list(read('prism.bpe.result')), [256])
+        self.assertEqual(list(read('prism.bpe.rank')), [0])
 
     def test_hadamard_signs_emitted_as_dense_f32_tensors(self):
         def kv_i32_arr(key, vals):
