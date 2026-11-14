@@ -127,6 +127,10 @@ async function run() {
             if (process.env.BONSAI_DN_STATE) load(process.env.BONSAI_DN_STATE, 'BS state');
             if (process.env.BONSAI_CONV_STATE) load(process.env.BONSAI_CONV_STATE, 'BS conv state');
         }
+        if (process.env.BONSAI_LOOP !== undefined) {
+            const loopVar = stage.lookupVariableByNameAndType('BS loop', '');
+            if (loopVar) loopVar.value = Number(process.env.BONSAI_LOOP);
+        }
         if (process.env.BONSAI_MAX_TOKENS) {
             const maxTokens = stage.lookupVariableByNameAndType('BS max tokens', '');
             if (maxTokens) maxTokens.value = Number(process.env.BONSAI_MAX_TOKENS);

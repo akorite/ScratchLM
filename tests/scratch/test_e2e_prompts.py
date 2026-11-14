@@ -31,7 +31,7 @@ class EndToEndPromptTests(unittest.TestCase):
             env = {key: value for key, value in os.environ.items()
                    if key in ('BONSAI_TURBOWARP_VM', 'BONSAI_MODEL_PACKAGE', 'NODE_PATH')}
             env.update(BONSAI_PROMPT=case['prompt'], BONSAI_MAX_TOKENS='128', BONSAI_STEPS='1',
-                       BONSAI_TIMEOUT_MS='600000', BONSAI_DEBUG_FULL='1',
+                       BONSAI_LOOP='0', BONSAI_TIMEOUT_MS='600000', BONSAI_DEBUG_FULL='1',
                        BONSAI_DEBUG_VARS='BS max tokens,BS prompt length,BS decode budget,BS stop reason')
             run = subprocess.run(['node', str(ROOT / 'tests/scratch/run-vm.js'), str(project),
                                   '--generate', '24'], env=env, capture_output=True, text=True, timeout=900)
