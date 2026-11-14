@@ -127,6 +127,11 @@ async function run() {
             if (process.env.BONSAI_DN_STATE) load(process.env.BONSAI_DN_STATE, 'BS state');
             if (process.env.BONSAI_CONV_STATE) load(process.env.BONSAI_CONV_STATE, 'BS conv state');
         }
+        if (process.env.BONSAI_LAYER !== undefined) {
+            const layer = stage.lookupVariableByNameAndType('BS layer', '');
+            if (!layer) throw new Error('project layer variable is missing');
+            layer.value = Number(process.env.BONSAI_LAYER);
+        }
         if (process.env.BONSAI_LAYER_POSITION !== undefined) {
             const lp = stage.lookupVariableByNameAndType('BS layer position', '');
             if (!lp) throw new Error('project layer position variable is missing');

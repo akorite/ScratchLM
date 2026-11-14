@@ -10,8 +10,6 @@ post norm, SwiGLU MLP, residual.
 
 from scratch import embedding, lut, numeric, transform
 
-Q_NORM = 'blk.3.attn_q_norm.weight'
-K_NORM = 'blk.3.attn_k_norm.weight'
 TILE = 64
 
 
@@ -43,6 +41,13 @@ def rope_list(h, source, source_id, dest, dest_id, position):
                                                                      dest, dest_id),
                                                             change('BS index', 1)])]
     return prefill
+
+
+def weight(h, suffix):
+    """'blk.<layer><suffix>' as a Scratch join expression."""
+    op = h['op']
+    join = lambda a, b: op('operator_join', STRING1=a, STRING2=b)
+    return join('blk.', join(h['var']('BS layer'), suffix))
 
 
 def matvec(h, tensor, rows, dest_name, dest_id, request='layer'):
@@ -273,11 +278,13 @@ def layer(h):
                                          OPERAND2=lt(v('layer position'), 128))))
     body = [
         embedding.set_codec_from_loader(h, codec),
-        *embedding.load_dense(h, 'qnorm', Q_NORM, 'BS q norm', 'l_q_norm', 256, [setvar('BS proj valid', 0)]),
-        *embedding.load_dense(h, 'knorm', K_NORM, 'BS k norm', 'l_k_norm', 256, [setvar('BS proj valid', 0)]),
-        *embedding.load_dense(h, 'normw', 'blk.3.attn_norm.weight', 'BS norm w', 'l_norm_w', 2048,
+        *embedding.load_dense(h, 'qnorm', weight(h, '.attn_q_norm.weight'), 'BS q norm', 'l_q_norm', 256,
                               [setvar('BS proj valid', 0)]),
-        *embedding.load_dense(h, 'postw', 'blk.3.post_attention_norm.weight', 'BS post w', 'l_post_w', 2048,
+        *embedding.load_dense(h, 'knorm', weight(h, '.attn_k_norm.weight'), 'BS k norm', 'l_k_norm', 256,
+                              [setvar('BS proj valid', 0)]),
+        *embedding.load_dense(h, 'normw', weight(h, '.attn_norm.weight'), 'BS norm w', 'l_norm_w', 2048,
+                              [setvar('BS proj valid', 0)]),
+        *embedding.load_dense(h, 'postw', weight(h, '.post_attention_norm.weight'), 'BS post w', 'l_post_w', 2048,
                               [setvar('BS proj valid', 0)]),
         *embedding.load_dense(h, 'signs', 'prism.hadamard.signs.2048', 'BS signs', 'l_signs', 2048,
                               [setvar('BS proj valid', 0)]),
@@ -287,18 +294,18 @@ def layer(h):
         *copy(h, 'BS input', 'l_input', 'BS layer input', 'l_layer_input'),
         *copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
-        *matvec(h, 'blk.3.attn_q.weight', 4096, 'BS q full', 'l_q_full', request='layer-q'),
+        *matvec(h, weight(h, '.attn_q.weight'), 4096, 'BS q full', 'l_q_full', request='layer-q'),
         conditional(eq(v('proj valid'), 1), split),
         *head_norm(h, 'BS q', 'l_q', 'BS qn', 'l_qn', 'BS q norm', 'l_q_norm', 256, 8),
         *rope_list(h, 'BS qn', 'l_qn', 'BS q', 'l_q', v('layer position')),
         *copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
-        *matvec(h, 'blk.3.attn_k.weight', 512, 'BS k', 'l_k', request='layer-k'),
+        *matvec(h, weight(h, '.attn_k.weight'), 512, 'BS k', 'l_k', request='layer-k'),
         *head_norm(h, 'BS k', 'l_k', 'BS kn', 'l_kn', 'BS k norm', 'l_k_norm', 256, 2),
         *rope_list(h, 'BS kn', 'l_kn', 'BS k', 'l_k', v('layer position')),
         *copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
-        *matvec(h, 'blk.3.attn_v.weight', 512, 'BS v', 'l_v', request='layer-v'),
+        *matvec(h, weight(h, '.attn_v.weight'), 512, 'BS v', 'l_v', request='layer-v'),
         *append(h, 'BS k', 'l_k', 'BS k cache', 'l_k_cache'),
         *append(h, 'BS v', 'l_v', 'BS v cache', 'l_v_cache'),
         ('data_deletealloflist', {}, {'LIST': ['BS attn', 'l_attn']}, {}),
@@ -308,22 +315,22 @@ def layer(h):
         *gate_mul(h, 'BS attn', 'l_attn', 'BS gate', 'l_gate', 'BS attn gated', 'l_attn_gated'),
         *copy(h, 'BS attn gated', 'l_attn_gated', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
-        *matvec(h, 'blk.3.attn_output.weight', 2048, 'BS attn out', 'l_attn_out', request='layer-o'),
+        *matvec(h, weight(h, '.attn_output.weight'), 2048, 'BS attn out', 'l_attn_out', request='layer-o'),
         *h['combine'](h, gated=False, rhs=('BS attn out', 'l_attn_out'), input_name='BS layer input',
                       input_id='l_layer_input', output=('BS residual', 'l_residual')),
         *copy(h, 'BS residual', 'l_residual', 'BS input', 'l_input'),
         *weighted_norm(h, 'BS post w', 'l_post_w', 'BS normed', 'l_normed'),
         *copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
-        *matvec(h, 'blk.3.ffn_gate.weight', 6144, 'BS ffn gate', 'l_ffn_gate', request='layer-g'),
+        *matvec(h, weight(h, '.ffn_gate.weight'), 6144, 'BS ffn gate', 'l_ffn_gate', request='layer-g'),
         *copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
-        *matvec(h, 'blk.3.ffn_up.weight', 6144, 'BS ffn up', 'l_ffn_up', request='layer-u'),
+        *matvec(h, weight(h, '.ffn_up.weight'), 6144, 'BS ffn up', 'l_ffn_up', request='layer-u'),
         *h['combine'](h, gated=True, rhs=('BS ffn up', 'l_ffn_up'), input_name='BS ffn gate',
                       input_id='l_ffn_gate', output=('BS ffn', 'l_ffn')),
         *copy(h, 'BS ffn', 'l_ffn', 'BS input', 'l_input'),
         *rotate_in(h, 6144),
-        *matvec(h, 'blk.3.ffn_down.weight', 2048, 'BS ffn out', 'l_ffn_out', request='layer-d'),
+        *matvec(h, weight(h, '.ffn_down.weight'), 2048, 'BS ffn out', 'l_ffn_out', request='layer-d'),
         *h['combine'](h, gated=False, rhs=('BS ffn out', 'l_ffn_out'), input_name='BS residual',
                       input_id='l_residual', output=('BS layer out', 'l_layer_out')),
         ('data_deletealloflist', {}, {'LIST': ['BS output', 'l_output']}, {}),

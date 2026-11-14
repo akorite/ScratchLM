@@ -66,6 +66,24 @@ class DeltaNetStageTests(unittest.TestCase):
         self.compare('BS beta', 'beta-0-pos1.f32', 5e-6)
         self.compare('BS alpha', 'alpha-0-pos1.f32', 5e-6)
 
+    def test_layers_dispatch_by_index_through_the_chain(self):
+        cases = ((0, 'deltanet/input-pos1.f32', 'chain/l_out-0-pos1.f32', '41'),
+                 (1, 'chain/l_out-0-pos1.f32', 'chain/l_out-1-pos1.f32', '41'),
+                 (3, 'chain/l_out-2-pos1.f32', 'chain/l_out-3-pos1.f32', '40'))
+        for layer, activation, expected, mode in cases:
+            with self.subTest(layer=layer):
+                output = Path(self.temp.name) / f'chain-{layer}.json'
+                env = dict(os.environ, BONSAI_ACTIVATION_F32=str(ROOT / 'fixtures/native/m5' / activation),
+                           BONSAI_LAYER_POSITION='0', BONSAI_LAYER=str(layer),
+                           BONSAI_DUMP=f'BS output:{output}')
+                run = subprocess.run(['node', str(ROOT / 'tests/scratch/run-vm.js'), str(self.project), '[]', mode],
+                                     capture_output=True, text=True, timeout=300, env=env)
+                self.assertEqual(run.returncode, 0, run.stderr)
+                got = [float(v) for v in json.loads(output.read_text())]
+                want = read_f32(ROOT / 'fixtures/native/m5' / expected)
+                errors = [abs(a - b) for a, b in zip(got, want)]
+                self.assertLessEqual(max(errors), 1e-6, expected)
+
     def test_gated_norm_and_output_projection_match_native(self):
         self.compare('BS final out', 'final_output-0-pos1.f32', 1e-6)
         self.compare('BS attn out', 'linear_attn_out-0-pos1.f32', 1e-6)

@@ -7,6 +7,8 @@ in Scratch; weight tiles come from the selected package through the loader.
 
 from scratch import attention, embedding
 
+weight = attention.weight
+
 CONV_WIDTH = 6144
 TAPS = 4
 
@@ -241,8 +243,15 @@ def gated_norm(h):
             setvar('BS dn head', 0), repeat(16, per_head)]
 
 
+def _unused_weight(h, suffix):
+    """'blk.<layer><suffix>' as a Scratch join expression."""
+    op = h['op']
+    join = lambda a, b: op('operator_join', STRING1=a, STRING2=b)
+    return join('blk.', join(h['var']('BS layer'), suffix))
+
+
 def stage(h):
-    """Projections and convolution for one token, writing `BS conv silu`."""
+    """One Gated DeltaNet layer for the token in `BS input`."""
     var, op, item, setvar, addlist, length, conditional, repeat, change = (
         h[name] for name in ('var', 'op', 'item', 'setvar', 'addlist', 'length', 'conditional',
                              'repeat', 'change'))
@@ -252,9 +261,9 @@ def stage(h):
     codec = ('bonsailoader_codec', {}, {}, False)
     body = [
         embedding.set_codec_from_loader(h, codec),
-        *embedding.load_dense(h, 'dn-norm', 'blk.0.attn_norm.weight', 'BS norm w', 'l_norm_w', 2048,
+        *embedding.load_dense(h, 'dn-norm', weight(h, '.attn_norm.weight'), 'BS norm w', 'l_norm_w', 2048,
                               [setvar('BS proj valid', 0)]),
-        *embedding.load_dense(h, 'dn-conv', 'blk.0.ssm_conv1d.weight', 'BS conv w', 'l_conv_w',
+        *embedding.load_dense(h, 'dn-conv', weight(h, '.ssm_conv1d.weight'), 'BS conv w', 'l_conv_w',
                               TAPS * CONV_WIDTH, [setvar('BS proj valid', 0)]),
         *embedding.load_dense(h, 'dn-signs', 'prism.hadamard.signs.2048', 'BS signs', 'l_signs', 2048,
                               [setvar('BS proj valid', 0)]),
@@ -262,18 +271,18 @@ def stage(h):
         *attention.copy(h, 'BS input', 'l_input', 'BS layer input', 'l_layer_input'),
         *attention.copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *attention.rotate_in(h, 2048),
-        *attention.matvec(h, 'blk.0.attn_qkv.weight', CONV_WIDTH, 'BS qkv', 'l_qkv', request='dn-qkv'),
+        *attention.matvec(h, weight(h, '.attn_qkv.weight'), CONV_WIDTH, 'BS qkv', 'l_qkv', request='dn-qkv'),
         *conv(h),
         *shift_state(h),
         # z is its own folded projection; beta and alpha are small dense rows.
         *attention.copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *attention.rotate_in(h, 2048),
-        *attention.matvec(h, 'blk.0.attn_gate.weight', 2048, 'BS z', 'l_z', request='dn-z'),
-        *embedding.load_dense(h, 'dn-beta', 'blk.0.ssm_beta.weight', 'BS beta w', 'l_beta_w',
+        *attention.matvec(h, weight(h, '.attn_gate.weight'), 2048, 'BS z', 'l_z', request='dn-z'),
+        *embedding.load_dense(h, 'dn-beta', weight(h, '.ssm_beta.weight'), 'BS beta w', 'l_beta_w',
                               16 * 2048, [setvar('BS proj valid', 0)]),
         *attention.copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *dense_rows(h, 'BS beta w', 'l_beta_w', 16, 'BS beta', 'l_beta'),
-        *embedding.load_dense(h, 'dn-alpha', 'blk.0.ssm_alpha.weight', 'BS alpha w', 'l_alpha_w',
+        *embedding.load_dense(h, 'dn-alpha', weight(h, '.ssm_alpha.weight'), 'BS alpha w', 'l_alpha_w',
                               16 * 2048, [setvar('BS proj valid', 0)]),
         *attention.copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *dense_rows(h, 'BS alpha w', 'l_alpha_w', 16, 'BS alpha', 'l_alpha'),
@@ -284,37 +293,37 @@ def stage(h):
                       change('BS dn channel', 1)]),
         *l2(h, 'BS qk', 'l_qk', 'BS qk l2', 'l_qk_l2', heads=32),
         *split(h),
-        *embedding.load_dense(h, 'dn-a', 'blk.0.ssm_a', 'BS ssm a', 'l_ssm_a', 16,
+        *embedding.load_dense(h, 'dn-a', weight(h, '.ssm_a'), 'BS ssm a', 'l_ssm_a', 16,
                               [setvar('BS proj valid', 0)]),
-        *embedding.load_dense(h, 'dn-dt', 'blk.0.ssm_dt.bias', 'BS dt', 'l_dt', 16,
+        *embedding.load_dense(h, 'dn-dt', weight(h, '.ssm_dt.bias'), 'BS dt', 'l_dt', 16,
                               [setvar('BS proj valid', 0)]),
         *gates(h),
         *delta(h),
-        *embedding.load_dense(h, 'dn-normw', 'blk.0.ssm_norm.weight', 'BS ssm norm', 'l_ssm_norm', 128,
+        *embedding.load_dense(h, 'dn-normw', weight(h, '.ssm_norm.weight'), 'BS ssm norm', 'l_ssm_norm', 128,
                               [setvar('BS proj valid', 0)]),
-        *embedding.load_dense(h, 'dn-postw', 'blk.0.post_attention_norm.weight', 'BS post w', 'l_post_w', 2048,
+        *embedding.load_dense(h, 'dn-postw', weight(h, '.post_attention_norm.weight'), 'BS post w', 'l_post_w', 2048,
                               [setvar('BS proj valid', 0)]),
         *embedding.load_dense(h, 'dn-signsw', 'prism.hadamard.signs.6144', 'BS signs wide', 'l_signs_wide', 6144,
                               [setvar('BS proj valid', 0)]),
         *gated_norm(h),
         *attention.copy(h, 'BS final out', 'l_final_out', 'BS input', 'l_input'),
         *attention.rotate_in(h, 2048),
-        *attention.matvec(h, 'blk.0.ssm_out.weight', 2048, 'BS attn out', 'l_attn_out', request='dn-out'),
+        *attention.matvec(h, weight(h, '.ssm_out.weight'), 2048, 'BS attn out', 'l_attn_out', request='dn-out'),
         *h['combine'](h, gated=False, rhs=('BS attn out', 'l_attn_out'), input_name='BS layer input',
                       input_id='l_layer_input', output=('BS residual', 'l_residual')),
         *attention.copy(h, 'BS residual', 'l_residual', 'BS input', 'l_input'),
         *attention.weighted_norm(h, 'BS post w', 'l_post_w', 'BS normed2', 'l_normed2'),
         *attention.copy(h, 'BS normed2', 'l_normed2', 'BS input', 'l_input'),
         *attention.rotate_in(h, 2048),
-        *attention.matvec(h, 'blk.0.ffn_gate.weight', 6144, 'BS ffn gate', 'l_ffn_gate', request='dn-fg'),
+        *attention.matvec(h, weight(h, '.ffn_gate.weight'), 6144, 'BS ffn gate', 'l_ffn_gate', request='dn-fg'),
         *attention.copy(h, 'BS normed2', 'l_normed2', 'BS input', 'l_input'),
         *attention.rotate_in(h, 2048),
-        *attention.matvec(h, 'blk.0.ffn_up.weight', 6144, 'BS ffn up', 'l_ffn_up', request='dn-fu'),
+        *attention.matvec(h, weight(h, '.ffn_up.weight'), 6144, 'BS ffn up', 'l_ffn_up', request='dn-fu'),
         *h['combine'](h, gated=True, rhs=('BS ffn up', 'l_ffn_up'), input_name='BS ffn gate',
                       input_id='l_ffn_gate', output=('BS ffn', 'l_ffn')),
         *attention.copy(h, 'BS ffn', 'l_ffn', 'BS input', 'l_input'),
         *attention.rotate_in(h, 6144),
-        *attention.matvec(h, 'blk.0.ffn_down.weight', 2048, 'BS ffn out', 'l_ffn_out', request='dn-fd'),
+        *attention.matvec(h, weight(h, '.ffn_down.weight'), 2048, 'BS ffn out', 'l_ffn_out', request='dn-fd'),
         *h['combine'](h, gated=False, rhs=('BS ffn out', 'l_ffn_out'), input_name='BS residual',
                       input_id='l_residual', output=('BS dn layer out', 'l_dn_layer_out')),
         ('data_deletealloflist', {}, {'LIST': ['BS output', 'l_output']}, {}),

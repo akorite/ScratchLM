@@ -377,7 +377,7 @@ def project(with_text=False, with_benchmark=False):
              'BS iterations', 'BS benchmark start', 'BS benchmark quant', 'BS benchmark setup', 'BS benchmark compute',
              'BS rope position', 'BS rope head', 'BS rope pair', 'BS rope x', 'BS rope y',
              'BS rope theta', 'BS rope cosine', 'BS rope sine', 'BS rope width', 'BS rope heads',
-             'BS layer position', 'BS layer head', 'BS layer token', 'BS layer index', 'BS layer sum',
+             'BS layer', 'BS layer position', 'BS layer head', 'BS layer token', 'BS layer index', 'BS layer sum',
              'BS layer maximum', 'BS layer weight', 'BS layer divisor',
              'BS proj scanned', 'BS proj tile', 'BS proj valid', 'BS settle',
              'BS dn channel', 'BS dn tap', 'BS dn sum', 'BS dn row', 'BS dn index',
