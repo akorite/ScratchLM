@@ -234,6 +234,21 @@ stateDiagram-v2
   - A state list of the wrong length reports `invalid dimensions`.
 - **Verification:** the compiled VM matches positions 1, 2, and 16 for `blk.0`, with state probes matching the regenerated artifact.
 
+### U5 status note (in progress)
+
+U4 is complete: mode 40 reproduces `l_out-3` at positions 1 and 64 to ~1e-7 and position 2 to 6.5e-5, with the frozen tolerance 1e-4 max / 2e-5 RMS (`tests/scratch/test_attention.py`).
+
+The DeltaNet recurrence is a *fused* kernel (`ggml_compute_forward_gated_delta_net_one_chunk`, `ggml/src/ggml-cpu/ops.cpp`), so the graph captures only its inputs and outputs. The per-token, per-head step (S_v = 128) is:
+
+- `beta = sigmoid(beta_raw)`, `g0 = ssm_a[h] * softplus(alpha_raw + ssm_dt_bias[h])`, decay `= exp(g0)`;
+- state is stored transposed, `M[j*128 + i] = S[i][j]`;
+- `M[j*128 + i] *= decay` for every `i`;
+- `delta[j] = (v[j] - dot(M row j, k)) * beta`;
+- `M[j*128 + i] += delta[j] * k[i]`;
+- `attn[j] = dot(M row j, q) * (1/sqrt(128))`.
+
+`q` and `k` are the L2-normalized convolution outputs (`qk_conv_l2`), `v` the raw convolution output. Outputs feed the gated RMS norm (`ssm_norm`, SiLU gate) and `ssm_out`. Fixture anchors per position: `conv_output_raw`, `conv_output_silu`, `qk_conv_l2`, `alpha`, `beta`, `new_state`, `final_output`, `linear_attn_out`, `l_out-0`, with the convolution history captured post-copy. State seeding follows the attention layer: token-major Scratch cells, native V/D state converted on load.
+
 ### U6. 24-layer decoder
 
 - **Goal:** the project produces the native next token from fixed token IDs across the locked layer schedule.
