@@ -425,7 +425,8 @@ def project(with_text=False, with_benchmark=False):
              'BS dn head', 'BS dn scale', 'BS dn j', 'BS dn i', 'BS dn delta', 'BS dn sp')
     # The head procedure is always present (the decoder calls it), so its variables are too.
     names += ('BS head rows', 'BS head tensor', 'BS tile size', 'BS tile count', 'BS tile row',
-              'BS scanned', 'BS head valid', 'BS cancel', 'BS benchmark transfer', 'BS groups per row')
+              'BS scanned', 'BS head valid', 'BS cancel', 'BS benchmark transfer', 'BS groups per row',
+              'BS readout')
     if with_text:
         names += ('BS text index', 'BS text unit', 'BS text next', 'BS text code', 'BS text equal',
                   'BS text needle', 'BS text result')
@@ -440,7 +441,7 @@ def project(with_text=False, with_benchmark=False):
                   'BS detok code', 'BS detok piece', 'BS detok slot', 'BS text', 'BS byte index',
                   'BS generate index', 'BS max tokens', 'BS eos token', 'BS ask', 'BS stop',
                   'BS prompt saved', 'BS template', 'BS render start',
-                  'BS prompt length', 'BS decode budget', 'BS started', 'BS loop', 'BS readout')
+                  'BS prompt length', 'BS decode budget', 'BS started', 'BS loop')
     variables = {var(name)[2]: [name, 0] for name in names}
     variables[var('BS iterations')[2]][1] = 1
     variables[var('BS token id')[2]][1] = -1  # decode from `BS input` unless a token id is set
@@ -448,6 +449,7 @@ def project(with_text=False, with_benchmark=False):
     variables[var('BS head rows')[2]][1] = 248320
     variables[var('BS head tensor')[2]][1] = 'token_embd.weight'
     variables[var('BS tile size')[2]][1] = 640
+    variables[var('BS readout')[2]][1] = 1  # the decoder runs the readout unless a prefill step turns it off
     if with_text and with_benchmark:
         variables[var('BS prompt')[2]][1] = ''
         variables[var('BS max tokens')[2]][1] = 8
@@ -458,7 +460,6 @@ def project(with_text=False, with_benchmark=False):
         variables[var('BS render start')[2]][1] = 1
         variables[var('BS started')[2]][1] = 0
         variables[var('BS loop')[2]][1] = 1
-        variables[var('BS readout')[2]][1] = 1
         variables[var('BS decode budget')[2]][1] = 11
     if with_benchmark:
         variables[var('BS mode')[2]][1] = 11

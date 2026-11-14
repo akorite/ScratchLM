@@ -129,8 +129,7 @@ async function run() {
         }
         if (process.env.BONSAI_MAX_TOKENS) {
             const maxTokens = stage.lookupVariableByNameAndType('BS max tokens', '');
-            if (!maxTokens) throw new Error('project max-token variable is missing');
-            maxTokens.value = Number(process.env.BONSAI_MAX_TOKENS);
+            if (maxTokens) maxTokens.value = Number(process.env.BONSAI_MAX_TOKENS);
         }
         if (process.env.BONSAI_OUT_TOKENS) {
             const outList = stage.lookupVariableByNameAndType('BS out tokens', 'list');
@@ -139,8 +138,7 @@ async function run() {
         }
         if (process.env.BONSAI_PROMPT !== undefined) {
             const promptVar = stage.lookupVariableByNameAndType('BS prompt', '');
-            if (!promptVar) throw new Error('project prompt variable is missing');
-            promptVar.value = process.env.BONSAI_PROMPT;
+            if (promptVar) promptVar.value = process.env.BONSAI_PROMPT;
             const askVar = stage.lookupVariableByNameAndType('BS ask', '');
             if (askVar) askVar.value = 0;
         }
