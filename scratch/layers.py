@@ -43,7 +43,7 @@ def rope(h, input_name='BS input', input_id='l_input', output_name='BS output',
                 change('BS rope head', 1)]
     return [setvar('BS rope position', at(1) if position is None else position), conditional(valid,
             [setvar('BS rope head', 0), repeat(div(size, 256), per_head)],
-            [addlist('invalid dimensions', output_name, output_id)])]
+            [addlist('invalid dimensions head-norm', output_name, output_id)])]
 
 
 def causal_softmax(h):
@@ -70,7 +70,7 @@ def causal_softmax(h):
         setvar('BS maximum', at(2)), setvar('BS index', 1), repeat(count, scan),
         setvar('BS total', 0), setvar('BS index', 1), repeat(count, total_loop),
         setvar('BS index', 1), repeat(count, emit),
-    ], [addlist('invalid dimensions')])]
+    ], [addlist('invalid dimensions combine')])]
 
 
 def combine(h, gated, input_name='BS input', input_id='l_input', output=('BS output', 'l_output'),
@@ -113,7 +113,7 @@ def combine(h, gated, input_name='BS input', input_id='l_input', output=('BS out
     clear = [] if paired else [('data_deletealloflist', {}, {'LIST': list(output)}, {})]
     return clear + [setvar('BS subtotal', at(1) if paired else length(input_name, input_id)),
                     conditional(valid, [setvar('BS index', 1), repeat(count, body)],
-                                [addlist('invalid dimensions', *output)])]
+                                [addlist('invalid dimensions head-scan', *output)])]
 
 
 def head_norm(h, gated):
@@ -153,4 +153,4 @@ def head_norm(h, gated):
                 setvar('BS divisor', math('sqrt', add(div(total, width), 9.999999974752427e-7))),
                 setvar('BS rope pair', 0), repeat(width, emit), change('BS rope head', 1)]
     return [setvar('BS rope width', at(1)), setvar('BS rope heads', at(2)),
-            conditional(valid, [setvar('BS rope head', 0), repeat(heads, per_head)], [addlist('invalid dimensions')])]
+            conditional(valid, [setvar('BS rope head', 0), repeat(heads, per_head)], [addlist('invalid dimensions combine')])]

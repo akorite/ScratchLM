@@ -159,7 +159,7 @@ def make(mode, h, with_benchmark=False):
                                OPERAND2=op('operator_or', OPERAND1=eq(var('BS codec'), 0),
                                            OPERAND2=op('operator_or', OPERAND1=eq(var('BS codec'), 1),
                                                        OPERAND2=eq(var('BS codec'), 2)))))
-        return [conditional(valid, transform_row, [addlist('invalid dimensions')])]
+        return [conditional(valid, transform_row, [addlist('invalid dimensions embed-row')])]
 
     if mode == 15:
         codec = ('bonsailoader_codec', {}, {}, False)
@@ -185,7 +185,7 @@ def make(mode, h, with_benchmark=False):
                                 [setvar('BS head valid', 0)]) + [
             conditional(eq(var('BS head valid'), 1), [set_codec_from_loader(h, codec)] + transform_row, [addlist('error')]),
         ]
-        return [conditional(valid, load_row, [addlist('invalid dimensions')])]
+        return [conditional(valid, load_row, [addlist('invalid dimensions embed-load-row')])]
 
     valid = op('operator_and',
                OPERAND1=gt(length('BS input', 'l_input'), 0),
@@ -195,5 +195,5 @@ def make(mode, h, with_benchmark=False):
             h, 'norm_w', 'output_norm.weight', 'BS norm weights', 'l_norm_weights',
             length('BS input', 'l_input'), [addlist('error')])
         return ensure_weights + [conditional(eq(length('BS output', 'l_output'), 0),
-                                             [conditional(valid, output_norm(h), [addlist('invalid dimensions')])])]
-    return [conditional(valid, output_norm(h), [addlist('invalid dimensions')])]
+                                             [conditional(valid, output_norm(h), [addlist('invalid dimensions outnorm-load')])])]
+    return [conditional(valid, output_norm(h), [addlist('invalid dimensions outnorm-check')])]
