@@ -75,9 +75,10 @@ def matvec(h, tensor, rows, dest_name, dest_id, request='layer'):
                'COUNT': tile_groups, 'Q': 'l_packed', 'SCALE': 'l_scales'}, {}, {}),
              ('control_wait', {'DURATION': 0}, {}, {}),
              # A refill may need several frames; wait until the request settles.
-             ('control_repeat_until',
-              {'CONDITION': op('operator_not', OPERAND=op('operator_equals', OPERAND1=status, OPERAND2='pending'))},
-              {}, {'SUBSTACK': [('control_wait', {'DURATION': 0}, {}, {})]}),
+             setvar('BS settle', 0),
+             repeat(600, [conditional(eq(v('settle'), 0), [
+                 conditional(eq(status, 'pending'), [('control_wait', {'DURATION': 0}, {}, {})],
+                             [setvar('BS settle', 1)])])]),
              conditional(op('operator_and', OPERAND1=eq(status, 'ok'),
                             OPERAND2=eq(copied, tile_groups)),
                          [setvar('BS tile row', 0), repeat(tile_rows, row),

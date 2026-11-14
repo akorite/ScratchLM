@@ -324,8 +324,10 @@ def project(with_text=False, with_benchmark=False):
     for mode in (32, 33):
         fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=mode),
                                 layers.combine(globals(), gated=mode == 32), fallback)]
+    # Keep the layer body in a procedure: the main script must stay small enough to compile.
+    layer_body = attention.layer(helpers)
     fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=40),
-                            attention.layer(helpers), fallback)]
+                            [call_proc('BS layer', 'true')], fallback)]
     for mode in (34, 35):
         fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=mode),
                                 layers.head_norm(globals(), gated=mode == 34), fallback)]
@@ -350,6 +352,7 @@ def project(with_text=False, with_benchmark=False):
     graph.blocks[hat]['next'] = graph.stack(script, hat)
     f32_procedure(graph)
     add_procedure(graph, 'BS hadamard', transform.hadamard(globals(), inline=True), x=1800, warp='true')
+    add_procedure(graph, 'BS layer', layer_body, x=2100, warp='true')
     if with_benchmark:
         add_procedure(graph, 'BS head', lut.script(globals(), head=True), x=2400, warp='false')
     svg = (b'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>' if with_text else
@@ -372,7 +375,7 @@ def project(with_text=False, with_benchmark=False):
              'BS rope theta', 'BS rope cosine', 'BS rope sine', 'BS rope width', 'BS rope heads',
              'BS layer position', 'BS layer head', 'BS layer token', 'BS layer index', 'BS layer sum',
              'BS layer maximum', 'BS layer weight', 'BS layer divisor',
-             'BS proj scanned', 'BS proj tile', 'BS proj valid')
+             'BS proj scanned', 'BS proj tile', 'BS proj valid', 'BS settle')
     if with_benchmark:
         names += ('BS head rows', 'BS head tensor', 'BS tile size', 'BS tile count', 'BS tile row',
                   'BS scanned', 'BS head valid', 'BS cancel', 'BS benchmark transfer', 'BS groups per row')
