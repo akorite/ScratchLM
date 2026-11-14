@@ -10,11 +10,7 @@ post norm, SwiGLU MLP, residual.
 
 from scratch import embedding, lut, numeric, transform
 
-# One tile per matrix keeps the request count low; the loader caps a request at 4 MiB,
-# which is 4 MiB / (34 bytes per group) / (input width / 128 groups) rows.
-TILE = 8192
-LOADER_BYTES = 4194304
-GROUP_BYTES = 34
+TILE = 640
 
 
 def rotate_in(h, sign_width):
@@ -79,9 +75,6 @@ def matvec(h, tensor, rows, dest_name, dest_id, request='layer'):
            addlist(v('total'), dest_name, dest_id), change('BS tile row', 1)]
     chunk = [setvar('BS proj tile', sub(rows, v('proj scanned'))),
              conditional(gt(tile_rows, TILE), [setvar('BS proj tile', TILE)]),
-             # the loader rejects a request above its byte cap, so shrink the tile to fit
-             conditional(gt(mul(tile_rows, groups), floor(div(LOADER_BYTES, GROUP_BYTES))),
-                         [setvar('BS proj tile', floor(div(floor(div(LOADER_BYTES, GROUP_BYTES)), groups)))]),
              ('bonsailoader_loadGroups',
               {'ID': request, 'TENSOR': tensor, 'START': mul(v('proj scanned'), groups),
                'COUNT': tile_groups, 'Q': 'l_packed', 'SCALE': 'l_scales'}, {}, {}),

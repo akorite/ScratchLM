@@ -1,0 +1,128 @@
+{
+  "schema": "bonsai-decode-step/v1",
+  "cpu": "Intel(R) Xeon(R) Platinum 8488C",
+  "turbowarp_vm": "scratch-vm-0cb82afe62506f3d9f2ff849c95593f0473b5d2c",
+  "turbomode": true,
+  "tiles": [
+    64,
+    640,
+    8192
+  ],
+  "stubs": [],
+  "warp_head": false,
+  "framerate": 250,
+  "token_id": 1237,
+  "project_sha256": {
+    "64": "322138731a9136bf60e0706eb807dc6ee3791d610dd07fbb39de7389ea3dddbe",
+    "640": "fab662013f7e8b35502dd6162cfa1c99733c34dc7938f481bc8bde85d5eb8128",
+    "8192": "3fd5ec7111a7b800e6a45c41b3796f9bc0f10342de20d7e80d15b6bebdf480b6"
+  },
+  "source_sha256": {
+    "scratch/attention.py": "0d8eddd7fb11a21e2efe69459083a46ec8e4fc7a55efe8a33f7602c53b885dfb",
+    "scratch/decoder.py": "2ce4d50206a980b2f0b7af573e8ca79a55c53b2881f4e40de225103802b66832",
+    "scratch/deltanet.py": "9048b4305643e6096b95c349f887119bc171e5722e34c4b156c3e9818827f7cf",
+    "scratch/embedding.py": "21ca1dc355b9a147adc7ec12157395db1c961c4b05dcc866643a12ba179fd83d",
+    "scratch/layers.py": "34f8bd0d98718ab60c630017d156d5d450f77bf9c3deca81abce40c82f066ca6",
+    "scratch/lut.py": "bcee413a1f29b8f9037457a31c09fce1db8c3add5e9203c8d45fff2254396370",
+    "scratch/numeric.py": "8c0e74d47b70ed40439558b102727d30c22df65b9c2687388ce02be1baf6c88c",
+    "scratch/text.py": "355f2ce1180cf66072dc5b8d1de4c578efe51d653815cc09b0fa9b5afcef5ff2",
+    "scratch/tokenizer.py": "733d49a8090cfd417adbc7c397a24074c17b574a50dc3e2510e88c77451c0d02",
+    "scratch/transform.py": "ac3f90259433ac840a6c948b4e295870b88a043f3b132cf0e3a3a89368450745"
+  },
+  "generator_sha256": "c9ab94128ee0f1924af1518ac8244ea3886f5bbbacf0b1bcd615ba16579b230f",
+  "note": "One mode-42 decode step (24 layers + output_norm + head scan + greedy), Node VM, no renderer.",
+  "runs": [
+    {
+      "wall_seconds": 67.27603383618407,
+      "cpu_seconds": 78.764341,
+      "tile": 64,
+      "framerate": 250,
+      "BS greedy token": 11,
+      "BS greedy logit": 12.117389678955078,
+      "BS second logit": 11.707728385925293
+    },
+    {
+      "wall_seconds": 45.12482153996825,
+      "cpu_seconds": 57.421218999999994,
+      "tile": 640,
+      "framerate": 250,
+      "BS greedy token": 11,
+      "BS greedy logit": 12.117389678955078,
+      "BS second logit": 11.707728385925293
+    },
+    {
+      "wall_seconds": 45.74009282584302,
+      "cpu_seconds": 58.652115,
+      "tile": 8192,
+      "framerate": 250,
+      "BS greedy token": 11,
+      "BS greedy logit": 12.117389678955078,
+      "BS second logit": 11.707728385925293
+    },
+    {
+      "wall_seconds": 67.60626897402108,
+      "cpu_seconds": 80.13807800000001,
+      "tile": 64,
+      "framerate": 250,
+      "BS greedy token": 11,
+      "BS greedy logit": 12.117389678955078,
+      "BS second logit": 11.707728385925293
+    },
+    {
+      "wall_seconds": 38.38699075579643,
+      "cpu_seconds": 51.27899599999999,
+      "tile": 640,
+      "framerate": 250,
+      "BS greedy token": 11,
+      "BS greedy logit": 12.117389678955078,
+      "BS second logit": 11.707728385925293
+    },
+    {
+      "wall_seconds": 41.699248161166906,
+      "cpu_seconds": 54.396235,
+      "tile": 8192,
+      "framerate": 250,
+      "BS greedy token": 11,
+      "BS greedy logit": 12.117389678955078,
+      "BS second logit": 11.707728385925293
+    }
+  ],
+  "summary_by_tile": {
+    "64": {
+      "wall_seconds": [
+        67.27603383618407,
+        67.60626897402108
+      ],
+      "cpu_seconds": [
+        78.764341,
+        80.13807800000001
+      ],
+      "median_wall_seconds": 67.44115140510257,
+      "median_cpu_seconds": 79.4512095
+    },
+    "640": {
+      "wall_seconds": [
+        45.12482153996825,
+        38.38699075579643
+      ],
+      "cpu_seconds": [
+        57.421218999999994,
+        51.27899599999999
+      ],
+      "median_wall_seconds": 41.75590614788234,
+      "median_cpu_seconds": 54.35010749999999
+    },
+    "8192": {
+      "wall_seconds": [
+        45.74009282584302,
+        41.699248161166906
+      ],
+      "cpu_seconds": [
+        58.652115,
+        54.396235
+      ],
+      "median_wall_seconds": 43.719670493504964,
+      "median_cpu_seconds": 56.524175
+    }
+  }
+}
