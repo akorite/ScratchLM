@@ -10,7 +10,7 @@ post norm, SwiGLU MLP, residual.
 
 from scratch import embedding, lut, numeric, transform
 
-TILE = 64
+TILE = 640
 
 
 def rotate_in(h, sign_width):

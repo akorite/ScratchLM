@@ -195,7 +195,30 @@ static int project_pq2(const char * model, const char * offset_arg, const char *
 }
 
 
+// Tokenize one UTF-8 string with the model's vocabulary, no added special tokens.
+static int tokenize_text(const char * model_path, const char * text) {
+    llama_backend_init();
+    auto mp = llama_model_default_params();
+    mp.n_gpu_layers = 0;
+    mp.use_extra_bufts = false;
+    auto * model = llama_model_load_from_file(model_path, mp);
+    if (!model) { std::cerr << "model load failed\n"; return 1; }
+    const llama_vocab * vocab = llama_model_get_vocab(model);
+    const int len = int(std::strlen(text));
+    std::vector<llama_token> tokens(-llama_tokenize(vocab, text, len, nullptr, 0, false, false));
+    if (tokens.empty() || llama_tokenize(vocab, text, len, tokens.data(), int(tokens.size()), false, false) < 0) {
+        std::cerr << "tokenize failed\n";
+        return 1;
+    }
+    for (auto token : tokens) std::cout << token << "\n";
+    llama_model_free(model);
+    llama_backend_free();
+    return 0;
+}
+
+
 int main(int argc, char ** argv) {
+    if (argc == 4 && std::string(argv[1]) == "--tokenize") return tokenize_text(argv[2], argv[3]);
     if (argc == 7 && std::string(argv[1]) == "--project-pq2") return project_pq2(argv[2], argv[3], argv[4], argv[5], argv[6]);
     if (argc == 4 && std::string(argv[1]) == "--quantize") return quantize_file(argv[2], argv[3]);
     if (argc < 7) { std::cerr << "model output context generate filter token... required\n"; return 2; }
