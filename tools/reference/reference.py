@@ -283,6 +283,179 @@ def f32_values(path):
     return list(struct.unpack("<" + "f" * (len(data) // 4), data))
 
 
+LAYER_NODES = {
+    0: ("deltanet", [("attn_norm-0", "MUL"), ("z-0", "MUL_MAT"), ("alpha-0", "RESHAPE"),
+                     ("beta-0", "RESHAPE"), ("conv_input-0", "CONCAT"), ("conv_output_raw-0", "SSM_CONV"),
+                     ("conv_output_silu-0", "UNARY"), ("q_conv_predelta-0", "VIEW"),
+                     ("k_conv_predelta-0", "VIEW"), ("v_conv_predelta-0", "VIEW"),
+                     ("qk_conv_l2-0", "L2_NORM"), ("attn_output-0", "VIEW"),
+                     ("final_output-0", "RESHAPE"), ("linear_attn_out-0", "MUL_MAT"),
+                     ("attn_residual-0", "ADD"), ("attn_post_norm-0", "MUL"),
+                     ("ffn_gate-0", "MUL_MAT"), ("ffn_up-0", "MUL_MAT"),
+                     ("ffn_swiglu-0", "GLU"), ("ffn_out-0", "MUL_MAT"), ("l_out-0", "ADD")]),
+    3: ("attention", [("attn_norm-3", "MUL"), ("Qcur_full-3", "MUL_MAT"), ("Qcur_normed-3", "MUL"),
+                      ("Qcur-3", "ROPE"), ("Kcur-3", "MUL_MAT"), ("Kcur_normed-3", "MUL"),
+                      ("Vcur-3", "MUL_MAT"), ("kq-3", "MUL_MAT"), ("kq_soft_max-3", "SOFT_MAX"),
+                      ("kqv-3", "MUL_MAT"), ("attn_pregate-3", "CONT"), ("gate_sigmoid-3", "UNARY"),
+                      ("attn_gated-3", "MUL"), ("attn_output-3", "MUL_MAT"),
+                      ("attn_residual-3", "ADD"), ("attn_post_norm-3", "MUL"),
+                      ("ffn_gate-3", "MUL_MAT"), ("ffn_up-3", "MUL_MAT"),
+                      ("ffn_swiglu-3", "GLU"), ("ffn_out-3", "MUL_MAT"), ("l_out-3", "ADD")]),
+}
+STATE_NODES = (("new_state-0", "new_state-0", "VIEW"),
+               ("conv_state_update-0", "conv_state_update-0 (copy of conv_state_last-0)", "CPY"))
+DEFAULT_PROMPT = [(i * 7919 + 1237) % 248320 for i in range(64)]
+
+
+def select_capture(captures, node, operation, step, label):
+    matches = [c for c in captures if c["step"] == step and c["node"] == node
+               and c["role"] == "out" and c["operation"] == operation]
+    if len(matches) != 1:
+        raise ValueError(f"{label}: expected one {operation} capture for {node} at step {step}, got {len(matches)}")
+    return matches[0]
+
+
+def position_list(text):
+    parts = text.split(",")
+    if not parts or any(not p.isascii() or not p.isdecimal() or not 1 <= int(p) <= 128 for p in parts):
+        raise ValueError("positions must be comma-separated 1-based values in [1, 128]")
+    return sorted({int(p) for p in parts})
+
+
+def state_probe(values):
+    head = 128 * 128
+    if len(values) == 16 * head:
+        return {"layout": "k,v,head", "head_0_head": values[:4], "head_0_tail": values[head - 4:head],
+                "head_15_tail": values[-4:]}
+    return {"layout": "flat", "head": values[:4], "tail": values[-4:]}
+
+
+def layer(args):
+    if not 1 <= args.context <= 128 or max(args.positions) > args.context:
+        raise ValueError("positions must fit the requested context in [1, 128]")
+    if max(args.positions) > len(args.tokens):
+        raise ValueError("positions must fit the supplied tokens")
+    if sys.byteorder != "little":
+        raise ValueError("fixture binary format requires a little-endian host")
+    state_dir = args.state_dir.resolve()
+    for position in args.positions:
+        for node in ("new_state-0", "conv_state_update-0", "cache-key-3", "cache-value-3", "logits"):
+            path = state_dir / f"{node}-pos{position}.f32"
+            if path.exists():
+                raise FileExistsError(f"state file already exists: {path}")
+    identity = json.loads((ROOT / "model-lock.json").read_text(encoding="utf-8"))
+    verify_model(args.model, identity)
+    binary, build_meta = checked_build(args.build)
+    settings = json.loads((ROOT / "runtime-lock.json").read_text(encoding="utf-8"))
+    tensors = {t["name"]: t for t in json.loads((ROOT / "fixtures/tensor-manifest.json").read_text())["tensors"]}
+    out = args.output.resolve()
+    out.mkdir(parents=True, exist_ok=False)
+    state_dir.mkdir(parents=True, exist_ok=True)
+    work = out / "native-runs"
+    work.mkdir()
+    provenance = {"model": identity, "runtime": settings, "build": build_meta, "machine": machine(),
+                  "requested_context": args.context,
+                  "capture_method": "native-capture",
+                  "capture_note": "Per-layer graph capture at selected 1-based positions; state payloads live "
+                                  "outside the repository and are validated by checksum plus probe slices.",
+                  "seed": settings["seed"], "endianness": "little", "format": "IEEE-754 binary32"}
+    section = {"chain": {"positions": []}}
+    for layer_index, (name, nodes) in LAYER_NODES.items():
+        section[name] = {"layer": layer_index, "positions": []}
+    for position in args.positions:
+        prompt = [str(t) for t in args.tokens[:position]]
+        step = position - 1
+        runs = {}
+        for label, filt in (("deltanet", "-0"), ("attention", "-3"), ("chain", "l_out-")):
+            dest = work / f"{label}-{position}"
+            dest.mkdir()
+            run_command([binary, args.model.resolve(), dest, args.context, 0, filt, *prompt])
+            runs[label] = capture_manifest(dest)
+        for layer_index, (name, nodes) in LAYER_NODES.items():
+            entry = {"position": position, "step": step, "vectors": {}}
+            inputs = [c for c in runs[name] if c["step"] == step and c["node"] == f"norm-{layer_index}"
+                      and c["operation"] == "RMS_NORM" and c["role"] == "src0"
+                      and c["shape"] == [2048, 1, 1, 1]]
+            if len(inputs) != 1:
+                raise ValueError(f"layer {layer_index} position {position}: expected one layer input")
+            target = out / name
+            target.mkdir(exist_ok=True)
+            entry["input"] = copy_artifact(target, work / f"{name}-{position}", inputs[0]["payload"],
+                                           f"input-pos{position}.f32")
+            for node, operation in nodes:
+                match = select_capture(runs[name], node, operation, step, f"layer {layer_index} position {position}")
+                target = out / name
+                target.mkdir(exist_ok=True)
+                entry["vectors"][node] = {
+                    **copy_artifact(target, work / f"{name}-{position}", match["payload"],
+                                    f"{node}-pos{position}.f32"),
+                    "shape": match["shape"], "operation": operation}
+            state = {}
+            if name == "deltanet":
+                for node, capture_node, operation in STATE_NODES:
+                    match = select_capture(runs[name], capture_node, operation, step, f"position {position}")
+                    filename = f"{node}-pos{position}.f32"
+                    with (work / f"{name}-{position}" / match["payload"]["file"]).open("rb") as src, (state_dir / filename).open("xb") as dst:
+                        shutil.copyfileobj(src, dst)
+                    values = f32_values(state_dir / filename)
+                    state[node] = {**artifact(state_dir / filename),
+                                   "shape": match["shape"], "probe": state_probe(values)}
+            else:
+                for key, node in (("key", "kq-3"), ("value", "kqv-3")):
+                    matches = [c for c in runs[name] if c["step"] == step and c["node"] == node
+                               and c["operation"] == "MUL_MAT" and c["role"] == "src0"]
+                    if len(matches) != 1:
+                        raise ValueError(f"position {position}: expected one {key} cache capture")
+                    match = matches[0]
+                    filename = f"cache-{key}-3-pos{position}.f32"
+                    with (work / f"{name}-{position}" / match["payload"]["file"]).open("rb") as src, (state_dir / filename).open("xb") as dst:
+                        shutil.copyfileobj(src, dst)
+                    data = (state_dir / filename).read_bytes()
+                    strides = match["strides_bytes"]
+                    token_stride, element_stride = (strides[1], strides[0]) if key == "key" else (strides[0], strides[1])
+                    probe = lambda token: [struct.unpack_from("<f", data, token * token_stride + i * element_stride)[0]
+                                           for i in range(4)]
+                    state[key] = {**artifact(state_dir / filename), "shape": match["shape"],
+                                  "strides_bytes": strides, "probe": {"first_token_head_0": probe(0),
+                                                                     "current_token_head_0": probe(position - 1)}}
+            entry["state"] = state
+            section[name]["positions"].append(entry)
+        chain = []
+        target = out / "chain"
+        target.mkdir(exist_ok=True)
+        for layer_index in range(24):
+            node = f"l_out-{layer_index}"
+            match = select_capture(runs["chain"], node, "ADD", step, f"chain position {position}")
+            chain.append({"layer": layer_index,
+                          **copy_artifact(target, work / f"chain-{position}", match["payload"],
+                                          f"{node}-pos{position}.f32")})
+        run_dir = work / f"chain-{position}"
+        logits_file = state_dir / f"logits-pos{position}.f32"
+        with (run_dir / f"logits-{step}.f32").open("rb") as src, logits_file.open("xb") as dst:
+            shutil.copyfileobj(src, dst)
+        steps = [row.split("\t") for row in (run_dir / "native.tsv").read_text().splitlines() if row.startswith("step\t")]
+        if len(steps) != position or int(steps[-1][1]) != step:
+            raise ValueError(f"chain position {position}: invalid native step record")
+        section["chain"]["positions"].append({"position": position, "vectors": chain,
+                                               "logits": artifact(logits_file),
+                                               "greedy_token": int(steps[-1][3])})
+    layer_zero, layer_three = section["deltanet"]["layer"], section["attention"]["layer"]
+    write_json(out / "manifest.json",
+               {"schema": "bonsai-native-m5/v1", **provenance,
+                "input_tokens": args.tokens, "positions": args.positions,
+                "layers": {"deltanet": layer_zero, "attention": layer_three},
+                "schedule": "24 layers; three Gated DeltaNet then one full-attention layer, repeated six times",
+                "sections": {k: v for k, v in section.items()},
+                "tensor_index": {n: tensors[n] for n in (
+                    "blk.0.attn_qkv.weight", "blk.0.ssm_conv1d.weight", "blk.0.ssm_out.weight",
+                    "blk.3.attn_q.weight", "blk.3.attn_k.weight", "blk.3.attn_v.weight",
+                    "blk.3.attn_output.weight", "output_norm.weight", "token_embd.weight")},
+                "state": {"directory": str(state_dir), "committed": False,
+                          "note": "recurrent and convolution state payloads are regenerated, not committed; "
+                                  "probe slices in each position entry are the committed regression check"}})
+    shutil.rmtree(work)
+
+
 def m4(args):
     if sys.byteorder != "little":
         raise ValueError("fixture binary format requires a little-endian host")
@@ -492,6 +665,18 @@ def main():
     p.add_argument("--tensor", required=True)
     p.add_argument("--output", type=Path, required=True)
     p.set_defaults(func=project)
+    p = sub.add_parser("layer", help="capture M5 per-layer and per-state fixtures at selected positions")
+    p.add_argument("--model", type=Path, required=True)
+    p.add_argument("--build", type=Path, required=True)
+    p.add_argument("--output", type=Path, required=True, help="new fixture directory")
+    p.add_argument("--state-dir", type=Path, required=True,
+                   help="directory outside the repository for recurrent and convolution state payloads")
+    p.add_argument("--tokens", type=lambda s: token_ids(s), default=DEFAULT_PROMPT,
+                   help="comma-separated token IDs; the first position tokens form each truncated prompt")
+    p.add_argument("--positions", type=position_list, default=[1, 2, 16, 64],
+                   help="comma-separated 1-based positions after which to capture")
+    p.add_argument("--context", type=int, default=64)
+    p.set_defaults(func=layer)
     p = sub.add_parser("m4", help="capture M4 fixtures: Hadamard chains, embedding rows, output_norm, head goldens")
     p.add_argument("--model", type=Path, required=True)
     p.add_argument("--build", type=Path, required=True)

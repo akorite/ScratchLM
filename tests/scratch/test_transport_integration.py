@@ -36,6 +36,41 @@ def add_loader_block(project, count, scale_list, start=0, tensor='blk.3.attn_q.w
 class TransportIntegrationTests(unittest.TestCase):
     @unittest.skipUnless(os.environ.get('BONSAI_TURBOWARP_VM') and os.environ.get('BONSAI_MODEL_PACKAGE'),
                          'set BONSAI_TURBOWARP_VM and BONSAI_MODEL_PACKAGE')
+    def test_compiled_metadata_string_transfer(self):
+        import importlib.util
+        sys.path.insert(0, str(ROOT))
+        spec = importlib.util.spec_from_file_location('project_generator', ROOT / 'tools/generate_project.py')
+        generator = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(generator)
+        with tempfile.TemporaryDirectory() as temp:
+            project = Path(temp) / 'strings.sb3'
+            generated = subprocess.run([sys.executable, str(ROOT / 'tools/generate_project.py'), str(project)],
+                                       capture_output=True, text=True)
+            self.assertEqual(generated.returncode, 0, generated.stderr)
+            with zipfile.ZipFile(project) as archive:
+                entries = {name: archive.read(name) for name in archive.namelist()}
+            data = json.loads(entries['project.json'])
+            blocks = generator.Blocks()
+            hat = blocks.add('event_whenflagclicked', top=True)
+            instructions = [
+                ('bonsailoader_loadStrings', {'KEY': 'tokenizer.ggml.tokens', 'DEST': 'l_input', 'ID': 'tokens'}, {}, {}),
+                *[generator.addlist(generator.item('BS input', 'l_input', index)) for index in (1, 124161, 248320)],
+                generator.setvar('BS done', 1),
+            ]
+            blocks.blocks[hat]['next'] = blocks.stack(instructions, hat)
+            data['targets'][0]['blocks'] = blocks.blocks
+            data['extensions'] = ['bonsailoader']
+            entries['project.json'] = json.dumps(data, separators=(',', ':')).encode()
+            with zipfile.ZipFile(project, 'w', zipfile.ZIP_DEFLATED) as archive:
+                for name, contents in entries.items():
+                    archive.writestr(name, contents)
+            run = subprocess.run(['node', str(ROOT / 'tests/scratch/run-vm.js'), str(project), '--stream'],
+                                 capture_output=True, text=True, timeout=60)
+            self.assertEqual(run.returncode, 0, run.stderr)
+            self.assertEqual(json.loads(run.stdout), ['!', 'æĭīæīĭ', '[PAD248319]'])
+
+    @unittest.skipUnless(os.environ.get('BONSAI_TURBOWARP_VM') and os.environ.get('BONSAI_MODEL_PACKAGE'),
+                         'set BONSAI_TURBOWARP_VM and BONSAI_MODEL_PACKAGE')
     def test_compiled_resident_scale_decode_after_loader_disabled(self):
         raw = (ROOT / 'fixtures/native/layer3-q-first5.pq2').read_bytes()
         expected = [struct.unpack('<e', raw[i * 34:i * 34 + 2])[0] for i in range(5)]

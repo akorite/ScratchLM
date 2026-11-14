@@ -8,7 +8,7 @@ import sys
 import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scratch import embedding, lut, numeric, text, transform
+from scratch import embedding, layers, lut, numeric, text, transform
 
 
 class Blocks:
@@ -316,6 +316,16 @@ def project(with_text=False, with_benchmark=False):
     for mode in (16, 14, 13, 12):
         spec = embedding.make(mode, globals(), with_benchmark=with_benchmark) if mode in (14, 16) else transform.make(mode, globals())
         fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=mode), spec, fallback)]
+    fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=30),
+                            layers.rope(globals()), fallback)]
+    fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=31),
+                            layers.causal_softmax(globals()), fallback)]
+    for mode in (32, 33):
+        fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=mode),
+                                layers.combine(globals(), gated=mode == 32), fallback)]
+    for mode in (34, 35):
+        fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=mode),
+                                layers.head_norm(globals(), gated=mode == 34), fallback)]
     for mode in reversed((4, 5, 6, 7, 8, 10)):
         fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=mode),
                                 numeric.make(mode, globals()), fallback)]
@@ -354,7 +364,9 @@ def project(with_text=False, with_benchmark=False):
              'BS hadamard block', 'BS hadamard step', 'BS hadamard outer', 'BS hadamard pair',
              'BS hadamard u', 'BS hadamard v', 'BS token id',
              'BS greedy token', 'BS greedy logit', 'BS second logit', 'BS top position', 'BS top scan',
-             'BS iterations', 'BS benchmark start', 'BS benchmark quant', 'BS benchmark setup', 'BS benchmark compute')
+             'BS iterations', 'BS benchmark start', 'BS benchmark quant', 'BS benchmark setup', 'BS benchmark compute',
+             'BS rope position', 'BS rope head', 'BS rope pair', 'BS rope x', 'BS rope y',
+             'BS rope theta', 'BS rope cosine', 'BS rope sine', 'BS rope width', 'BS rope heads')
     if with_benchmark:
         names += ('BS head rows', 'BS head tensor', 'BS tile size', 'BS tile count', 'BS tile row',
                   'BS scanned', 'BS head valid', 'BS cancel', 'BS benchmark transfer', 'BS groups per row')

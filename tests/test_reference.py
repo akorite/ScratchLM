@@ -140,6 +140,35 @@ class ReferenceTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 reference.staging_manifest(root)
 
+    def test_layer_capture_rejects_missing_or_ambiguous_nodes(self):
+        capture = {"step": 1, "node": "example", "role": "out", "operation": "VIEW"}
+        self.assertIs(reference.select_capture([capture], "example", "VIEW", 1, "layer"), capture)
+        for captures in ([], [capture, capture]):
+            with self.subTest(captures=len(captures)), self.assertRaises(ValueError):
+                reference.select_capture(captures, "example", "VIEW", 1, "layer")
+
+    def test_layer_refuses_to_overwrite_existing_state(self):
+        with tempfile.TemporaryDirectory(dir=os.environ.get('BONSAI_FIXTURE_TMP')) as directory:
+            root = pathlib.Path(directory)
+            existing = root / 'conv_state_update-0-pos1.f32'
+            existing.write_bytes(b'keep')
+            result = subprocess.run([sys.executable, str(SCRIPT), 'layer', '--model', 'missing',
+                                     '--build', 'missing', '--output', str(root / 'fixture'),
+                                     '--state-dir', str(root), '--tokens', '1', '--positions', '1'],
+                                    capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('exists', result.stderr.lower())
+            self.assertEqual(existing.read_bytes(), b'keep')
+
+    def test_layer_rejects_position_beyond_context_before_loading_model(self):
+        result = subprocess.run([sys.executable, str(SCRIPT), 'layer', '--model', 'missing',
+                                 '--build', 'missing', '--output', 'missing-output',
+                                 '--state-dir', 'missing-state', '--tokens', '1,2',
+                                 '--positions', '2', '--context', '1'],
+                                capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('context', result.stderr.lower())
+
     @unittest.skipUnless(os.environ.get('BONSAI_NATIVE_BUILD') and os.environ.get('BONSAI_MODEL_PATH'),
                          'set BONSAI_NATIVE_BUILD and BONSAI_MODEL_PATH')
     def test_real_cpu_staging_matches_locked_projection(self):
@@ -155,6 +184,62 @@ class ReferenceTests(unittest.TestCase):
             expected = SCRIPT.parents[2] / 'fixtures/native/layer3-q-staging.q8_k'
             self.assertEqual((output / capture['payload']['file']).read_bytes(), expected.read_bytes())
             self.assertEqual(manifest['steps'][0]['greedy_next'], 321)
+
+    @unittest.skipUnless(os.environ.get('BONSAI_NATIVE_BUILD') and os.environ.get('BONSAI_MODEL_PATH'),
+                         'set BONSAI_NATIVE_BUILD and BONSAI_MODEL_PATH')
+    def test_layer_fixture_records_updated_convolution_history(self):
+        with tempfile.TemporaryDirectory(dir=os.environ.get('BONSAI_FIXTURE_TMP')) as directory:
+            root = pathlib.Path(directory)
+            result = subprocess.run([sys.executable, str(SCRIPT), 'layer',
+                                     '--model', os.environ['BONSAI_MODEL_PATH'],
+                                     '--build', os.environ['BONSAI_NATIVE_BUILD'],
+                                     '--output', str(root / 'fixture'), '--state-dir', str(root / 'state'),
+                                     '--tokens', '1237,9156', '--positions', '1,2', '--context', '8'],
+                                    capture_output=True, text=True, timeout=120)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            manifest = json.loads((root / 'fixture' / 'manifest.json').read_text())
+            self.assertTrue({'attn_output-0', 'final_output-0', 'ffn_gate-0', 'ffn_up-0'} <=
+                            manifest['sections']['deltanet']['positions'][0]['vectors'].keys())
+            self.assertTrue({'attn_pregate-3', 'gate_sigmoid-3', 'ffn_gate-3', 'ffn_up-3'} <=
+                            manifest['sections']['attention']['positions'][0]['vectors'].keys())
+            state = manifest['sections']['deltanet']['positions'][0]['state']['conv_state_update-0']
+            values = f32(root / 'state' / state['file'])
+            self.assertTrue(any(value != 0.0 for value in values))
+            for family in ('deltanet', 'attention'):
+                layer = manifest['sections'][family]['positions'][0]
+                self.assertEqual((root / 'fixture' / family / layer['input']['file']).stat().st_size, 2048 * 4)
+            attention = manifest['sections']['attention']['positions'][0]
+            for name in ('key', 'value'):
+                cache = attention['state'][name]
+                self.assertEqual(cache['shape'][0], 256)
+                self.assertTrue((root / 'state' / cache['file']).is_file())
+                self.assertTrue(any(cache['probe']['first_token_head_0']))
+            second = manifest['sections']['attention']['positions'][1]
+            for name in ('key', 'value'):
+                self.assertEqual(attention['state'][name]['probe']['first_token_head_0'],
+                                 second['state'][name]['probe']['first_token_head_0'])
+                self.assertTrue(any(second['state'][name]['probe']['current_token_head_0']))
+            chain = manifest['sections']['chain']['positions']
+            self.assertEqual([entry['position'] for entry in chain], [1, 2])
+            self.assertTrue(all(len(entry['vectors']) == 24 for entry in chain))
+            for entry in chain:
+                logits = f32(root / 'state' / entry['logits']['file'])
+                self.assertEqual(len(logits), 248320)
+                self.assertEqual(entry['greedy_token'], max(range(len(logits)), key=logits.__getitem__))
+
+    @unittest.skipUnless(os.environ.get('BONSAI_NATIVE_BUILD') and os.environ.get('BONSAI_MODEL_PATH'),
+                         'set BONSAI_NATIVE_BUILD and BONSAI_MODEL_PATH')
+    def test_graph_capture_contains_each_decode_step(self):
+        with tempfile.TemporaryDirectory(dir=os.environ.get('BONSAI_FIXTURE_TMP')) as directory:
+            binary = pathlib.Path(os.environ['BONSAI_NATIVE_BUILD']) / 'bonsai-reference'
+            result = subprocess.run([str(binary), os.environ['BONSAI_MODEL_PATH'], directory,
+                                     '8', '0', 'attn_norm-0', '1237', '9156'],
+                                    capture_output=True, text=True, timeout=120)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            captures = reference.capture_manifest(pathlib.Path(directory))
+            outputs = [c for c in captures if c['node'] == 'attn_norm-0' and c['role'] == 'out']
+            self.assertEqual([c['step'] for c in outputs], [0, 1])
+            self.assertNotEqual(outputs[0]['payload']['sha256'], outputs[1]['payload']['sha256'])
 
     @unittest.skipUnless(os.environ.get('BONSAI_NATIVE_BUILD') and os.environ.get('BONSAI_MODEL_PATH'),
                          'set BONSAI_NATIVE_BUILD and BONSAI_MODEL_PATH')

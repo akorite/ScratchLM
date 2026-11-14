@@ -29,6 +29,7 @@
         {opcode: 'metadataCount', blockType: Scratch.BlockType.REPORTER, text: 'metadata count'},
         {opcode: 'metadataKey', blockType: Scratch.BlockType.REPORTER, text: 'metadata key [INDEX]', arguments: {INDEX: arg(N, 1)}},
         {opcode: 'metadataValue', blockType: Scratch.BlockType.REPORTER, text: 'metadata value [KEY]', arguments: {KEY: arg(S, '')}},
+        {opcode: 'loadStrings', blockType: Scratch.BlockType.COMMAND, text: 'load metadata strings [KEY] into list id [DEST] request [ID]', arguments: {KEY: arg(S, ''), DEST: arg(S, ''), ID: arg(S, '1')}},
         {opcode: 'tensorCount', blockType: Scratch.BlockType.REPORTER, text: 'tensor count'},
         {opcode: 'tensorName', blockType: Scratch.BlockType.REPORTER, text: 'tensor name [INDEX]', arguments: {INDEX: arg(N, 1)}},
         {opcode: 'tensorInfo', blockType: Scratch.BlockType.REPORTER, text: 'tensor [TENSOR] field [FIELD]', arguments: {TENSOR: arg(S, ''), FIELD: arg(S, 'dimensions')}},
@@ -129,6 +130,33 @@
     cancel(args) { const r = this.requests.get(String(args.ID)); if (r && r.status === 'pending') r.status = 'cancelled'; }
     loadGroups(args, util) { return this.load(args, util.target, true); }
     loadDense(args, util) { return this.load(args, util.target, false); }
+    async loadStrings(args, util) {
+      const id = String(args.ID), previous = this.requests.get(id);
+      if (previous && previous.status === 'pending') previous.status = 'stale';
+      const request = {status: 'pending', copied: 0, error: ''};
+      this.requests.set(id, request);
+      try {
+        const generation = this.generation, target = util.target, key = String(args.KEY), dest = String(args.DEST);
+        if (!this.file || !this.manifest) throw new Error('no package loaded');
+        const entry = Object.prototype.hasOwnProperty.call(this.manifest.metadata, key) && this.manifest.metadata[key];
+        const values = entry && entry.value;
+        if (!Array.isArray(values) || values.some(value => typeof value !== 'string')) throw new Error('metadata is not a string array');
+        const list = target && target.lookupVariableById(dest);
+        if (!target || !this.runtime || !this.runtime.targets.includes(target) || !list || list.type !== 'list' || !Array.isArray(list.value)) throw new Error('invalid destination list');
+        const owner = this.owners.get(list);
+        if (owner && owner.status === 'pending') owner.status = 'stale';
+        this.owners.set(list, request);
+        await Promise.resolve();
+        if (request.status !== 'pending' || this.requests.get(id) !== request || generation !== this.generation) return;
+        if (!this.runtime.targets.includes(target) || target.lookupVariableById(dest) !== list || list.type !== 'list' || !Array.isArray(list.value) || this.owners.get(list) !== request) throw new Error('destination ownership changed');
+        list.value.length = values.length;
+        for (let i = 0; i < values.length; i++) list.value[i] = values[i];
+        list._monitorUpToDate = false;
+        request.copied = values.length; request.status = 'ok';
+      } catch (error) {
+        if (request.status === 'pending') { request.status = 'error'; request.error = String(error.message || error); }
+      }
+    }
     load(args, target, groups) {
       const id = String(args.ID), previous = this.requests.get(id);
       if (previous && previous.status === 'pending') previous.status = 'stale';

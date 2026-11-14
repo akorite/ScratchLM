@@ -13,13 +13,13 @@ function setup() {
   extension.runtime = {targets: [target]};
   return {extension, target, variables};
 }
-function packageFile(codec = 'raw') {
+function packageFile(codec = 'raw', metadata = {foo: {type_id: 8, value: 'bar'}}) {
   const group = (scale, byte) => Uint8Array.from([scale & 255, scale >> 8, ...Array(32).fill(byte)]);
   const dense = new Uint8Array(12); const view = new DataView(dense.buffer);
   [1.5, -2.25, 0].forEach((x, i) => view.setFloat32(i * 4, x, true));
   const payload = new Blob([group(0x8001, 0x24), group(0x7c00, 0x50), dense]);
   const manifest = {schema: 'bonsaiscratch-package/v1', codec, endianness: 'little', payload_length: payload.size,
-    metadata: {foo: {type_id: 8, value: 'bar'}}, tensors: [
+    metadata, tensors: [
       {name: 'weights', type_id: 142, dimensions: [256, 1], offset: 0, length: 68},
       {name: 'dense', type_id: 0, dimensions: [3], offset: 68, length: 12}]};
   const json = Buffer.from(JSON.stringify(manifest)); const header = Buffer.alloc(16);
@@ -28,6 +28,33 @@ function packageFile(codec = 'raw') {
 }
 const groups = (id, start, count, q = 'q', s = 's') => ({ID: id, TENSOR: 'weights', START: start, COUNT: count, Q: q, SCALE: s});
 const dense = (id, start, count) => ({ID: id, TENSOR: 'dense', START: start, COUNT: count, DEST: 'f'});
+
+test('metadata string arrays copy exactly and respect cancellation and ownership', async () => {
+  const {extension: e, target, variables: v} = setup();
+  const tokens = Array.from({length: 248320}, (_, i) => `token-${i}`);
+  await e.openFile(packageFile('raw', {tokens: {type_id: 9, value: tokens}, wrong: {type_id: 9, value: ['ok', 3]}}));
+  const list = v.f, buffer = list.value;
+  const args = id => ({ID: id, KEY: 'tokens', DEST: 'f'});
+  await e.loadStrings(args('copy'), {target});
+  assert.equal(e.status({ID: 'copy'}), 'ok');
+  assert.equal(e.copied({ID: 'copy'}), tokens.length);
+  assert.equal(v.f, list); assert.equal(list.value, buffer);
+  assert.deepEqual(Array.from(list.value), tokens);
+  list.value[0] = 'sentinel';
+  const pending = e.loadStrings(args('cancel'), {target}); e.cancel({ID: 'cancel'}); await pending;
+  assert.equal(e.status({ID: 'cancel'}), 'cancelled');
+  assert.equal(list.value[0], 'sentinel');
+  for (const key of ['missing', 'wrong']) {
+    await e.loadStrings({ID: key, KEY: key, DEST: 'f'}, {target});
+    assert.equal(e.status({ID: key}), 'error');
+    assert.equal(list.value[0], 'sentinel');
+  }
+  const old = e.loadStrings(args('old'), {target});
+  const newer = e.loadStrings(args('new'), {target});
+  await Promise.all([old, newer]);
+  assert.equal(e.status({ID: 'old'}), 'stale');
+  assert.equal(e.status({ID: 'new'}), 'ok');
+});
 
 test('indexed metadata and group ranges preserve storage and reuse list variables', async () => {
   for (const codec of ['raw', 'bslut4', 'bslut5']) {

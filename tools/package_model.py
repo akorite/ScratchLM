@@ -205,10 +205,18 @@ def package(model, output, codec, lock_path):
                                        'source_offset': None, 'offset': payload_offset, 'length': len(blob)})
                 extra_tensors.append((name, blob))
                 payload_offset += len(blob)
+        tokenizer_arrays = {}
+        for key in ('tokenizer.ggml.tokens', 'tokenizer.ggml.merges'):
+            if key in values:
+                array = values[key]['value']
+                if not isinstance(array, list) or any(not isinstance(value, str) for value in array):
+                    raise InvalidGGUF(f'invalid tokenizer string array: {key}')
+                encoded = json.dumps(array, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+                tokenizer_arrays[key] = {'count': len(array), 'sha256': hashlib.sha256(encoded).hexdigest()}
         manifest = {'schema': 'bonsaiscratch-package/v1', 'codec': codec, 'endianness': 'little',
                     'source': {'size_bytes': size, 'sha256': source_hash}, 'alignment': alignment,
                     'gguf_header': {'offset': 0, 'length': header_size}, 'metadata': values,
-                    'tensors': packed_tensors, 'payload_length': payload_offset}
+                    'tensors': packed_tensors, 'payload_length': payload_offset, 'tokenizer_arrays': tokenizer_arrays}
         header = json.dumps(manifest, ensure_ascii=True, sort_keys=True, separators=(',', ':'), allow_nan=False).encode('utf-8')
         fd, temporary = tempfile.mkstemp(prefix='.bonsai-package-', dir=output.parent)
         try:

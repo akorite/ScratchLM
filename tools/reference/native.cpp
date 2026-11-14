@@ -233,6 +233,7 @@ int main(int argc, char ** argv) {
     const size_t input_count = tokens.size();
     for (size_t step = 0; step < input_count + static_cast<size_t>(generate); ++step) {
         capture.step = step;
+        capture.seen.clear();
         auto batch = llama_batch_get_one(&tokens[step], 1);
         if (llama_decode(ctx, batch) != 0 || capture.failed) { std::cerr << "decode or capture failed\n"; return 1; }
         const float * logits = llama_get_logits_ith(ctx, -1);

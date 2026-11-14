@@ -47,6 +47,9 @@ class PackageTests(unittest.TestCase):
                 self.assertEqual(metadata['codec'], codec)
                 self.assertEqual(metadata['source']['sha256'], hashlib.sha256(self.data).hexdigest())
                 self.assertEqual(metadata['metadata']['tokenizer.ggml.tokens']['value'], ['Hello', '世界'])
+                token_info = metadata['tokenizer_arrays']['tokenizer.ggml.tokens']
+                self.assertEqual(token_info['count'], 2)
+                self.assertEqual(token_info['sha256'], hashlib.sha256(b'["Hello","\xe4\xb8\x96\xe7\x95\x8c"]').hexdigest())
                 weights, norm = metadata['tensors']
                 w = payload[weights['offset']:weights['offset'] + weights['length']]
                 f = payload[norm['offset']:norm['offset'] + norm['length']]
