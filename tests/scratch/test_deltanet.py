@@ -65,6 +65,13 @@ class DeltaNetStageTests(unittest.TestCase):
         self.compare('BS beta', 'beta-0-pos1.f32', 5e-6)
         self.compare('BS alpha', 'alpha-0-pos1.f32', 5e-6)
 
+    def test_gated_norm_and_output_projection_match_native(self):
+        self.compare('BS final out', 'final_output-0-pos1.f32', 1e-6)
+        self.compare('BS attn out', 'linear_attn_out-0-pos1.f32', 1e-6)
+
+    def test_layer_output_matches_native_at_first_position(self):
+        self.compare('BS output', 'l_out-0-pos1.f32', 1e-6)
+
 
 if __name__ == '__main__':
     unittest.main()

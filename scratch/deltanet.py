@@ -90,12 +90,15 @@ def split(h):
         h[name] for name in ('var', 'item', 'setvar', 'addlist', 'repeat', 'change', 'op'))
     add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
     v = lambda name: var('BS ' + name)
-    move = lambda offset, dest, dest_id: [
+    move = lambda source, source_id, offset, dest, dest_id: [
         ('data_deletealloflist', {}, {'LIST': [dest, dest_id]}, {}),
         setvar('BS dn channel', 0),
-        repeat(2048, [addlist(item('BS conv silu', 'l_conv_silu', add(v('dn channel'), add(offset, 1))),
+        repeat(2048, [addlist(item(source, source_id, add(v('dn channel'), add(offset, 1))),
                               dest, dest_id), change('BS dn channel', 1)])]
-    return move(0, 'BS q', 'l_q') + move(2048, 'BS k', 'l_k') + move(4096, 'BS v', 'l_v')
+    # q and k enter the recurrence L2-normalized; v is the raw convolution output.
+    return (move('BS qk l2', 'l_qk_l2', 0, 'BS q', 'l_q')
+            + move('BS qk l2', 'l_qk_l2', 2048, 'BS k', 'l_k')
+            + move('BS conv silu', 'l_conv_silu', 4096, 'BS v', 'l_v'))
 
 
 def l2(h, source, source_id, dest, dest_id, heads=16, width=128, eps='9.999999974752427e-7'):
@@ -123,11 +126,126 @@ def l2(h, source, source_id, dest, dest_id, heads=16, width=128, eps='9.99999997
             setvar('BS dn head', 0), repeat(heads, head)]
 
 
+def delta(h):
+    """The Gated DeltaNet recurrence: decay, delta rule update and readout per head."""
+    var, op, floor, item, length, setvar, addlist, conditional, repeat, change = (
+        h[name] for name in ('var', 'op', 'floor', 'item', 'length', 'setvar',
+                             'addlist', 'conditional', 'repeat', 'change'))
+    add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
+    sub = lambda a, b: op('operator_subtract', NUM1=a, NUM2=b)
+    mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
+    div = lambda a, b: op('operator_divide', NUM1=a, NUM2=b)
+    eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
+    gt = lambda a, b: op('operator_gt', OPERAND1=a, OPERAND2=b)
+    math = lambda name, value: ('operator_mathop', {'NUM': value}, {'OPERATOR': [name, None]}, False)
+    v = lambda name: var('BS ' + name)
+    head, j, i = v('dn head'), v('dn j'), v('dn i')
+    beta = lambda hd: item('BS beta sigmoid', 'l_beta_sigmoid', add(hd, 1))
+    k = lambda hd, d: item('BS k', 'l_k', add(add(mul(hd, 128), d), 1))
+    q = lambda hd, d: item('BS q', 'l_q', add(add(mul(hd, 128), d), 1))
+    vv = lambda hd, d: item('BS v', 'l_v', add(add(mul(hd, 128), d), 1))
+    state = lambda hd, row, col: item('BS state', 'l_state',
+                                      add(add(mul(hd, 16384), mul(row, 128)), add(col, 1)))
+    replace_state = lambda hd, row, col, value: ('data_replaceitemoflist',
+                                                 {'INDEX': add(add(mul(hd, 16384), mul(row, 128)), add(col, 1)),
+                                                  'ITEM': value}, {'LIST': ['BS state', 'l_state']}, {})
+    decay = item('BS decay', 'l_decay', add(head, 1))
+    # The state is stored transposed: row j of M is column j of S.
+    scale = [h['setvar']('BS f32 input', mul(state(head, j, i), decay)), h['call_f32'](),
+             replace_state(head, j, i, var('BS f32 output')), change('BS dn i', 1)]
+    # Native reduces a 128-element f32 dot with one rounding at the end, so accumulate exactly
+    # and round once; rounding every step loses precision to cancellation in (v - M k).
+    dot = lambda source: [setvar('BS dn sum', add(v('dn sum'), mul(state(head, j, i), source(head, i)))),
+                          change('BS dn i', 1)]
+    round_sum = [h['setvar']('BS f32 input', v('dn sum')), h['call_f32'](),
+                 setvar('BS dn sum', var('BS f32 output'))]
+    update = [setvar('BS dn sum', 0), setvar('BS dn i', 0), repeat(128, dot(k)), *round_sum,
+              h['setvar']('BS f32 input', mul(sub(vv(head, j), v('dn sum')), beta(head))), h['call_f32'](),
+              setvar('BS dn delta', var('BS f32 output')),
+              setvar('BS dn i', 0),
+              repeat(128, [h['setvar']('BS f32 input', add(state(head, j, i), mul(v('dn delta'), k(head, i)))),
+                           h['call_f32'](), replace_state(head, j, i, var('BS f32 output')), change('BS dn i', 1)]),
+              setvar('BS dn sum', 0), setvar('BS dn i', 0), repeat(128, dot(q)), *round_sum,
+              h['setvar']('BS f32 input', mul(v('dn sum'), 0.08838834764831845)), h['call_f32'](),
+              addlist(var('BS f32 output'), 'BS gdn out', 'l_gdn_out'),
+              change('BS dn j', 1)]
+    per_head = [setvar('BS dn j', 0), repeat(128, scale),
+                setvar('BS dn j', 0), repeat(128, update), change('BS dn head', 1)]
+    fill = [setvar('BS dn i', 0),
+            repeat(128, [addlist(0, 'BS state', 'l_state'), change('BS dn i', 1)])]
+    return [('data_deletealloflist', {}, {'LIST': ['BS gdn out', 'l_gdn_out']}, {}),
+            conditional(eq(length('BS state', 'l_state'), 262144), [],
+                        [('data_deletealloflist', {}, {'LIST': ['BS state', 'l_state']}, {}),
+                         repeat(16, [repeat(128, fill)])]),
+            setvar('BS dn head', 0), repeat(16, per_head)]
+
+
+def gates(h):
+    """beta = sigmoid(beta_raw); decay = exp(ssm_a * softplus(alpha_raw + dt_bias))."""
+    var, op, item, setvar, addlist, conditional, repeat, change = (
+        h[name] for name in ('var', 'op', 'item', 'setvar', 'addlist', 'conditional', 'repeat', 'change'))
+    add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
+    sub = lambda a, b: op('operator_subtract', NUM1=a, NUM2=b)
+    mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
+    div = lambda a, b: op('operator_divide', NUM1=a, NUM2=b)
+    gt = lambda a, b: op('operator_gt', OPERAND1=a, OPERAND2=b)
+    math = lambda name, value: ('operator_mathop', {'NUM': value}, {'OPERATOR': [name, None]}, False)
+    v = lambda name: var('BS ' + name)
+    idx = v('dn head')
+    beta_raw = item('BS beta', 'l_beta', add(idx, 1))
+    sigmoid = [h['setvar']('BS f32 input', div(1, add(1, math('e ^', mul(-1, beta_raw))))), h['call_f32'](),
+               addlist(var('BS f32 output'), 'BS beta sigmoid', 'l_beta_sigmoid')]
+    x = add(item('BS alpha', 'l_alpha', add(idx, 1)), item('BS dt', 'l_dt', add(idx, 1)))
+    # softplus(x) = x for x > 20, else ln(1 + exp(x)); the decay is exp(ssm_a * softplus).
+    softplus = [conditional(gt(x, 20), [h['setvar']('BS dn sp', x)],
+                            [h['setvar']('BS f32 input', math('e ^', x)), h['call_f32'](),
+                             h['setvar']('BS f32 input', math('ln', add(1, var('BS f32 output')))), h['call_f32'](),
+                             h['setvar']('BS dn sp', var('BS f32 output'))]),
+                h['setvar']('BS f32 input', mul(item('BS ssm a', 'l_ssm_a', add(idx, 1)), v('dn sp'))),
+                h['call_f32'](),
+                h['setvar']('BS f32 input', math('e ^', var('BS f32 output'))), h['call_f32'](),
+                addlist(var('BS f32 output'), 'BS decay', 'l_decay')]
+    return [('data_deletealloflist', {}, {'LIST': ['BS beta sigmoid', 'l_beta_sigmoid']}, {}),
+            ('data_deletealloflist', {}, {'LIST': ['BS decay', 'l_decay']}, {}),
+            setvar('BS dn head', 0), repeat(16, sigmoid + softplus + [change('BS dn head', 1)])]
+
+
+def gated_norm(h):
+    """Per-head RMS norm with the ssm_norm weight, multiplied by silu(z)."""
+    var, op, item, setvar, addlist, repeat, change = (
+        h[name] for name in ('var', 'op', 'item', 'setvar', 'addlist', 'repeat', 'change'))
+    add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
+    sub = lambda a, b: op('operator_subtract', NUM1=a, NUM2=b)
+    mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
+    div = lambda a, b: op('operator_divide', NUM1=a, NUM2=b)
+    math = lambda name, value: ('operator_mathop', {'NUM': value}, {'OPERATOR': [name, None]}, False)
+    v = lambda name: var('BS ' + name)
+    head, i = v('dn head'), v('dn i')
+    out = lambda d: item('BS gdn out', 'l_gdn_out', add(add(mul(head, 128), d), 1))
+    z = lambda d: item('BS z', 'l_z', add(add(mul(head, 128), d), 1))
+    square = [setvar('BS dn sum', add(v('dn sum'), mul(out(i), out(i)))), change('BS dn i', 1)]
+    emit = [h['setvar']('BS f32 input', mul(mul(out(i), v('dn scale')),
+                                             item('BS ssm norm', 'l_ssm_norm', add(i, 1)))), h['call_f32'](),
+            h['setvar']('BS f32 input', mul(var('BS f32 output'),
+                                            div(z(i), add(1, math('e ^', mul(-1, z(i))))))), h['call_f32'](),
+            addlist(var('BS f32 output'), 'BS final out', 'l_final_out'), change('BS dn i', 1)]
+    per_head = [setvar('BS dn sum', 0), setvar('BS dn i', 0), repeat(128, square),
+                h['setvar']('BS f32 input', div(v('dn sum'), 128)), h['call_f32'](),
+                h['setvar']('BS f32 input', add(var('BS f32 output'), 9.999999974752427e-7)), h['call_f32'](),
+                h['setvar']('BS f32 input', math('sqrt', var('BS f32 output'))), h['call_f32'](),
+                h['setvar']('BS f32 input', div(1, var('BS f32 output'))), h['call_f32'](),
+                setvar('BS dn scale', var('BS f32 output')),
+                setvar('BS dn i', 0), repeat(128, emit), change('BS dn head', 1)]
+    return [('data_deletealloflist', {}, {'LIST': ['BS final out', 'l_final_out']}, {}),
+            setvar('BS dn head', 0), repeat(16, per_head)]
+
+
 def stage(h):
     """Projections and convolution for one token, writing `BS conv silu`."""
     var, op, item, setvar, addlist, length, conditional, repeat, change = (
         h[name] for name in ('var', 'op', 'item', 'setvar', 'addlist', 'length', 'conditional',
                              'repeat', 'change'))
+    gt = lambda a, b: op('operator_gt', OPERAND1=a, OPERAND2=b)
     add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
     eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
     codec = ('bonsailoader_codec', {}, {}, False)
@@ -165,6 +283,41 @@ def stage(h):
                       change('BS dn channel', 1)]),
         *l2(h, 'BS qk', 'l_qk', 'BS qk l2', 'l_qk_l2', heads=32),
         *split(h),
+        *embedding.load_dense(h, 'dn-a', 'blk.0.ssm_a', 'BS ssm a', 'l_ssm_a', 16,
+                              [setvar('BS proj valid', 0)]),
+        *embedding.load_dense(h, 'dn-dt', 'blk.0.ssm_dt.bias', 'BS dt', 'l_dt', 16,
+                              [setvar('BS proj valid', 0)]),
+        *gates(h),
+        *delta(h),
+        *embedding.load_dense(h, 'dn-normw', 'blk.0.ssm_norm.weight', 'BS ssm norm', 'l_ssm_norm', 128,
+                              [setvar('BS proj valid', 0)]),
+        *embedding.load_dense(h, 'dn-postw', 'blk.0.post_attention_norm.weight', 'BS post w', 'l_post_w', 2048,
+                              [setvar('BS proj valid', 0)]),
+        *embedding.load_dense(h, 'dn-signsw', 'prism.hadamard.signs.6144', 'BS signs wide', 'l_signs_wide', 6144,
+                              [setvar('BS proj valid', 0)]),
+        *gated_norm(h),
+        *attention.copy(h, 'BS final out', 'l_final_out', 'BS input', 'l_input'),
+        *attention.rotate_in(h, 2048),
+        *attention.matvec(h, 'blk.0.ssm_out.weight', 2048, 'BS attn out', 'l_attn_out', request='dn-out'),
+        *h['combine'](h, gated=False, rhs=('BS attn out', 'l_attn_out'), input_name='BS layer input',
+                      input_id='l_layer_input', output=('BS residual', 'l_residual')),
+        *attention.copy(h, 'BS residual', 'l_residual', 'BS input', 'l_input'),
+        *attention.weighted_norm(h, 'BS post w', 'l_post_w', 'BS normed2', 'l_normed2'),
+        *attention.copy(h, 'BS normed2', 'l_normed2', 'BS input', 'l_input'),
+        *attention.rotate_in(h, 2048),
+        *attention.matvec(h, 'blk.0.ffn_gate.weight', 6144, 'BS ffn gate', 'l_ffn_gate', request='dn-fg'),
+        *attention.copy(h, 'BS normed2', 'l_normed2', 'BS input', 'l_input'),
+        *attention.rotate_in(h, 2048),
+        *attention.matvec(h, 'blk.0.ffn_up.weight', 6144, 'BS ffn up', 'l_ffn_up', request='dn-fu'),
+        *h['combine'](h, gated=True, rhs=('BS ffn up', 'l_ffn_up'), input_name='BS ffn gate',
+                      input_id='l_ffn_gate', output=('BS ffn', 'l_ffn')),
+        *attention.copy(h, 'BS ffn', 'l_ffn', 'BS input', 'l_input'),
+        *attention.rotate_in(h, 6144),
+        *attention.matvec(h, 'blk.0.ffn_down.weight', 2048, 'BS ffn out', 'l_ffn_out', request='dn-fd'),
+        *h['combine'](h, gated=False, rhs=('BS ffn out', 'l_ffn_out'), input_name='BS residual',
+                      input_id='l_residual', output=('BS dn layer out', 'l_dn_layer_out')),
+        ('data_deletealloflist', {}, {'LIST': ['BS output', 'l_output']}, {}),
+        *attention.copy(h, 'BS dn layer out', 'l_dn_layer_out', 'BS output', 'l_output'),
     ]
     valid = eq(length('BS input', 'l_input'), 2048)
     return [conditional(valid, body, [h['addlist']('invalid dimensions')])]

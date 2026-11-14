@@ -381,7 +381,7 @@ def project(with_text=False, with_benchmark=False):
              'BS layer maximum', 'BS layer weight', 'BS layer divisor',
              'BS proj scanned', 'BS proj tile', 'BS proj valid', 'BS settle',
              'BS dn channel', 'BS dn tap', 'BS dn sum', 'BS dn row', 'BS dn index',
-             'BS dn head', 'BS dn scale')
+             'BS dn head', 'BS dn scale', 'BS dn j', 'BS dn i', 'BS dn delta', 'BS dn sp')
     if with_benchmark:
         names += ('BS head rows', 'BS head tensor', 'BS tile size', 'BS tile count', 'BS tile row',
                   'BS scanned', 'BS head valid', 'BS cancel', 'BS benchmark transfer', 'BS groups per row')
@@ -425,7 +425,15 @@ def project(with_text=False, with_benchmark=False):
                      'l_z': ['BS z', []], 'l_beta_w': ['BS beta w', []], 'l_beta': ['BS beta', []],
                      'l_alpha_w': ['BS alpha w', []], 'l_alpha': ['BS alpha', []],
                      'l_qk': ['BS qk', []], 'l_qk_l2': ['BS qk l2', []],
-                     'l_q': ['BS q', []], 'l_k': ['BS k', []], 'l_v': ['BS v', []]},
+                     'l_q': ['BS q', []], 'l_k': ['BS k', []], 'l_v': ['BS v', []],
+                     'l_beta_sigmoid': ['BS beta sigmoid', []], 'l_decay': ['BS decay', []],
+                     'l_state': ['BS state', []], 'l_gdn_out': ['BS gdn out', []],
+                     'l_dt': ['BS dt', []], 'l_ssm_a': ['BS ssm a', []],
+                     'l_final_out': ['BS final out', []], 'l_ssm_norm': ['BS ssm norm', []],
+                     'l_normed2': ['BS normed2', []], 'l_ffn_gate': ['BS ffn gate', []],
+                     'l_ffn_up': ['BS ffn up', []], 'l_ffn': ['BS ffn', []], 'l_ffn_out': ['BS ffn out', []],
+                     'l_attn_out': ['BS attn out', []], 'l_residual': ['BS residual', []],
+                     'l_dn_layer_out': ['BS dn layer out', []]},
              'broadcasts': {}, 'blocks': graph.blocks, 'comments': {}, 'currentCostume': 0,
              'costumes': [{'name': 'backdrop', 'dataFormat': 'svg', 'assetId': asset,
                            'md5ext': asset + '.svg', 'rotationCenterX': 240, 'rotationCenterY': 180}],

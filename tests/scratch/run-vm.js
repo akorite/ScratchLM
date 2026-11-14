@@ -117,6 +117,16 @@ async function run() {
             }
             vList.value = out;
         }
+        if (process.env.BONSAI_DN_STATE || process.env.BONSAI_CONV_STATE) {
+            const load = (file, name) => {
+                const list = stage.lookupVariableByNameAndType(name, 'list');
+                if (!list) throw new Error(`project list ${name} is missing`);
+                const bytes = fs.readFileSync(file);
+                list.value = Array.from({length: bytes.length / 4}, (_, i) => bytes.readFloatLE(i * 4));
+            };
+            if (process.env.BONSAI_DN_STATE) load(process.env.BONSAI_DN_STATE, 'BS state');
+            if (process.env.BONSAI_CONV_STATE) load(process.env.BONSAI_CONV_STATE, 'BS conv state');
+        }
         if (process.env.BONSAI_LAYER_POSITION !== undefined) {
             const lp = stage.lookupVariableByNameAndType('BS layer position', '');
             if (!lp) throw new Error('project layer position variable is missing');
