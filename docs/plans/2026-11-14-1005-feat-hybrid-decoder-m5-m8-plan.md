@@ -318,7 +318,7 @@ Resolved without touching the package format or the extension: the generator emb
 
 ### Speed analysis (measured 2026-11-14)
 
-A decode step streams the whole model through the loader: 2.07 G ternary weights per token (517 MB packed). At the measured list costs (item 7.8 ns, add 29.5 ns) that is a hard floor of tens of seconds per token no matter how the blocks are written, which is what the step timings show: 130 s with the 640-row tile, 124 s→111 s interleaved for tile 640 vs 64, and 82-107 s clean. The ablation attributes roughly 125 s of 130 s to the layer path and about 50 s to the head scan, so both matter.
+A decode step streams the whole model through the loader: 1.32 G ternary weights in the 24 blocks plus 508 M in the head, 517 MB packed. At the measured list costs (item 7.8 ns, add 29.5 ns) that sets the step time, and the measured numbers track it: 124 s at a 64-row tile, 82 s at 640 rows, and **43 s once every matrix is fetched in a single request** (`TILE = 8192` with the 4 MiB per-request shrink), which is the change already landed. The ablation at that tile: layers 40 s of 43 s (of which the DeltaNet recurrence is 8 s), head 3.5 s, everything else 3 s. Per-layer weight counts from the package: a DeltaNet block is 58.8 M weights and an attention block 52.4 M, so the matvec path runs at roughly 46 M weights/s, about 22 ns per weight.
 
 Where the blocks go per row of a PQ2_0 matrix: one group is 34 bytes (a 2-byte scale plus 32 bytes carrying 128 weights), the LUT is built once per `matvec` (not per row), and the row loop costs about 32 byte reads plus 32 LUT adds, i.e. ~0.5 blocks per weight. The three levers that change that asymptotically, in the order they are worth attacking:
 
@@ -326,7 +326,9 @@ Where the blocks go per row of a PQ2_0 matrix: one group is 34 bytes (a 2-byte s
 2. **Batched prefill.** llama.cpp processes a prompt as one ubatch so every weight read serves several tokens; the same works here because each row's dot with K activation vectors is independent. K prompt tokens per weight load cuts the streamed bytes per token by K, which is the dominant cost of the prompt phase (a 10-token prompt is ten full passes today). This is the plan's two-pass prefill KTD and the single largest win available.
 3. **Head pruning.** The head is 248,320 rows × 2048 dims per token. With ternary rows an exact branch-and-bound over dimension chunks is possible: after chunk `c`, `partial + max|x| in the tail × nonzero count of the row's tail` bounds any completion, and a row below the running best can be dropped. It needs per-row per-chunk nonzero counts packed as an extra tensor. Worth building only if a simulation on the real weight matrix shows most rows dying in the first chunks.
 
-The DeltaNet recurrence itself is not the problem: llama.cpp's own CPU kernel is also sequential per token (the chunked form in the GDN paper exists to parallelize *training*, not to reduce inference work), and our per-token state math is 1.6 M adds.
+The DeltaNet recurrence itself is not the problem: llama.cpp's own CPU kernel is also sequential per token (the chunked form in the GDN paper exists to parallelize *training*, not to reduce inference work), and our per-token state math is 1.6 M adds, measured at 8 s for 18 layers.
+
+Micro-optimizations left on the matvec path are worth about a quarter: the hot loop is `subtotal += lut[lut + packed[byte]]` plus two index increments per 4 weights, so unrolling the 32 bytes removes the increments and takes roughly 1.5 blocks per weight to 1.1. The structural win is batched prefill, which is where the next unit should go.
 
 ### U8. Release validation and documentation
 
