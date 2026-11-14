@@ -377,7 +377,11 @@ def make(h):
         """One flag run: tokenize the prompt, then one decode broadcast per token."""
         index = var('BS generate index')
         eos = var('BS greedy token')
+        ask = [conditional(eq(var('BS ask'), 1), [
+            ('sensing_askandwait', {'QUESTION': 'Prompt'}, {}, {}),
+            setvar('BS prompt', ('sensing_answer', {}, {}, False))])]
         return [
+            *ask,
             ('procedures_call', {}, {'PROCCODE': ('BS tokenize', 'true')}, {}),
             ('data_deletealloflist', {}, {'LIST': ['BS out tokens', 'l_out_tokens']}, {}),
             setvar('BS generate index', 1),

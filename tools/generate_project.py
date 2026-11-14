@@ -438,7 +438,7 @@ def project(with_text=False, with_benchmark=False):
                   'BS ids count', 'BS ids index', 'BS lower', 'BS lower2', 'BS ws count', 'BS nl end',
                   'BS detok index', 'BS detok position', 'BS detok unit', 'BS detok byte',
                   'BS detok code', 'BS detok piece', 'BS detok slot', 'BS text', 'BS byte index',
-                  'BS generate index', 'BS max tokens', 'BS eos token')
+                  'BS generate index', 'BS max tokens', 'BS eos token', 'BS ask')
     variables = {var(name)[2]: [name, 0] for name in names}
     variables[var('BS iterations')[2]][1] = 1
     variables[var('BS token id')[2]][1] = -1  # decode from `BS input` unless a token id is set
@@ -450,6 +450,7 @@ def project(with_text=False, with_benchmark=False):
         variables[var('BS prompt')[2]][1] = ''
         variables[var('BS max tokens')[2]][1] = 8
         variables[var('BS eos token')[2]][1] = 248046
+        variables[var('BS ask')[2]][1] = 1
     if with_benchmark:
         variables[var('BS mode')[2]][1] = 11
     stage = {'isStage': True, 'name': 'Stage', 'variables': variables,

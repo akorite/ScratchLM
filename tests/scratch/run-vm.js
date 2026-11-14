@@ -141,6 +141,8 @@ async function run() {
             const promptVar = stage.lookupVariableByNameAndType('BS prompt', '');
             if (!promptVar) throw new Error('project prompt variable is missing');
             promptVar.value = process.env.BONSAI_PROMPT;
+            const askVar = stage.lookupVariableByNameAndType('BS ask', '');
+            if (askVar) askVar.value = 0;
         }
         if (process.env.BONSAI_PROMPT_TOKENS) {
             const prompt = stage.lookupVariableByNameAndType('BS prompt tokens', 'list');
