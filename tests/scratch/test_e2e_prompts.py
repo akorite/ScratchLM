@@ -19,6 +19,34 @@ ROOT = Path(__file__).resolve().parents[2]
 @unittest.skipUnless(os.environ.get('BONSAI_TURBOWARP_VM') and os.environ.get('BONSAI_MODEL_PACKAGE'),
                      'set BONSAI_TURBOWARP_VM and BONSAI_MODEL_PACKAGE')
 class EndToEndPromptTests(unittest.TestCase):
+    def test_a_second_prompt_starts_from_an_empty_sequence(self):
+        """Typing a new prompt must clear the KV cells, convolution history and recurrent state."""
+        fixture = json.loads((ROOT / 'fixtures/native/m5/e2e-prompts.json').read_text())
+        first, second = fixture['prompts'][1], fixture['prompts'][0]
+        with tempfile.TemporaryDirectory() as temp:
+            project = Path(temp) / 'reset.sb3'
+            built = subprocess.run([sys.executable, str(ROOT / 'tools/generate_project.py'), str(project),
+                                    '--text', '--benchmark'], capture_output=True, text=True)
+            self.assertEqual(built.returncode, 0, built.stderr)
+            env = {key: value for key, value in os.environ.items()
+                   if key in ('BONSAI_TURBOWARP_VM', 'BONSAI_MODEL_PACKAGE', 'NODE_PATH')}
+            env.update(BONSAI_PROMPT=first['prompt'], BONSAI_SECOND_PROMPT=second['prompt'],
+                       BONSAI_SECOND_AFTER='1', BONSAI_MAX_TOKENS='2', BONSAI_LOOP='0',
+                       BONSAI_STEPS=str(len(second['template_tokens']) + 2),
+                       BONSAI_TIMEOUT_MS='3600000', BONSAI_DEBUG_FULL='1',
+                       BONSAI_DEBUG_VARS='BS text,BS out tokens,BS prompt tokens,BS greedy token,BS step')
+            run = subprocess.run(['node', str(ROOT / 'tests/scratch/run-vm.js'), str(project),
+                                  '--generate', '24'], env=env, capture_output=True, text=True, timeout=3600)
+            self.assertEqual(run.returncode, 0, run.stderr[-3000:])
+            state = json.loads(run.stdout.strip().splitlines()[-1])
+            # the second prompt was tokenized and prefilled from scratch
+            self.assertEqual(state['BS prompt tokens'], second['template_tokens'])
+            # one step per prompt token, plus the step that produces the first new token
+            self.assertEqual(state['BS step'], len(second['template_tokens']) + 1)
+            generated = state['BS out tokens'][len(second['template_tokens']):]
+            self.assertEqual(generated, second['generated'])
+            self.assertEqual(state['BS text'], second['text'])
+
     def test_generation_bound_is_clamped_to_the_kv_cache(self):
         """The cache holds 128 positions, so a 10-token prompt may generate 118 tokens."""
         fixture = json.loads((ROOT / 'fixtures/native/m5/e2e-prompts.json').read_text())

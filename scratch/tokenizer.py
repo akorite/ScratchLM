@@ -422,6 +422,14 @@ def make(h):
                 change('BS generate index', 1)])]
         special = lambda token_id: [addlist(token_id, 'BS out tokens', 'l_out_tokens')]
         start = [
+            # A new prompt starts from an empty sequence: the token list, the KV cells, the
+            # convolution history and the recurrent state all belong to the previous prompt.
+            ('data_deletealloflist', {}, {'LIST': ['BS out tokens', 'l_out_tokens']}, {}),
+            ('data_deletealloflist', {}, {'LIST': ['BS k cache', 'l_k_cache']}, {}),
+            ('data_deletealloflist', {}, {'LIST': ['BS v cache', 'l_v_cache']}, {}),
+            ('data_deletealloflist', {}, {'LIST': ['BS state', 'l_state']}, {}),
+            ('data_deletealloflist', {}, {'LIST': ['BS conv state', 'l_conv_state']}, {}),
+            ('data_deletealloflist', {}, {'LIST': ['BS next state', 'l_next_state']}, {}),
             setvar('BS prompt saved', var('BS prompt')),
             conditional(eq(var('BS template'), 1), [
                 *special(248045), *segment('user\n'), *segment(save), *special(248046),

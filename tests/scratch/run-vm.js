@@ -127,6 +127,8 @@ async function run() {
             if (process.env.BONSAI_DN_STATE) load(process.env.BONSAI_DN_STATE, 'BS state');
             if (process.env.BONSAI_CONV_STATE) load(process.env.BONSAI_CONV_STATE, 'BS conv state');
         }
+        const secondPrompt = process.env.BONSAI_SECOND_PROMPT || null;
+        const secondAfter = Number(process.env.BONSAI_SECOND_AFTER || 0);
         if (process.env.BONSAI_LOOP !== undefined) {
             const loopVar = stage.lookupVariableByNameAndType('BS loop', '');
             if (loopVar) loopVar.value = Number(process.env.BONSAI_LOOP);
@@ -196,6 +198,14 @@ async function run() {
         const steps = prompts ? prompts.length : Number(process.env.BONSAI_STEPS || 1);
         const produced = [];
         for (let step = 0; step < steps; step++) {
+            if (secondPrompt && step === secondAfter) {
+                const promptVar2 = stage.lookupVariableByNameAndType('BS prompt', '');
+                const startedVar = stage.lookupVariableByNameAndType('BS started', '');
+                if (!promptVar2 || !startedVar) throw new Error('project prompt/started variables are missing');
+                promptVar2.value = secondPrompt;
+                startedVar.value = 0;
+                output.value = [];
+            }
             if (prompts) {
                 if (!promptVar) throw new Error('project prompt variable is missing');
                 promptVar.value = prompts[step];
