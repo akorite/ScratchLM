@@ -277,6 +277,27 @@ def scalar_dot_script():
     return [conditional(valid_shape, work, [addlist('invalid dimensions')])]
 
 
+def category_runs():
+    """Run-length classes for the pre-tokenizer: 0 other, 1 letter, 2 mark, 3 number,
+    4 space, 5 CR, 6 LF. The Scratch pre-tokenizer binary-searches these starts."""
+    import unicodedata
+    def classify(code):
+        char = chr(code)
+        if char == '\r': return 5
+        if char == '\n': return 6
+        if char.isspace(): return 4
+        kind = unicodedata.category(char)[0]
+        return {'L': 1, 'M': 2, 'N': 3}.get(kind, 0)
+    starts, classes, previous = [], [], None
+    for code in range(0x110000):
+        kind = classify(code)
+        if kind != previous:
+            starts.append(code)
+            classes.append(kind)
+            previous = kind
+    return starts, classes
+
+
 def project(with_text=False, with_benchmark=False):
     graph = Blocks()
     helpers = dict(globals(), rope=layers.rope, combine=layers.combine)
@@ -444,6 +465,8 @@ def project(with_text=False, with_benchmark=False):
                      'l_state': ['BS state', []], 'l_gdn_out': ['BS gdn out', []],
                      'l_dt': ['BS dt', []], 'l_ssm_a': ['BS ssm a', []],
                      'l_prompt': ['BS prompt tokens', []],
+                     'l_cat_start': ['BS cat start', category_runs()[0]],
+                     'l_cat_class': ['BS cat class', category_runs()[1]],
                      'l_final_out': ['BS final out', []], 'l_ssm_norm': ['BS ssm norm', []],
                      'l_normed2': ['BS normed2', []], 'l_ffn_gate': ['BS ffn gate', []],
                      'l_ffn_up': ['BS ffn up', []], 'l_ffn': ['BS ffn', []], 'l_ffn_out': ['BS ffn out', []],
