@@ -437,6 +437,11 @@ def make(h):
                 change('BS generate index', 1)]),
             setvar('BS prompt length', length('BS prompt tokens', 'l_prompt')),
             setvar('BS render start', add(var('BS prompt length'), 1)),
+            # The KV cache has 128 cells, so prompt plus generated tokens cannot exceed it.
+            conditional(gt(add(var('BS prompt length'), var('BS max tokens')), var('BS context limit')),
+                        [setvar('BS max tokens', sub(var('BS context limit'), var('BS prompt length'))),
+                         setvar('BS stop reason', 'context')], [setvar('BS stop reason', 'bound')]),
+            conditional(lt(var('BS max tokens'), 1), [setvar('BS stop', 1), setvar('BS text', '')]),
             setvar('BS decode budget', sub(add(var('BS prompt length'), var('BS max tokens')), 1)),
             ('procedures_call', {}, {'PROCCODE': ('BS detok load', 'true')}, {}),
             setvar('BS step', 0), setvar('BS started', 1),
@@ -447,7 +452,7 @@ def make(h):
             ('data_deletealloflist', {}, {'LIST': ['BS output', 'l_output']}, {}),
             ('procedures_call', {}, {'PROCCODE': ('BS decode', 'true')}, {}),
             conditional(not_(lt(step, var('BS prompt length'))), [
-                conditional(eq(eos, var('BS eos token')), [setvar('BS stop', 1)], [
+                conditional(eq(eos, var('BS eos token')), [setvar('BS stop', 1), setvar('BS stop reason', 'eos')], [
                     addlist(eos, 'BS out tokens', 'l_out_tokens'),
                     ('procedures_call', {}, {'PROCCODE': ('BS detok render', 'true')}, {}),
                     ('event_broadcastandwait', {'BROADCAST_INPUT': 'BS show'}, {}, {}),
@@ -467,7 +472,7 @@ def make(h):
                                 [setvar('BS readout', 1)], [setvar('BS readout', 0)]),
                     ('event_broadcastandwait', {'BROADCAST_INPUT': 'BS decode step'}, {}, {}),
                     conditional(not_(lt(step, var('BS prompt length'))), [
-                        conditional(eq(eos, var('BS eos token')), [setvar('BS stop', 1)], [
+                        conditional(eq(eos, var('BS eos token')), [setvar('BS stop', 1), setvar('BS stop reason', 'eos')], [
                             addlist(eos, 'BS out tokens', 'l_out_tokens'),
                             ('procedures_call', {}, {'PROCCODE': ('BS detok render', 'true')}, {}),
                             ('event_broadcastandwait', {'BROADCAST_INPUT': 'BS show'}, {}, {}),

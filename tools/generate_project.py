@@ -443,7 +443,8 @@ def project(with_text=False, with_benchmark=False):
                   'BS detok scan',
                   'BS generate index', 'BS max tokens', 'BS eos token', 'BS ask', 'BS stop',
                   'BS prompt saved', 'BS template', 'BS render start',
-                  'BS prompt length', 'BS decode budget', 'BS started', 'BS loop')
+                  'BS prompt length', 'BS decode budget', 'BS started', 'BS loop', 'BS context limit',
+                  'BS stop reason')
     variables = {var(name)[2]: [name, 0] for name in names}
     variables[var('BS iterations')[2]][1] = 1
     variables[var('BS token id')[2]][1] = -1  # decode from `BS input` unless a token id is set
@@ -459,6 +460,7 @@ def project(with_text=False, with_benchmark=False):
         variables[var('BS ask')[2]][1] = 1
         variables[var('BS template')[2]][1] = 1
         variables[var('BS stop')[2]][1] = 0
+        variables[var('BS context limit')[2]][1] = 128
         variables[var('BS render start')[2]][1] = 1
         variables[var('BS started')[2]][1] = 0
         variables[var('BS loop')[2]][1] = 1

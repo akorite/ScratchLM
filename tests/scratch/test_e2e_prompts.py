@@ -19,6 +19,29 @@ ROOT = Path(__file__).resolve().parents[2]
 @unittest.skipUnless(os.environ.get('BONSAI_TURBOWARP_VM') and os.environ.get('BONSAI_MODEL_PACKAGE'),
                      'set BONSAI_TURBOWARP_VM and BONSAI_MODEL_PACKAGE')
 class EndToEndPromptTests(unittest.TestCase):
+    def test_generation_bound_is_clamped_to_the_kv_cache(self):
+        """The cache holds 128 positions, so a 10-token prompt may generate 118 tokens."""
+        fixture = json.loads((ROOT / 'fixtures/native/m5/e2e-prompts.json').read_text())
+        case = fixture['prompts'][0]
+        with tempfile.TemporaryDirectory() as temp:
+            project = Path(temp) / 'clamp.sb3'
+            built = subprocess.run([sys.executable, str(ROOT / 'tools/generate_project.py'), str(project),
+                                    '--text', '--benchmark'], capture_output=True, text=True)
+            self.assertEqual(built.returncode, 0, built.stderr)
+            env = {key: value for key, value in os.environ.items()
+                   if key in ('BONSAI_TURBOWARP_VM', 'BONSAI_MODEL_PACKAGE', 'NODE_PATH')}
+            env.update(BONSAI_PROMPT=case['prompt'], BONSAI_MAX_TOKENS='128', BONSAI_STEPS='1',
+                       BONSAI_TIMEOUT_MS='600000', BONSAI_DEBUG_FULL='1',
+                       BONSAI_DEBUG_VARS='BS max tokens,BS prompt length,BS decode budget,BS stop reason')
+            run = subprocess.run(['node', str(ROOT / 'tests/scratch/run-vm.js'), str(project),
+                                  '--generate', '24'], env=env, capture_output=True, text=True, timeout=900)
+            self.assertEqual(run.returncode, 0, run.stderr[-2000:])
+            state = json.loads(run.stdout.strip().splitlines()[-1])
+            self.assertEqual(state['BS prompt length'], len(case['template_tokens']))
+            self.assertEqual(state['BS max tokens'], 128 - len(case['template_tokens']))
+            self.assertEqual(state['BS decode budget'], 127)
+            self.assertEqual(state['BS stop reason'], 'context')
+
     def test_typed_prompts_produce_the_recorded_text(self):
         fixture = json.loads((ROOT / 'fixtures/native/m5/e2e-prompts.json').read_text())
         generate = fixture['generate']
