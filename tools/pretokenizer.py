@@ -7,21 +7,38 @@ statement. The C++ scanner is deterministic (no backtracking), which is what
 makes a block-by-block port possible; the Scratch code in `scratch/tokenizer.py`
 follows the same order of tests.
 """
-import unicodedata
+import bisect
+import json
+from pathlib import Path
 
 OTHER, LETTER, MARK, NUMBER, SPACE, CR, LF = 0, 1, 2, 3, 4, 5, 6
+CLASSES = None
+
+
+def load_classes(path=None):
+    """Install the pinned run-length table; without it the scanner has no classes."""
+    global CLASSES
+    path = path or Path(__file__).resolve().parents[1] / 'fixtures/unicode/qwen35-classes.json'
+    table = json.loads(Path(path).read_text())
+    CLASSES = ([row[0] for row in table['runs']], [row[1] for row in table['runs']])
+    return CLASSES
+
+
+def class_of(code):
+    if CLASSES is None:
+        load_classes()
+    starts, kinds = CLASSES
+    return kinds[bisect.bisect_right(starts, code) - 1]
 
 
 def flags(code):
     """(letter, mark, number, whitespace, assigned) for a code point."""
-    char = chr(code)
-    kind = unicodedata.category(char)
-    assigned = kind not in ('Cn', 'Cs')
-    return (kind[0] == 'L', kind[0] == 'M', kind[0] == 'N', char.isspace(), assigned)
+    kind = class_of(code)
+    return (kind == LETTER, kind == MARK, kind == NUMBER, kind in (SPACE, CR, LF), True)
 
 
 def tolower(code):
-    return ord(chr(code).lower()) if chr(code).lower() else code
+    return code + 32 if 0x41 <= code <= 0x5A else code
 
 
 def pretokenize(code_points):

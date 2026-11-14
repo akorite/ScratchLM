@@ -10,6 +10,8 @@ import zipfile
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scratch import attention, decoder, deltanet, embedding, layers, lut, numeric, text, transform
 
+ROOT = Path(__file__).resolve().parents[1]
+
 
 class Blocks:
     def __init__(self):
@@ -278,24 +280,12 @@ def scalar_dot_script():
 
 
 def category_runs():
-    """Run-length classes for the pre-tokenizer: 0 other, 1 letter, 2 mark, 3 number,
-    4 space, 5 CR, 6 LF. The Scratch pre-tokenizer binary-searches these starts."""
-    import unicodedata
-    def classify(code):
-        char = chr(code)
-        if char == '\r': return 5
-        if char == '\n': return 6
-        if char.isspace(): return 4
-        kind = unicodedata.category(char)[0]
-        return {'L': 1, 'M': 2, 'N': 3}.get(kind, 0)
-    starts, classes, previous = [], [], None
-    for code in range(0x110000):
-        kind = classify(code)
-        if kind != previous:
-            starts.append(code)
-            classes.append(kind)
-            previous = kind
-    return starts, classes
+    """Run-length classes for the pre-tokenizer, derived from the pinned runtime's own
+    Unidata tables (fixtures/unicode/qwen35-classes.json). The Scratch scanner
+    binary-searches the starts and reads the class at that index."""
+    table = json.loads((ROOT / 'fixtures/unicode/qwen35-classes.json').read_text())
+    runs = table['runs']
+    return [row[0] for row in runs], [row[1] for row in runs]
 
 
 def project(with_text=False, with_benchmark=False):
