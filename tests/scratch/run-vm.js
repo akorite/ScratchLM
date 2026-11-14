@@ -26,7 +26,8 @@ async function run() {
     vm.runtime.setFramerate(Number(process.env.BONSAI_FRAMERATE || 250));
     let loader, heartbeat, loaderReadMs = 0, loaderCommandMs = 0, loaderRequests = 0;
     const head = process.argv[3] === '--head';
-    if (process.argv[3] === '--package' || process.argv[3] === '--dot' || head) {
+    const stream = head || process.argv[3] === '--stream';
+    if (process.argv[3] === '--package' || process.argv[3] === '--dot' || stream) {
         const Scratch = {vm, extensions: {unsandboxed: true, register: value => { loader = value; }},
             BlockType: {COMMAND: 'command', REPORTER: 'reporter'},
             ArgumentType: {STRING: 'string', NUMBER: 'number'}};
@@ -46,7 +47,7 @@ async function run() {
                 try { return await load(...args); } finally { loaderCommandMs += performance.now() - start; loaderRequests++; }
             };
         }
-        if (!head) {
+        if (!stream) {
             const loadGroups = loader.loadGroups.bind(loader);
             loader.loadGroups = async (...args) => {
                 await loadGroups(...args);
@@ -65,7 +66,7 @@ async function run() {
         const done = stage.lookupVariableByNameAndType('BS done', '');
         if (!input || !output || !done) throw new Error('project test variables are missing');
         if (!loader) input.value = JSON.parse(process.argv[3]);
-        if (process.argv[3] === '--dot' || head || process.env.BONSAI_ACTIVATION_F32) {
+        if (process.argv[3] === '--dot' || stream || process.env.BONSAI_ACTIVATION_F32) {
             const bytes = fs.readFileSync(process.env.BONSAI_ACTIVATION_F32 || path.join(__dirname, '../../fixtures/native/layer3-q-input.f32'));
             if (bytes.length % 4) throw new Error('invalid F32 fixture');
             input.value = Array.from({length: bytes.length / 4}, (_, i) => bytes.readFloatLE(i * 4));
@@ -76,6 +77,18 @@ async function run() {
             const bytes = fs.readFileSync(process.env.BONSAI_SIGNS_F32);
             if (bytes.length % 4) throw new Error('invalid F32 signs fixture');
             signs.value = Array.from({length: bytes.length / 4}, (_, i) => bytes.readFloatLE(i * 4));
+        }
+        if (process.env.BONSAI_NORM_WEIGHTS_F32) {
+            const nw = stage.lookupVariableByNameAndType('BS norm weights', 'list');
+            if (!nw) throw new Error('project norm weights list is missing');
+            const bytes = fs.readFileSync(process.env.BONSAI_NORM_WEIGHTS_F32);
+            if (bytes.length % 4) throw new Error('invalid F32 norm weights fixture');
+            nw.value = Array.from({length: bytes.length / 4}, (_, i) => bytes.readFloatLE(i * 4));
+        }
+        if (process.env.BONSAI_TOKEN_ID !== undefined) {
+            const tid = stage.lookupVariableByNameAndType('BS token id', '');
+            if (!tid) throw new Error('project token id variable is missing');
+            tid.value = Number(process.env.BONSAI_TOKEN_ID);
         }
         if (process.argv[3] === '--dot' || head) {
             const codec = stage.lookupVariableByNameAndType('BS codec', '');
@@ -118,7 +131,7 @@ async function run() {
         clearInterval(heartbeat);
         worstGap = Math.max(worstGap, performance.now() - lastTick);
         if (!attempts.length || attempts.some(compiled => !compiled)) throw new Error('a Scratch thread did not compile');
-        if (loader && !head && (loader.status({ID: 'resident'}) !== 'ok' || loader.copied({ID: 'resident'}) !== (process.argv[3] === '--dot' ? input.value.length / 128 : 5) || loader.file !== null)) {
+        if (loader && !stream && (loader.status({ID: 'resident'}) !== 'ok' || loader.copied({ID: 'resident'}) !== (process.argv[3] === '--dot' ? input.value.length / 128 : 5) || loader.file !== null)) {
             throw new Error('compiled loader block did not complete before isolation');
         }
         if (head && (Number(stage.lookupVariableByNameAndType('BS head valid', '').value) !== 1 ||

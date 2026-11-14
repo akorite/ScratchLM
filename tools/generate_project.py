@@ -8,7 +8,7 @@ import sys
 import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scratch import lut, numeric, text, transform
+from scratch import embedding, lut, numeric, text, transform
 
 
 class Blocks:
@@ -274,15 +274,17 @@ def project(with_text=False, with_benchmark=False):
     if with_benchmark:
         fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=11),
                                 lut.script(globals(), head=True), fallback)]
+        fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=15),
+                                embedding.make(15, globals(), with_benchmark=True), fallback)]
     if with_text:
         for mode in (21, 20):
             fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=mode),
                                     text.make(mode, globals()), fallback)]
     fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=9),
                             lut.script(globals()), fallback)]
-    for mode in (13, 12):
-        fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=mode),
-                                transform.make(mode, globals()), fallback)]
+    for mode in (16, 14, 13, 12):
+        spec = embedding.make(mode, globals(), with_benchmark=with_benchmark) if mode in (14, 16) else transform.make(mode, globals())
+        fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=mode), spec, fallback)]
     for mode in reversed((4, 5, 6, 7, 8, 10)):
         fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=mode),
                                 numeric.make(mode, globals()), fallback)]
@@ -316,7 +318,7 @@ def project(with_text=False, with_benchmark=False):
              'BS lut groups', 'BS lut stride', 'BS lut cur', 'BS byte cur', 'BS lut a0',
              'BS lut level', 'BS lut next',
              'BS hadamard block', 'BS hadamard step', 'BS hadamard outer', 'BS hadamard pair',
-             'BS hadamard u', 'BS hadamard v',
+             'BS hadamard u', 'BS hadamard v', 'BS token id',
              'BS iterations', 'BS benchmark start', 'BS benchmark quant', 'BS benchmark setup', 'BS benchmark compute')
     if with_benchmark:
         names += ('BS head rows', 'BS head tensor', 'BS tile size', 'BS tile count', 'BS tile row',
@@ -338,7 +340,7 @@ def project(with_text=False, with_benchmark=False):
                        'l_packed': ['BS packed bytes', []], 'l_scales': ['BS weight scales', []],
                        'l_q8': ['BS q8', []], 'l_raw_powers': ['BS raw powers', [1, 4, 16, 64]],
                       'l_trit_powers': ['BS trit powers', [1, 3, 9, 27]], 'l_lut': ['BS lut', []],
-                      'l_signs': ['BS signs', []]},
+                     'l_signs': ['BS signs', []], 'l_norm_weights': ['BS norm weights', []]},
              'broadcasts': {}, 'blocks': graph.blocks, 'comments': {}, 'currentCostume': 0,
              'costumes': [{'name': 'backdrop', 'dataFormat': 'svg', 'assetId': asset,
                            'md5ext': asset + '.svg', 'rotationCenterX': 240, 'rotationCenterY': 180}],
