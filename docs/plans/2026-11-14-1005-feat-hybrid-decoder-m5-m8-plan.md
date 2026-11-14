@@ -314,6 +314,7 @@ Resolved without touching the package format or the extension: the generator emb
   - Generation stops at EOS and produces the expected text bytes for a fixed fixture.
   - An empty prompt reports a clear status rather than hanging.
 - **Verification:** a compiled-VM run produces the expected token IDs and reconstructed text for every fixture class.
+- **Status:** implemented. `scratch/tokenizer.py` scans with the pinned runtime's own splitter, merges over the packed `prism.bpe.*` tables, and detokenizes through the loaded vocabulary and an embedded 65,536-unit table. `tests/scratch/test_tokenizer.py` passes in the compiled VM: ten fixture classes reproduce the pinned ids exactly, and `[424,579,220,109266,26594]` renders as ` it's 你好 🙂`. A two-token run from `hello world` yields tokens 0,0 and the text `hello world!!`. Measured here: about 45 s for a prompt including the one-time table loads, and about 35 s per decode step. Still open from this unit: EOS handling defaults to `<|im_end|>` (248046) and has not been exercised; a multi-byte character split across two *tokens* (KTD8) is only covered by whole-piece rendering, since pieces carry whole characters in this vocabulary; empty prompts return an empty token list rather than a status message; and the locked chat template is not applied before the prompt.
 
 ### U8. Release validation and documentation
 
