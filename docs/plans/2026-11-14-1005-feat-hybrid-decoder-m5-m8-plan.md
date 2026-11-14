@@ -284,6 +284,20 @@ Next probe: instrument `scratch/deltanet.py` so every branch that appends to `BS
   - Cancellation mid-layer aborts within the measured bound without publishing a partial token.
 - **Verification:** a compiled-VM run reproduces native next tokens for all fixtures and records latency, time to first token, memory, and gaps.
 
+### U7 status note (design decision required)
+
+U7's pre-tokenization step needs a Unicode-aware regex. The locked model's `tokenizer.ggml.pre` is `qwen35`, whose rule in the pinned `llama-vocab.cpp` is:
+
+```
+(?:'[sS]|'[tT]|'[rR][eE]|'[vV][eE]|'[mM]|'[lL][lL]|'[dD])|[^\r\n\p{L}\p{N}]?[\p{L}\p{M}]+|\p{N}| ?[^\s\p{L}\p{M}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+
+```
+
+It uses Unicode general categories (`\p{L}`, `\p{M}`, `\p{N}`) and a negative lookahead. The package carries the token and merge arrays but no character-category table, and the storage extension may not compute anything (contract: select files, read metadata, copy values only). Reproducing this rule therefore needs either a packaged Unicode category table plus a hand-written scanner in Scratch, or a narrowed tokenizer whose divergence is documented per fixture class.
+
+Two further constraints measured so far: Scratch string equality is case-insensitive, which is why the existing text primitives resolve characters through 256 costume-lookup sprites and a broadcast per code unit (58.5 s for the current no-renderer proof run), and Scratch does not execute a warp procedure call inside a `repeat`, so the generation loop has to be driven one script run per token (the harness does this today; a Scratch-side loop would need broadcast hats).
+
+Decision needed before U7 implementation: package a category table (changes `tools/package_model.py` and the package manifest) or accept a documented tokenizer limitation.
+
 ### U7. Scratch tokenizer, detokenizer, and generation loop
 
 - **Goal:** a person can type text and receive generated text with no host involvement in tokenization, decoding, or selection.
