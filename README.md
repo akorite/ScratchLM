@@ -46,6 +46,12 @@ Generate the separate text proof with `python3 tools/generate_project.py dist/te
 
 For full-logit head validation, generate an external native reference using `tools/reference/reference.py run` with token `1`, context `8`, and `--capture result`; pass its `manifest.json` and `logits-0.f32` to `benchmarks/head.py` using `--native-manifest` and `--native-logits` alongside `--m4-manifest fixtures/native/m4/head/manifest.json`. The benchmark verifies provenance and compares every logit; the native vector is not stored in Git.
 
+## Prompt to text
+
+The tokenizer and detokenizer run in Scratch blocks. `python3 tools/generate_project.py dist/text-proof.sb3 --text --benchmark` adds three modes for a selected package: mode 22 turns the prompt in `BS prompt` into token ids in `BS prompt tokens`, mode 23 maps `BS out tokens` back to text in `BS text`, and mode 24 tokenizes the prompt, then broadcasts one decode step per token (`BS max tokens`, default 8) and shows the growing text on the `Bonsai` sprite.
+
+The pre-tokenizer reproduces the pinned runtime's own splitter. Its code point classes come from `fixtures/unicode/qwen35-classes.json`, derived by `tools/unicode_classes.py` from `src/unicode-data.cpp` at the pinned revision rather than from the host's Unicode build, because newer assignments would split prompts differently. The pair merge table is packed into the package as `prism.bpe.*` tensors by `tools/package_model.py`. Ten fixture classes match the pinned tokenizer exactly in the compiled VM; see `tests/scratch/test_tokenizer.py`. Each decode step is one Scratch run, so a prompt plus eight tokens takes minutes on this host.
+
 ## Tests
 
 ```sh
