@@ -304,13 +304,7 @@ def m4(args):
     out.mkdir(parents=True, exist_ok=False)
     work = out / "native-runs"
     runs = {}
-    # Graph tensors are shared across steps, so each embedding token needs its
-    # own run; the "result" and first "hadamard" runs reuse token[0] for the
-    # norm pair and head activation.
-    runs["hadamard-0"] = work / "hadamard-0"
-    runs["hadamard-0"].mkdir(parents=True)
-    run_command([binary, args.model.resolve(), runs["hadamard-0"], args.context, 0, "hadamard", str(args.tokens[0])])
-    for i, token in enumerate(args.tokens[1:], 1):
+    for i, token in enumerate(args.tokens):
         dest = work / f"hadamard-{i}"
         dest.mkdir(parents=True)
         run_command([binary, args.model.resolve(), dest, args.context, 0, "hadamard", str(token)])
@@ -335,8 +329,7 @@ def m4(args):
     head_dir = out / "head"
     head_dir.mkdir()
 
-    # The TSV lists each rotation MUL_MAT as an "out" row followed by its
-    # chain rows (s0 rotation, s1 reshape, s1.0 sign-mul or producer, s1.0.x).
+    seen_signs = set()
     chains, current = [], None
     for c in caps:
         if c["role"] == "out" and c["operation"] == "MUL_MAT":
@@ -355,19 +348,17 @@ def m4(args):
         chain["rotation"] = artifact(trans / "prism.hadamard.512.f32")
         signed = members.get("s1.0")
         if signed and signed["operation"] == "MUL":
-            # input = sign-multiplied activation (s1.0); pre_sign = the
-            # producer before signs (s1.0.0). The sign tensor is shared across
-            # chains; any captured row naming it can seed the canonical file.
             leaf = members.get("s1.0.0", signed)
             chain["pre_sign"] = copy_artifact(trans, runs["hadamard-0"], leaf["payload"], chain["node"] + "-pre-sign.f32")
             chain["sign_width"] = signed["shape"][0]
             name = f"prism.hadamard.signs.{chain['sign_width']}.f32"
-            if not (trans / name).exists():
+            if chain["sign_width"] not in seen_signs:
                 row = members.get("s1.0.1") or next(
                     (r for r in caps if r["step"] == chain["step"]
                      and r["name"] == f"prism.hadamard.signs.{chain['sign_width']}"), None)
                 if row:
                     copy_artifact(trans, runs["hadamard-0"], row["payload"], name)
+                    seen_signs.add(chain["sign_width"])
             chain["signs"] = artifact(trans / name)
             chain["input"] = copy_artifact(trans, runs["hadamard-0"], signed["payload"], chain["node"] + "-input.f32")
         else:
@@ -379,10 +370,6 @@ def m4(args):
         del chain["out"]
 
     chains = [c for c in chains if not c.get("skip")]
-    for c in chains:
-        c.pop("skip", None)
-
-    # Captured sign tensors must match model metadata sign_values bit-for-bit.
     offset = 0
     for width in sign_widths:
         got = f32_values(trans / f"prism.hadamard.signs.{width}.f32")
@@ -393,16 +380,12 @@ def m4(args):
     
     leaf_kind = {"attn_norm": "attn-qkv-gate", "attn_post_norm": "attn-out-ssm",
                  "final_output": "ssm-out-permute", "ffn_swiglu": "ffn-down",
-                 "result_norm": "head", "model.input_embed": "inverse", "norm": "head",
-                 "GET_ROWS": "inverse-lookup"}
+                 "result_norm": "head", "model.input_embed": "inverse", "norm": "head"}
     for chain in chains:
         chain["kind"] = leaf_kind.get(chain["input_leaf"]["name"].split("-")[0], "forward")
         if chain["input_leaf"]["operation"] == "GET_ROWS":
             chain["kind"] = "inverse-lookup"
 
-    # Folded weights consume transforms built on these activation leaves:
-    # attn_norm-N feeds attn_qkv/attn_gate, final_output-N feeds ssm_out,
-    # attn_post_norm-N feeds ffn_gate/ffn_up, ffn_swiglu-N feeds ffn_down.
     leaf_family = {"attn_qkv": "attn_norm", "attn_gate": "attn_norm", "ssm_out": "final_output",
                    "ffn_gate": "attn_post_norm", "ffn_up": "attn_post_norm", "ffn_down": "ffn_swiglu"}
     associations = []

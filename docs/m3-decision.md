@@ -2,13 +2,21 @@
 
 Date: 2026-11-14. Host: Intel Xeon Platinum 8488C, Linux 7.0.0-1014-aws, Node v24.22.1, TurboWarp VM `0cb82afe62506f3d9f2ff849c95593f0473b5d2c`, compiler verified active, turbo mode, warp timer off, 250 fps, 1,280-row tiles (width 2048; 426 rows at width 6144), synchronous 64 MiB read-ahead window loader, no renderer. **All results are host-specific; the Ryzen 7 Pro-class target was not measured.**
 
+**Measurement caveat:** The original head and tensor runs below wrapped every `loadGroups` call in a promise, including synchronous window hits. Their wall times describe that instrumented path, not the synchronous fast path; their `loader_copy_and_overhead_ms` values are invalid because background reads overlap commands. The corrected harness reports read and command durations separately, which may overlap; its read timer starts after package opening, so the initial prefetch may be excluded.
+
 ## Verdict
 
-**Proceed to M4 integration with `bslut5` on this host (demonstration-band core decode; prefill and target hardware remain unverified/excluded).**
+**Hold the host performance gate pending retuning or an explicit change to its 22 s limit.** The corrected `bslut5` head median is 22.10 s; the full decoder and target hardware remain unverified.
 
 - Adopted codec: **`bslut5`** (5 trits per index byte, 26 index bytes + 6 zero spare bytes inside each 34-byte record, parameterized DP LUT build + cursor inner loop). On `benchmarks/results/kernels-xeon.json` (10M contributions, identical Q8_K inputs): `bslut5` setup+compute totals `0.537 s` (w=2048) / `0.587 s` (w=6144) vs cursor `bslut4` `0.566 s` / `0.599 s` vs `raw-lut4` `0.597 s` / `0.667 s` vs `scalar-raw` `1.869 s` / `1.830 s`. On the full 248,320-row head (`benchmarks/results/head-xeon.json`), `bslut5` finishes in **`20.88 s` median** (`21.06 s` worst) vs `22.76 s` (`bslut4`) and `24.80 s` (`raw`), with bit-identical `output_f32_sha256` across all three codecs.
 - Projected decode: **`74–102 s/token`** core matvec+setup+transfer (`~74–122 s/token` with up to 20% secondary-op margin) → **demonstration band (30–120 s)** on this host, lifted from the prior `2.2–3.1 min/token` research-only pause.
 - Projected prefill (weights re-streamed per position, linear in tokens): 1 token ≈ `74–102 s`, 16 ≈ `20–27 min`, 128 ≈ `2.6–3.6 h`. Prefill remains hours-scale and unsuitable for interactive long prompts; it is reported independently.
+
+## Corrected-harness rerun
+
+Three runs per case on the same Xeon host, 250 fps and 1,280-row tiles: the 248,320-row `bslut5` head had a 22.10 s median and 23.01 s worst case, versus 23.62 s for `bslut4` and 25.44 s for raw. The M4 head median was 22.64 s (22.97 s worst), with the native top-8 order matched in every run. See `benchmarks/results/head-sync-xeon.json`, `tensors-sync-xeon.json`, and `head-m4-sync-xeon.json`. The earlier measurements and projections below are historical and have not been recalculated for this rerun.
+
+The ≤22 s head target is narrowly missed by the corrected median. Measured head timing is host-specific and does not establish full-token decode or prefill performance.
 
 ## Evidence
 
@@ -42,8 +50,8 @@ Prefill reuses the same weight stream per prompt position with no KV-batched mat
 | Gate | Status |
 |---|---|
 | Numerical gates pass | **Pass** — raw, `bslut4`, and `bslut5` produce bit-identical `output_f32_sha256` across all 248,320 head rows and representative tensors; `bslut5` tail-slot and 243-pattern round-trip verified |
-| Head scan ≤ ~22 s on host | **Pass** — `20.88 s` median (`21.06 s` worst) with `bslut5` |
-| Projected decode ≤ 120 s/token on host | **Pass** — `74–102 s/token` core matvec+setup+transfer (≤ 120 s upper bound before secondary-op margin) |
+| Head scan ≤ 22 s on host | **Not met on corrected rerun** — `22.10 s` median (`23.01 s` worst) with `bslut5` |
+| Projected decode ≤ 120 s/token on host | **Unconfirmed for corrected rerun** — historical estimate was `74–102 s/token` core, before secondary-op margin |
 | Cancellation ≤ 250 ms & gap recorded | **Pass** — `166.1 ms` steady-state tile abort at tile size 1,280; max event-loop gap `84.0 ms` (`bslut5`) / `96.2 ms` (`raw`). Supersedes the prior 50 ms uninterrupted-tile goal at 250 fps |
 | Memory bounded | **Pass on host** — ≤ 511 MB RSS in Node VM (includes 64 MiB read-ahead window); browser 6 GB/8 GB thresholds remain unexercised in a browser renderer |
 | Decode > 5 min/token | **No** — pause trigger cleared |
@@ -63,7 +71,7 @@ After integrating `output_norm` (mode 5 RMS norm + F32-rounded `output_norm.weig
 | Peak RSS | **515.1 MB** (Node VM, no renderer) | same |
 | M4 cancellation latency (mid-scan abort) | `< 250 ms` at tile 1,280 (`test_m4_cancellation_aborts_at_tile_boundary`) | `tests/scratch/test_head.py` |
 
-**M5 readiness:** All M4 exit criteria pass on the Xeon host (`bslut5` adopted, end-to-end head verified against native logits/greedy/top-k, transforms and inverse embedding verified across widths 2048/6144 and tokens 1/321/248046). Proceeding to per-layer state integration (M5) is supported on this host, subject to the limitations below.
+**M5 readiness:** The corrected head median exceeds the 22 s host target; the earlier proceed verdict is superseded. The full decoder and per-layer state remain unimplemented.
 
 ## Limitations
 

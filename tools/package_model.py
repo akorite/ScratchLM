@@ -73,59 +73,15 @@ def _tables5():
 
 
 def encode5(record):
-    """Recode one 34-byte PQ2_0 record as 26 base-3 index bytes plus spare."""
-    out = bytearray(34)
-    out[0] = record[0]
-    out[1] = record[1]
-    t5, ttail = T5_BASE, T5_TAIL
-    j = 2
-    for k in range(2, 32, 5):
-        b0, b1, b2, b3, b4 = record[k], record[k + 1], record[k + 2], record[k + 3], record[k + 4]
-        i0 = t5[b0 | ((b1 & 3) << 8)]
-        i1 = t5[(b1 >> 2) | ((b2 & 15) << 6)]
-        i2 = t5[(b2 >> 4) | ((b3 & 63) << 4)]
-        i3 = t5[(b3 >> 6) | (b4 << 2)]
-        if i0 == 255 or i1 == 255 or i2 == 255 or i3 == 255:
-            raise InvalidGGUF('PQ2_0 contains reserved code 3')
-        out[j], out[j + 1], out[j + 2], out[j + 3] = i0, i1, i2, i3
-        j += 4
-    b30, b31 = record[32], record[33]
-    i24 = t5[b30 | ((b31 & 3) << 8)]
-    i25 = ttail[b31 >> 2]
-    if i24 == 255 or i25 == 255:
-        raise InvalidGGUF('PQ2_0 contains reserved code 3')
-    out[26] = i24
-    out[27] = i25
-    return bytes(out)
+    if len(record) != GROUP:
+        raise InvalidGGUF('invalid bslut5 record')
+    return bytes(recode5(record))
 
 
 def decode5(record):
-    """Invert encode5; rejects out-of-range indices, tail range, nonzero spare."""
-    if record[28] or record[29] or record[30] or record[31] or record[32] or record[33]:
+    if len(record) != GROUP:
         raise InvalidGGUF('invalid bslut5 record')
-    for k in range(2, 27):
-        if record[k] > 242:
-            raise InvalidGGUF('invalid bslut5 record')
-    if not 108 <= record[27] <= 134:
-        raise InvalidGGUF('invalid bslut5 record')
-    out = bytearray(34)
-    out[0] = record[0]
-    out[1] = record[1]
-    low4, t4, low3, hi2, low2, hi3, t0, hi4 = (
-        D5_LOW4, D5_T4, D5_LOW3, D5_HI2, D5_LOW2, D5_HI3, D5_T0, D5_HI4)
-    j = 2
-    for k in range(2, 26, 4):
-        i0, i1, i2, i3 = record[k], record[k + 1], record[k + 2], record[k + 3]
-        out[j] = low4[i0]
-        out[j + 1] = t4[i0] | (low3[i1] << 2)
-        out[j + 2] = hi2[i1] | (low2[i2] << 4)
-        out[j + 3] = hi3[i2] | (t0[i3] << 6)
-        out[j + 4] = hi4[i3]
-        j += 5
-    i24, i25 = record[26], record[27]
-    out[32] = low4[i24]
-    out[33] = t4[i24] | (D5_TAIL[i25] << 2)
-    return bytes(out)
+    return bytes(decode5_chunk(record))
 
 
 def recode(data, table, validate=False):
@@ -176,18 +132,17 @@ def decode5_chunk(data):
                 raise InvalidGGUF('invalid bslut5 record')
         if not 108 <= result[o + 27] <= 134:
             raise InvalidGGUF('invalid bslut5 record')
-        # Read indices before overwriting the 32-byte payload in place
-        idx = bytes(result[o + 2:o + 28])
+        saved_indices = bytes(result[o + 2:o + 28])
         j = o + 2
         for k in range(0, 24, 4):
-            i0, i1, i2, i3 = idx[k], idx[k + 1], idx[k + 2], idx[k + 3]
+            i0, i1, i2, i3 = saved_indices[k], saved_indices[k + 1], saved_indices[k + 2], saved_indices[k + 3]
             result[j] = low4[i0]
             result[j + 1] = t4[i0] | (low3[i1] << 2)
             result[j + 2] = hi2[i1] | (low2[i2] << 4)
             result[j + 3] = hi3[i2] | (t0[i3] << 6)
             result[j + 4] = hi4[i3]
             j += 5
-        i24, i25 = idx[24], idx[25]
+        i24, i25 = saved_indices[24], saved_indices[25]
         result[o + 32] = low4[i24]
         result[o + 33] = t4[i24] | (dtail[i25] << 2)
     return result

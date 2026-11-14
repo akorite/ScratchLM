@@ -1,5 +1,3 @@
-"""Visible Scratch block-512 normalized Sylvester-Walsh-Hadamard transform."""
-
 INV_SQRT_512_F32 = 0.04419417306780815
 
 
@@ -7,7 +5,9 @@ def replace_item(index, value, list_name='BS output', list_id='l_output'):
     return ('data_replaceitemoflist', {'INDEX': index, 'ITEM': value}, {'LIST': [list_name, list_id]}, {})
 
 
-def hadamard(h, list_name='BS output', list_id='l_output'):
+def hadamard(h, list_name='BS output', list_id='l_output', inline=False):
+    if not inline and list_name == 'BS output' and list_id == 'l_output' and h.get('call_hadamard'):
+        return [h['call_hadamard']()]
     var, op, item, length, setvar, repeat, change = (
         h[name] for name in ('var', 'op', 'item', 'length', 'setvar', 'repeat', 'change'))
     add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
@@ -49,17 +49,10 @@ def hadamard(h, list_name='BS output', list_id='l_output'):
         repeat(512, scale),
         change('BS hadamard block', 512),
     ]
-    steps = [
+    return [
         setvar('BS hadamard block', 1),
         repeat(div(length(list_name, list_id), 512), per_block),
     ]
-    if list_name == 'BS output' and list_id == 'l_output' and h.get('call_hadamard'):
-        return [h['call_hadamard']()]
-    return steps
-
-
-def hadamard_inline(h, list_name='BS output', list_id='l_output'):
-    return hadamard({k: v for k, v in h.items() if k != 'call_hadamard'}, list_name, list_id)
 
 
 def apply_signs(h, list_name='BS output', list_id='l_output', signs_name='BS signs', signs_id='l_signs'):
@@ -93,6 +86,10 @@ def make(mode, h):
                OPERAND1=op('operator_and', OPERAND1=gt(in_len, 0), OPERAND2=eq(mod(in_len, 512), 0)),
                OPERAND2=op('operator_or', OPERAND1=eq(sign_len, 0), OPERAND2=eq(sign_len, in_len)))
     idx = var('BS index')
+    plain_copy = [
+        setvar('BS index', 1),
+        repeat(in_len, [addlist(item('BS input', 'l_input', idx)), change('BS index', 1)]),
+    ]
     if mode == 12:
         copy = conditional(gt(sign_len, 0), [
             setvar('BS index', 1),
@@ -100,15 +97,8 @@ def make(mode, h):
                 addlist(mul(item('BS input', 'l_input', idx), item('BS signs', 'l_signs', idx))),
                 change('BS index', 1),
             ]),
-        ], [
-            setvar('BS index', 1),
-            repeat(in_len, [addlist(item('BS input', 'l_input', idx)), change('BS index', 1)]),
-        ])
+        ], plain_copy)
         work = [copy] + hadamard(h)
     else:
-        copy = [
-            setvar('BS index', 1),
-            repeat(in_len, [addlist(item('BS input', 'l_input', idx)), change('BS index', 1)]),
-        ]
-        work = copy + hadamard(h) + [conditional(gt(sign_len, 0), apply_signs(h))]
+        work = plain_copy + hadamard(h) + [conditional(gt(sign_len, 0), apply_signs(h))]
     return [conditional(valid, work, [addlist('invalid dimensions')])]

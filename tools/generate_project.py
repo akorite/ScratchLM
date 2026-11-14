@@ -41,12 +41,14 @@ class Blocks:
     def stack(self, instructions, parent):
         first = previous = None
         for opcode, inputs, fields, branches in instructions:
-            proccode, warp = fields.get('PROCCODE', ('BS f32', 'true')) if fields else ('BS f32', 'true')
-            clean_fields = {k: v for k, v in fields.items() if k != 'PROCCODE'} if fields else {}
-            block = self.add(opcode, parent if previous is None else previous, fields=clean_fields)
             if opcode == 'procedures_call':
+                proccode, warp = fields.get('PROCCODE', ('BS f32', 'true')) if fields else ('BS f32', 'true')
+                block_fields = {k: v for k, v in fields.items() if k != 'PROCCODE'} if fields else {}
+                block = self.add(opcode, parent if previous is None else previous, fields=block_fields)
                 self.blocks[block]['mutation'] = {'tagName': 'mutation', 'children': [],
                                                   'proccode': proccode, 'argumentids': '[]', 'warp': warp}
+            else:
+                block = self.add(opcode, parent if previous is None else previous, fields=fields)
             if previous:
                 self.blocks[previous]['next'] = block
             if first is None:
@@ -334,7 +336,7 @@ def project(with_text=False, with_benchmark=False):
     ]
     graph.blocks[hat]['next'] = graph.stack(script, hat)
     f32_procedure(graph)
-    add_procedure(graph, 'BS hadamard', transform.hadamard_inline(globals()), x=1800, warp='true')
+    add_procedure(graph, 'BS hadamard', transform.hadamard(globals(), inline=True), x=1800, warp='true')
     if with_benchmark:
         add_procedure(graph, 'BS head', lut.script(globals(), head=True), x=2400, warp='false')
     svg = (b'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>' if with_text else

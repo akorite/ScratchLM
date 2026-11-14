@@ -128,6 +128,95 @@ class EmbeddingAndNormTests(unittest.TestCase):
                 for a, b in zip(got_e, want_e):
                     self.assertLessEqual(abs(a - b), 1e-9)
 
+    def test_loader_modes_replace_stale_dense_lists_and_follow_package_replacement(self):
+        script = r"""
+const fs = require('fs'), path = require('path');
+const VM = require(path.join(process.env.BONSAI_TURBOWARP_VM, 'src/index.js'));
+const Thread = require(path.join(process.env.BONSAI_TURBOWARP_VM, 'src/engine/thread.js'));
+const Storage = require('scratch-storage');
+let attempts = [];
+const compile = Thread.prototype.tryCompile;
+Thread.prototype.tryCompile = function () { compile.call(this); attempts.push(Boolean(this.isCompiled)); };
+(async () => {
+    const vm = new VM(); vm.attachStorage(new Storage());
+    vm.setCompatibilityMode(false); vm.setTurboMode(true); vm.setCompilerOptions({enabled: true});
+    let loader, compileError;
+    vm.on('COMPILE_ERROR', (target, error) => { compileError = error; });
+    const Scratch = {vm, extensions: {unsandboxed: true, register: x => { loader = x; }},
+        BlockType: {COMMAND: 'command', REPORTER: 'reporter'}, ArgumentType: {STRING: 'string', NUMBER: 'number'}};
+    require('node:vm').runInNewContext(fs.readFileSync(process.argv[2], 'utf8'), {Scratch, TextDecoder});
+    const pkg = await fs.openAsBlob(process.env.BONSAI_MODEL_PACKAGE);
+    await loader.openFile(pkg);
+    if (loader.fileStatus() !== 'ok') throw Error(loader.fileStatus());
+    vm.extensionManager.addBuiltinExtension('bonsailoader', class { constructor() { return loader; } });
+    vm.start(); await vm.loadProject(fs.readFileSync(process.argv[1]));
+    const stage = vm.runtime.getTargetForStage();
+    const scalar = name => stage.lookupVariableByNameAndType('BS ' + name, '');
+    const list = name => stage.lookupVariableByNameAndType('BS ' + name, 'list');
+    async function run(mode) {
+        scalar('mode').value = mode; scalar('done').value = 0;
+        await vm.greenFlag();
+        while (Number(scalar('done').value) !== 1) {
+            if (compileError) throw compileError;
+            await new Promise(r => setTimeout(r, 5));
+        }
+        return list('output').value.slice();
+    }
+    scalar('token id').value = 1;
+    const emb = await run(15);
+    list('signs').value = Array(6144).fill(0);
+    const embShort = await run(15);
+    list('signs').value = Array(2048).fill(0);
+    const embSame = await run(15);
+    list('input').value = Array(2048).fill(1);
+    const norm = await run(16);
+    list('norm weights').value = Array(512).fill(0);
+    const normShort = await run(16);
+    list('norm weights').value = Array(2048).fill(0);
+    const normSame = await run(16);
+    const header = Buffer.from(await pkg.slice(0, 16).arrayBuffer());
+    const mlen = Number(header.readBigUInt64LE(8));
+    const manifest = JSON.parse(await pkg.slice(16, 16 + mlen).text());
+    const changes = [];
+    for (const [name, factor] of [['prism.hadamard.signs.2048', -1], ['output_norm.weight', 2]]) {
+        const tensor = manifest.tensors.find(t => t.name === name);
+        const start = 16 + mlen + tensor.offset;
+        const data = Buffer.from(await pkg.slice(start, start + tensor.length).arrayBuffer());
+        for (let i = 0; i < data.length; i += 4) data.writeFloatLE(data.readFloatLE(i) * factor, i);
+        changes.push({start, data});
+    }
+    changes.sort((a, b) => a.start - b.start);
+    const parts = []; let offset = 0;
+    for (const change of changes) {
+        parts.push(pkg.slice(offset, change.start), change.data);
+        offset = change.start + change.data.length;
+    }
+    parts.push(pkg.slice(offset));
+    await loader.openFile(new Blob(parts));
+    if (loader.fileStatus() !== 'ok') throw Error(loader.fileStatus());
+    const embReplaced = await run(15), normReplaced = await run(16);
+    if (!attempts.length || attempts.some(x => !x)) throw Error('Scratch thread did not compile');
+    process.stdout.write(JSON.stringify({emb, embShort, embSame, embReplaced, norm, normShort, normSame, normReplaced}));
+    vm.quit();
+})().catch(e => { console.error(e); process.exit(1); });
+"""
+        with tempfile.TemporaryDirectory() as temp:
+            project = Path(temp) / 'reload.sb3'
+            generated = subprocess.run([sys.executable, str(GENERATOR), str(project), '--benchmark'],
+                                       capture_output=True, text=True)
+            self.assertEqual(generated.returncode, 0, generated.stderr)
+            run = subprocess.run(['node', '-e', script, str(project), str(ROOT / 'extension/loader.js')],
+                                 capture_output=True, text=True, timeout=60)
+            self.assertEqual(run.returncode, 0, run.stderr)
+            result = json.loads(run.stdout)
+            for prefix in ('emb', 'norm'):
+                self.assertEqual(len(result[prefix]), 2048)
+                self.assertEqual(result[prefix + 'Short'], result[prefix])
+                self.assertEqual(result[prefix + 'Same'], result[prefix])
+                factor = -1 if prefix == 'emb' else 2
+                for actual, original in zip(result[prefix + 'Replaced'], result[prefix]):
+                    self.assertAlmostEqual(actual, factor * original, delta=1e-6)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -98,14 +98,182 @@ test('requests larger than the window read through and refill adopts prefetched 
   e.windowBytes = 10; await e.openFile(file);
   await e.loadGroups(groups('over', 0, 1), {target});
   assert.equal(e.status({ID: 'over'}), 'ok'); assert.deepEqual(Array.from(v.q.value), Array(32).fill(0x24));
-  e.windowBytes = 64 * 1024 * 1024;
-  const {extension: e2, target: t2, variables: v2} = setup();
-  e2.windowBytes = 40; await e2.openFile(packageFile());
+  assert.equal(e.window, null);
+  const {extension: e2, target: t2, variables: v2} = setup(); const file2 = packageFile();
+  const slice = file2.slice.bind(file2), reads = [];
+  file2.slice = (start, end) => { reads.push([start, end]); return slice(start, end); };
+  e2.windowBytes = 40; await e2.openFile(file2);
   await e2.loadGroups(groups('a', 0, 1), {target: t2});
-  e2.windowBytes = 0;
-  e2.window = null;
-  e2.windowBytes = 40;
-  const miss = e2.loadGroups(groups('b', 1, 1), {target: t2});
-  await miss;
+  const nextStart = file2.size - 80 + 34;
+  assert.equal(reads.filter(([start]) => start === nextStart).length, 1);
+  await e2.loadGroups(groups('b', 1, 1), {target: t2});
+  assert.equal(reads.filter(([start]) => start === nextStart).length, 1);
   assert.equal(e2.status({ID: 'b'}), 'ok'); assert.deepEqual(Array.from(v2.s.value), [0x7c00]);
+});
+
+test('matching prefetch failures are reported, even if they have already settled', async () => {
+  const {extension: e, target, variables} = setup(); const file = packageFile();
+  const slice = file.slice.bind(file), payloadStart = file.size - 80;
+  let failed = false;
+  file.slice = (start, end) => {
+    if (start === payloadStart && !failed) {
+      failed = true;
+      return {arrayBuffer: () => Promise.reject(new Error('prefetch failed'))};
+    }
+    return slice(start, end);
+  };
+  e.windowBytes = 40; await e.openFile(file);
+  await new Promise(resolve => setImmediate(resolve));
+  await e.loadGroups(groups('failed', 0, 1), {target});
+  assert.equal(e.status({ID: 'failed'}), 'error');
+  assert.equal(e.error({ID: 'failed'}), 'prefetch failed');
+  assert.deepEqual(variables.q.value, [999]);
+  await e.loadGroups(groups('retry', 0, 1), {target});
+  assert.equal(e.status({ID: 'retry'}), 'ok');
+  assert.deepEqual(Array.from(variables.s.value), [0x8001]);
+});
+
+test('a sequential prefetch failure reaches the matching request', async () => {
+  const {extension: e, target, variables} = setup(); const file = packageFile();
+  const slice = file.slice.bind(file), nextStart = file.size - 80 + 34;
+  let rejectNext;
+  file.slice = (start, end) => start === nextStart
+    ? {arrayBuffer: () => new Promise((resolve, reject) => { rejectNext = reject; })}
+    : slice(start, end);
+  e.windowBytes = 40; await e.openFile(file);
+  await e.loadGroups(groups('first', 0, 1), {target});
+  const next = e.loadGroups(groups('next', 1, 1), {target});
+  rejectNext(new Error('sequential prefetch failed'));
+  await next;
+  assert.equal(e.status({ID: 'next'}), 'error');
+  assert.equal(e.error({ID: 'next'}), 'sequential prefetch failed');
+  assert.deepEqual(Array.from(variables.s.value), [0x8001]);
+});
+
+test('discarded initial and sequential prefetch failures do not escape', async () => {
+  const {extension: e, target} = setup(); const file = packageFile();
+  const slice = file.slice.bind(file), payloadStart = file.size - 80;
+  const rejects = [];
+  file.slice = (start, end) => {
+    if (start === payloadStart || start === payloadStart + 34) {
+      return {arrayBuffer: () => new Promise((resolve, reject) => { rejects.push(reject); })};
+    }
+    return slice(start, end);
+  };
+  e.windowBytes = 40; await e.openFile(file);
+  await e.openFile(packageFile());
+  rejects.shift()(new Error('discarded initial'));
+  await new Promise(resolve => setImmediate(resolve));
+
+  const file2 = packageFile(), slice2 = file2.slice.bind(file2), start2 = file2.size - 80;
+  let rejectTail;
+  file2.slice = (start, end) => start === start2 + 34
+    ? {arrayBuffer: () => new Promise((resolve, reject) => { rejectTail = reject; })}
+    : slice2(start, end);
+  await e.openFile(file2);
+  await e.loadGroups(groups('first', 0, 1), {target});
+  assert.equal(typeof rejectTail, 'function');
+  await e.openFile(packageFile());
+  rejectTail(new Error('discarded sequential'));
+  await new Promise(resolve => setImmediate(resolve));
+});
+
+test('cancelled concurrent readers share an in-flight prefetch without corrupting the survivor', async () => {
+  const {extension: e, target, variables} = setup(); const file = packageFile();
+  target.variables.q2 = {id: 'q2', type: 'list', value: [999]};
+  target.variables.s2 = {id: 's2', type: 'list', value: [999]};
+  const slice = file.slice.bind(file), payloadStart = file.size - 80;
+  let release, payloadReads = 0;
+  file.slice = (start, end) => {
+    const blob = slice(start, end);
+    if (start !== payloadStart) return blob;
+    payloadReads++;
+    return {arrayBuffer: () => new Promise(resolve => { release = async () => resolve(await blob.arrayBuffer()); })};
+  };
+  e.windowBytes = 40; await e.openFile(file);
+  const cancelled = e.loadGroups(groups('cancelled', 0, 1), {target});
+  const survivor = e.loadGroups(groups('survivor', 0, 1, 'q2', 's2'), {target});
+  e.cancel({ID: 'cancelled'});
+  assert.equal(payloadReads, 1);
+  await release(); await Promise.all([cancelled, survivor]);
+  assert.equal(e.status({ID: 'cancelled'}), 'cancelled');
+  assert.deepEqual(variables.q.value, [999]);
+  assert.equal(e.status({ID: 'survivor'}), 'ok');
+  assert.deepEqual(target.variables.s2.value, [0x8001]);
+});
+
+test('an older refill does not discard a newer prefetch', async () => {
+  const {extension: e, target, variables} = setup(); const file = packageFile();
+  const slice = file.slice.bind(file), payloadStart = file.size - 80;
+  let release, nextReads = 0;
+  file.slice = (start, end) => {
+    const blob = slice(start, end);
+    if (start === payloadStart + 34) nextReads++;
+    return start === payloadStart + 68
+      ? {arrayBuffer: () => new Promise(resolve => { release = async () => resolve(await blob.arrayBuffer()); })}
+      : blob;
+  };
+  e.windowBytes = 40; await e.openFile(file);
+  const older = e.loadDense(dense('older', 0, 1), {target});
+  await e.loadGroups(groups('first', 0, 1), {target});
+  assert.equal(nextReads, 1);
+  await release(); await older;
+  await e.loadGroups(groups('next', 1, 1), {target});
+  assert.equal(e.status({ID: 'next'}), 'ok');
+  assert.deepEqual(Array.from(variables.s.value), [0x7c00]);
+  assert.equal(nextReads, 1);
+});
+
+test('a cancelled refill cannot replace a newer window', async () => {
+  const {extension: e, target, variables} = setup(); const file = packageFile();
+  const slice = file.slice.bind(file), payloadStart = file.size - 80;
+  let release;
+  file.slice = (start, end) => {
+    const blob = slice(start, end);
+    return start === payloadStart + 34
+      ? {arrayBuffer: () => new Promise(resolve => { release = async () => resolve(await blob.arrayBuffer()); })}
+      : blob;
+  };
+  e.windowBytes = 40; await e.openFile(file);
+  const old = e.loadGroups(groups('cancel', 1, 1), {target});
+  e.cancel({ID: 'cancel'});
+  await e.loadDense(dense('new', 0, 3), {target});
+  await release(); await old;
+  assert.equal(e.status({ID: 'cancel'}), 'cancelled');
+  assert.deepEqual(variables.q.value, [999]);
+  assert.equal(e.loadDense(dense('hit', 0, 3), {target}), undefined);
+  assert.equal(e.status({ID: 'hit'}), 'ok');
+  assert.deepEqual(Array.from(variables.f.value), [1.5, -2.25, 0]);
+});
+
+test('a stale refill cannot replace the current file window', async () => {
+  const {extension: e, target, variables} = setup(); const oldFile = packageFile();
+  const slice = oldFile.slice.bind(oldFile), payloadStart = oldFile.size - 80;
+  let release;
+  oldFile.slice = (start, end) => {
+    const blob = slice(start, end);
+    return start === payloadStart
+      ? {arrayBuffer: () => new Promise(resolve => { release = async () => resolve(await blob.arrayBuffer()); })}
+      : blob;
+  };
+  e.windowBytes = 40; await e.openFile(oldFile);
+  const old = e.loadGroups(groups('old', 0, 1), {target});
+  await e.openFile(packageFile());
+  await e.loadDense(dense('new', 0, 3), {target});
+  await release(); await old;
+  assert.equal(e.status({ID: 'old'}), 'stale');
+  assert.equal(e.loadDense(dense('hit', 0, 3), {target}), undefined);
+  assert.equal(e.status({ID: 'hit'}), 'ok');
+  assert.deepEqual(Array.from(variables.f.value), [1.5, -2.25, 0]);
+});
+
+test('a window that already reaches EOF does not prefetch its own tail', async () => {
+  const {extension: e, target} = setup(); const file = packageFile();
+  const slice = file.slice.bind(file), reads = [];
+  file.slice = (start, end) => { reads.push([start, end]); return slice(start, end); };
+  e.windowBytes = 128; await e.openFile(file);
+  await e.loadDense(dense('first', 0, 1), {target});
+  assert.equal(e.loadDense(dense('second', 1, 1), {target}), undefined);
+  assert.equal(e.status({ID: 'second'}), 'ok');
+  assert.equal(reads.filter(([start]) => start >= file.size - 80).length, 1);
 });

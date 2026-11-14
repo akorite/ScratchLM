@@ -23,7 +23,6 @@ async function run() {
     vm.setCompatibilityMode(false);
     vm.setTurboMode(true);
     vm.setCompilerOptions({enabled: true});
-    vm.runtime.setFramerate(Number(process.env.BONSAI_FRAMERATE || 250));
     let loader, heartbeat, loaderReadMs = 0, loaderCommandMs = 0, loaderRequests = 0;
     const m4 = process.argv[3] === '--m4';
     const head = process.argv[3] === '--head' || m4;
@@ -43,9 +42,15 @@ async function run() {
                 try { return await read(...args); } finally { loaderReadMs += performance.now() - start; }
             };
             const load = loader.loadGroups.bind(loader);
-            loader.loadGroups = async (...args) => {
+            loader.loadGroups = (...args) => {
                 const start = performance.now();
-                try { return await load(...args); } finally { loaderCommandMs += performance.now() - start; loaderRequests++; }
+                loaderRequests++;
+                const result = load(...args);
+                if (result && typeof result.then === 'function') {
+                    return result.finally(() => { loaderCommandMs += performance.now() - start; });
+                }
+                loaderCommandMs += performance.now() - start;
+                return result;
             };
         }
         if (!stream) {
@@ -58,6 +63,7 @@ async function run() {
         }
         vm.extensionManager.addBuiltinExtension('bonsailoader', class { constructor() { return loader; } });
     }
+    vm.runtime.setFramerate(Number(process.env.BONSAI_FRAMERATE || 250));
     vm.start();
     try {
         await vm.loadProject(fs.readFileSync(process.argv[2]));
@@ -154,7 +160,7 @@ async function run() {
                 greedy_logit: m4 && greedyLogitVar ? Number(greedyLogitVar.value) : null,
                 second_logit: m4 && secondLogitVar ? Number(secondLogitVar.value) : null,
                 loader_requests: loaderRequests, loader_read_ms: loaderReadMs,
-                loader_command_ms: loaderCommandMs, loader_copy_and_overhead_ms: loaderCommandMs - loaderReadMs,
+                loader_command_ms: loaderCommandMs,
                 worst_event_loop_gap_ms: worstGap, peak_rss_bytes: process.resourceUsage().maxRSS * 1024}) + '\n');
         } else if (m4) {
             process.stdout.write(JSON.stringify({

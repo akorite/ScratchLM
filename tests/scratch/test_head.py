@@ -244,5 +244,74 @@ const Storage = require('scratch-storage');
             self.assertEqual(info['tail'], 'error')
             self.assertLess(info['elapsedMs'], 250.0)
 
+    def test_pipeline_reloads_dense_lists_and_rejects_invalid_head_and_precancel(self):
+        script = r"""
+const fs = require('fs'), path = require('path');
+const VM = require(path.join(process.env.BONSAI_TURBOWARP_VM, 'src/index.js'));
+const Thread = require(path.join(process.env.BONSAI_TURBOWARP_VM, 'src/engine/thread.js'));
+const Storage = require('scratch-storage');
+let attempts = [];
+const compile = Thread.prototype.tryCompile;
+Thread.prototype.tryCompile = function () { compile.call(this); attempts.push(Boolean(this.isCompiled)); };
+(async () => {
+    const vm = new VM(); vm.attachStorage(new Storage());
+    vm.setCompatibilityMode(false); vm.setTurboMode(true); vm.setCompilerOptions({enabled: true});
+    let loader, compileError;
+    vm.on('COMPILE_ERROR', (target, error) => { compileError = error; });
+    const Scratch = {vm, extensions: {unsandboxed: true, register: x => { loader = x; }},
+        BlockType: {COMMAND: 'command', REPORTER: 'reporter'}, ArgumentType: {STRING: 'string', NUMBER: 'number'}};
+    require('node:vm').runInNewContext(fs.readFileSync(process.argv[2], 'utf8'), {Scratch, TextDecoder});
+    await loader.openFile(await fs.openAsBlob(process.env.BONSAI_MODEL_PACKAGE));
+    if (loader.fileStatus() !== 'ok') throw Error(loader.fileStatus());
+    vm.extensionManager.addBuiltinExtension('bonsailoader', class { constructor() { return loader; } });
+    vm.start(); await vm.loadProject(fs.readFileSync(process.argv[1]));
+    const stage = vm.runtime.getTargetForStage();
+    const scalar = name => stage.lookupVariableByNameAndType('BS ' + name, '');
+    const list = name => stage.lookupVariableByNameAndType('BS ' + name, 'list');
+    async function run(size, tile, cancel) {
+        list('input').value = Array(size).fill(1);
+        scalar('mode').value = 17; scalar('head rows').value = 1;
+        scalar('tile size').value = tile;
+        if (cancel !== null) scalar('cancel').value = cancel;
+        scalar('greedy token').value = 777; scalar('done').value = 0;
+        await vm.greenFlag();
+        while (Number(scalar('done').value) !== 1) {
+            if (compileError) throw compileError;
+            await new Promise(r => setTimeout(r, 5));
+        }
+        return {output: list('output').value.slice(), valid: Number(scalar('head valid').value),
+                token: Number(scalar('greedy token').value)};
+    }
+    const baseline = await run(2048, 1, 0);
+    list('signs').value = Array(512).fill(0); list('norm weights').value = Array(512).fill(0);
+    const short = await run(2048, 1, 0);
+    list('signs').value = Array(2048).fill(0); list('norm weights').value = Array(2048).fill(0);
+    const same = await run(2048, 1, 0);
+    const invalid = await run(2048, 0, 0);
+    const cancelled = await run(2048, 1, 1);
+    const afterCancel = await run(2048, 1, null);
+    const missing = await run(4096, 1, 0);
+    if (!attempts.length || attempts.some(x => !x)) throw Error('Scratch thread did not compile');
+    process.stdout.write(JSON.stringify({baseline, short, same, invalid, cancelled, afterCancel, missing}));
+    vm.quit();
+})().catch(e => { console.error(e); process.exit(1); });
+"""
+        with tempfile.TemporaryDirectory() as temp:
+            project = Path(temp) / 'pipeline.sb3'
+            generated = subprocess.run([sys.executable, str(ROOT / 'tools/generate_project.py'), str(project), '--benchmark'],
+                                       capture_output=True, text=True)
+            self.assertEqual(generated.returncode, 0, generated.stderr)
+            run = subprocess.run(['node', '-e', script, str(project), str(ROOT / 'extension/loader.js')],
+                                 capture_output=True, text=True, timeout=60)
+            self.assertEqual(run.returncode, 0, run.stderr)
+            result = json.loads(run.stdout)
+            self.assertEqual(result['baseline']['valid'], 1)
+            self.assertEqual(len(result['baseline']['output']), 1)
+            self.assertEqual(result['short'], result['baseline'])
+            self.assertEqual(result['same'], result['baseline'])
+            self.assertEqual(result['afterCancel'], result['baseline'])
+            for name, error in (('invalid', 'invalid dimensions'), ('cancelled', 'error'), ('missing', 'error')):
+                self.assertEqual(result[name], {'output': [error], 'valid': 0, 'token': 777})
+
 if __name__ == '__main__':
     unittest.main()

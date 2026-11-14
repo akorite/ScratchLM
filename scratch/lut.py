@@ -45,33 +45,24 @@ def script(h, head=False):
                     item('BS lut', 'l_lut',
                          add(v('lut cur'), add(item('BS packed bytes', 'l_packed', v('byte cur')), 1))))),
              change('BS byte cur', 1), change('BS lut cur', v('lut domain'))]
-    word, exponent, mantissa, sign = (v('word'), v('exponent'), v('mantissa'), v('sign'))
-    normal = mul(sign, mul(add(1024, mantissa), item('BS powers', 'l_powers', add(exponent, 1))))
-    subnormal = mul(sign, mul(mantissa, 2**-24))
-    group = [setvar('BS word', item('BS weight scales', 'l_scales', add(group0, 1))),
-             setvar('BS exponent', mod(floor(div(word, 1024)), 32)),
-             setvar('BS mantissa', mod(word, 1024)),
-             conditional(op('operator_gt', OPERAND1=word, OPERAND2=32767),
-                         [setvar('BS sign', -1)], [setvar('BS sign', 1)]),
-             conditional(eq(exponent, 31), [setvar('BS dot valid', 0)], [
-                 conditional(eq(exponent, 0), [setvar('BS weight scale', subnormal)], [setvar('BS weight scale', normal)]),
-                 setvar('BS subtotal', 0),
-                 setvar('BS byte cur', add(mul(group0, 32), 1)),
-                setvar('BS lut cur', mul(logical_group0, mul(v('lut groups'), v('lut domain')))),
-                 repeat(v('lut groups'), inner),
-                 setvar('BS f32 input', mul(v('weight scale'), q8(add(q8_base, 1)))), h['call_f32'](),
-                 setvar('BS f32 input', mul(v('f32 output'), v('subtotal'))), h['call_f32'](),
-                 setvar('BS f32 input', add(v('total'), v('f32 output'))), h['call_f32'](),
-                 setvar('BS total', v('f32 output'))]), change('BS dot group', 1)]
+    from scratch import embedding
+    group = embedding.decode_fp16_scale(h, item('BS weight scales', 'l_scales', add(group0, 1)), on_valid=[
+        setvar('BS subtotal', 0),
+        setvar('BS byte cur', add(mul(group0, 32), 1)),
+        setvar('BS lut cur', mul(logical_group0, mul(v('lut groups'), v('lut domain')))),
+        repeat(v('lut groups'), inner),
+        setvar('BS f32 input', mul(v('weight scale'), q8(add(q8_base, 1)))), h['call_f32'](),
+        setvar('BS f32 input', mul(v('f32 output'), v('subtotal'))), h['call_f32'](),
+        setvar('BS f32 input', add(v('total'), v('f32 output'))), h['call_f32'](),
+        setvar('BS total', v('f32 output')),
+    ]) + [change('BS dot group', 1)]
     if head:
         codec = ('bonsailoader_codec', {}, {}, False)
         valid = op('operator_and',
                    OPERAND1=op('operator_and',
                                OPERAND1=op('operator_gt', OPERAND1=length('BS input', 'l_input'), OPERAND2=0),
                                OPERAND2=eq(mod(length('BS input', 'l_input'), 256), 0)),
-                   OPERAND2=op('operator_or', OPERAND1=eq(codec, 'raw'),
-                               OPERAND2=op('operator_or', OPERAND1=eq(codec, 'bslut4'),
-                                           OPERAND2=eq(codec, 'bslut5'))))
+                  OPERAND2=embedding.valid_codec_name(op, codec))
         valid_shape = op('operator_and', OPERAND1=valid,
                        OPERAND2=op('operator_and', OPERAND1=op('operator_gt', OPERAND1=v('tile size'), OPERAND2=0),
                        OPERAND2=op('operator_and',
@@ -93,8 +84,7 @@ def script(h, head=False):
             ('data_deletealloflist', {}, {'LIST': ['BS lut', 'l_lut']}, {})]
     work += h['q8_script']('BS q8', 'l_q8')
     if head:
-        work += [conditional(eq(codec, 'raw'), [setvar('BS codec', 0)],
-                 [conditional(eq(codec, 'bslut4'), [setvar('BS codec', 1)], [setvar('BS codec', 2)])])]
+        work += [embedding.set_codec_from_loader(h, codec)]
         valid = valid_shape
     work += [setvar('BS benchmark quant', sub(timer, v('benchmark start'))),
              setvar('BS benchmark start', timer),
@@ -132,12 +122,14 @@ def script(h, head=False):
                     conditional(op('operator_gt', OPERAND1=v('tile count'), OPERAND2=v('tile size')),
                                 [setvar('BS tile count', v('tile size'))]),
                     setvar('BS benchmark start', timer), *transfer,
-                    ('control_wait', {'DURATION': 0}, {}, {})], [setvar('BS head valid', 0)])]
+                    ('control_wait', {'DURATION': 0}, {}, {})],
+                    [setvar('BS head valid', 0), setvar('BS cancel', 0)])]
         work += [setvar('BS groups per row', div(length('BS input', 'l_input'), 128)),
                  setvar('BS scanned', 0), setvar('BS head valid', 1), setvar('BS benchmark transfer', 0),
                  setvar('BS benchmark compute', 0),
                  repeat(floor(div(sub(add(v('head rows'), v('tile size')), 1), v('tile size'))),
                         [conditional(eq(v('head valid'), 1), tile)]),
+                 conditional(eq(v('cancel'), 1), [setvar('BS head valid', 0), setvar('BS cancel', 0)]),
                  conditional(eq(v('head valid'), 0), [addlist('error')])]
     else:
         work += [setvar('BS benchmark start', timer),
@@ -145,7 +137,7 @@ def script(h, head=False):
                                            repeat(length('BS weight scales', 'l_scales'), group)]),
                  setvar('BS benchmark compute', sub(timer, v('benchmark start'))),
                  conditional(eq(v('dot valid'), 1), [addlist(v('total'))], [addlist('nonfinite')])]
-    return [conditional(valid, work, [addlist('invalid dimensions')])]
+    return [conditional(valid, work, ([setvar('BS head valid', 0)] if head else []) + [addlist('invalid dimensions')])]
 
 
 def greedy_select(h, list_name='BS output', list_id='l_output'):
@@ -184,22 +176,10 @@ def pipeline(h, call_head=None):
                              'addlist', 'conditional', 'repeat', 'change'))
     eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
     in_len = length('BS input', 'l_input')
-    n_status = ('bonsailoader_status', {'ID': 'norm_w'}, {}, False)
-    n_copied = ('bonsailoader_copied', {'ID': 'norm_w'}, {}, False)
-    s_status = ('bonsailoader_status', {'ID': 'head_signs'}, {}, False)
-    s_copied = ('bonsailoader_copied', {'ID': 'head_signs'}, {}, False)
-    load_norm = [conditional(eq(length('BS norm weights', 'l_norm_weights'), 0), [
-        ('bonsailoader_loadDense',
-         {'ID': 'norm_w', 'TENSOR': 'output_norm.weight', 'START': 0, 'COUNT': in_len, 'DEST': 'l_norm_weights'}, {}, {}),
-        conditional(op('operator_and', OPERAND1=eq(n_status, 'ok'), OPERAND2=eq(n_copied, in_len)),
-                    [], [setvar('BS head valid', 0)]),
-    ])]
-    load_signs = [conditional(eq(length('BS signs', 'l_signs'), 0), [
-        ('bonsailoader_loadDense',
-         {'ID': 'head_signs', 'TENSOR': 'prism.hadamard.signs.2048', 'START': 0, 'COUNT': in_len, 'DEST': 'l_signs'}, {}, {}),
-        conditional(op('operator_and', OPERAND1=eq(s_status, 'ok'), OPERAND2=eq(s_copied, in_len)),
-                    [], [setvar('BS head valid', 0)]),
-    ])]
+    load_norm = embedding.load_dense(
+        h, 'norm_w', 'output_norm.weight', 'BS norm weights', 'l_norm_weights', in_len, [setvar('BS head valid', 0)])
+    load_signs = embedding.load_dense(
+        h, 'head_signs', 'prism.hadamard.signs.2048', 'BS signs', 'l_signs', in_len, [setvar('BS head valid', 0)])
     idx = var('BS index')
     copy_to_input = [
         setvar('BS index', 1),
@@ -226,5 +206,5 @@ def pipeline(h, call_head=None):
                     load_norm + load_signs + [
                         conditional(eq(var('BS head valid'), 1), run_pipeline, [addlist('error')]),
                     ],
-                    [addlist('invalid dimensions')]),
+                    [setvar('BS head valid', 0), addlist('invalid dimensions')]),
     ]
