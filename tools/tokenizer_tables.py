@@ -58,11 +58,14 @@ def build(metadata):
         # The first occurrence of a pair is the merge that applies.
         entries.setdefault(key, (rank, merged))
     ordered = sorted(entries.items())
+    lefts = [key // vocabulary for key, _ in ordered]
+    rights = [key % vocabulary for key, _ in ordered]
     return {'schema': 'bonsai-bpe-tables/v1', 'vocabulary': vocabulary,
             'byte_token': byte_token,
             'merge_keys': [key for key, _ in ordered],
             'merge_rank': [rank for _, (rank, _) in ordered],
-            'merge_results': [merged for _, (_, merged) in ordered]}
+            'merge_results': [merged for _, (_, merged) in ordered],
+            'merge_left': lefts, 'merge_right': rights}
 
 
 

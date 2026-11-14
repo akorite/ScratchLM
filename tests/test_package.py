@@ -183,6 +183,22 @@ class PackageTests(unittest.TestCase):
             with self.assertRaises(package_model.InvalidGGUF):
                 package_model.decode5(bytes(corrupt))
 
+    def test_bpe_tables_emitted_as_dense_tensors(self):
+        out = self.root / 'bpe.bsp'
+        result = self.package('raw', out)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        manifest, payload = self.unpack(out)
+        by_name = {t['name']: t for t in manifest['tensors']}
+        for name in ('prism.bpe.byte', 'prism.bpe.left', 'prism.bpe.right',
+                     'prism.bpe.rank', 'prism.bpe.result'):
+            self.assertIn(name, by_name)
+            tensor = by_name[name]
+            self.assertEqual(tensor['type_id'], 0)
+            values = struct.unpack(f"<{tensor['dimensions'][0]}f",
+                                   payload[tensor['offset']:tensor['offset'] + tensor['length']])
+            self.assertEqual(len(values), tensor['dimensions'][0])
+        self.assertEqual(by_name['prism.bpe.byte']['dimensions'], [256])
+
     def test_hadamard_signs_emitted_as_dense_f32_tensors(self):
         def kv_i32_arr(key, vals):
             k = key.encode()

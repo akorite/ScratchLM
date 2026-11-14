@@ -10,6 +10,7 @@ import sys
 import tempfile
 
 from inspect_gguf import CHUNK, DEFAULT_LOCK, InvalidGGUF, inspect
+from tokenizer_tables import build as build_bpe_tables
 
 MAGIC = b'BNSPKG1\0'
 GROUP = 34
@@ -213,6 +214,18 @@ def package(model, output, codec, lock_path):
                     raise InvalidGGUF(f'invalid tokenizer string array: {key}')
                 encoded = json.dumps(array, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
                 tokenizer_arrays[key] = {'count': len(array), 'sha256': hashlib.sha256(encoded).hexdigest()}
+        if 'tokenizer.ggml.tokens' in values and 'tokenizer.ggml.merges' in values:
+            tables = build_bpe_tables(values)
+            for name, numbers in (('byte', tables['byte_token']), ('left', tables['merge_left']),
+                                  ('right', tables['merge_right']), ('rank', tables['merge_rank']),
+                                  ('result', tables['merge_results'])):
+                blob = struct.pack(f'<{len(numbers)}f', *[float(n) for n in numbers])
+                tensor_name = f'prism.bpe.{name}'
+                packed_tensors.append({'name': tensor_name, 'type_id': 0, 'dimensions': [len(numbers)],
+                                       'source_offset': None, 'offset': payload_offset,
+                                       'length': len(blob)})
+                extra_tensors.append((tensor_name, blob))
+                payload_offset += len(blob)
         manifest = {'schema': 'bonsaiscratch-package/v1', 'codec': codec, 'endianness': 'little',
                     'source': {'size_bytes': size, 'sha256': source_hash}, 'alignment': alignment,
                     'gguf_header': {'offset': 0, 'length': header_size}, 'metadata': values,
