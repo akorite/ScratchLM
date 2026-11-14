@@ -136,6 +136,17 @@ class DeltaNetStageTests(unittest.TestCase):
             self.assertLessEqual(max(errors), 0.15, 'logit max abs')
             self.assertLessEqual((sum(e * e for e in errors) / len(errors)) ** 0.5, 0.03, 'logit rms')
 
+    def test_decoder_predicts_from_a_token_id(self):
+        """The embedding lookup path: token 1237 is the first token of the locked prompt."""
+        output = Path(self.temp.name) / 'decode-id.json'
+        env = dict(os.environ, BONSAI_TOKEN_ID='1237', BONSAI_LAYER_POSITION='0',
+                   BONSAI_TIMEOUT_MS='600000', BONSAI_DUMP=f'BS top tokens:{output}')
+        run = subprocess.run(['node', str(ROOT / 'tests/scratch/run-vm.js'), str(self.project), '[]', '42'],
+                             capture_output=True, text=True, timeout=600, env=env)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        tokens = json.loads(output.read_text())
+        self.assertEqual(int(float(tokens[0])), 11, 'native greedy token from the embedding lookup')
+
     @unittest.skipUnless(STATE, 'set BONSAI_LAYER_STATE to the captured state directory')
     def test_layer_output_matches_native_with_seeded_state(self):
         for position, seed in ((2, 1), (16, 15)):

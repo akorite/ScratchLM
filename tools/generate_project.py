@@ -314,8 +314,8 @@ def project(with_text=False, with_benchmark=False):
     )
     fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=18),
                             greedy_mode, fallback)]
-    for mode in (16, 14, 13, 12):
-        spec = embedding.make(mode, globals(), with_benchmark=with_benchmark) if mode in (14, 16) else transform.make(mode, globals())
+    for mode in (16, 15, 14, 13, 12):
+        spec = embedding.make(mode, globals(), with_benchmark=with_benchmark) if mode in (14, 15, 16) else transform.make(mode, globals())
         fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=mode), spec, fallback)]
     fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=30),
                             layers.rope(globals()), fallback)]

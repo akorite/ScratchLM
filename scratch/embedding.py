@@ -178,6 +178,7 @@ def make(mode, h, with_benchmark=False):
             ('bonsailoader_loadGroups',
              {'ID': 'emb', 'TENSOR': 'token_embd.weight', 'START': mul(tid, 16), 'COUNT': 16,
               'Q': 'l_packed', 'SCALE': 'l_scales'}, {}, {}),
+            *settle(h, status),
             conditional(op('operator_and', OPERAND1=eq(status, 'ok'), OPERAND2=eq(copied, 16)),
                         [], [setvar('BS head valid', 0)]),
         ] + load_dense(h, 'emb_signs', 'prism.hadamard.signs.2048', 'BS signs', 'l_signs', 2048,
