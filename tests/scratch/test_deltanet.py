@@ -9,6 +9,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = ROOT / 'fixtures/native/m5/deltanet'
+STATE = os.environ.get('BONSAI_LAYER_STATE')
 
 
 def read_f32(path):
@@ -71,6 +72,38 @@ class DeltaNetStageTests(unittest.TestCase):
 
     def test_layer_output_matches_native_at_first_position(self):
         self.compare('BS output', 'l_out-0-pos1.f32', 1e-6)
+
+    def seeded_run(self, position, seed_position):
+        """Run one position with the previous token's recurrent state and convolution taps."""
+        state = Path(self.temp.name) / f'conv-{position}.f32'
+        native = read_f32(FIXTURE / f'conv_input-0-pos{position}.f32')
+        taps = [0.0] * (3 * 6144)
+        for channel in range(6144):
+            for tap in range(3):
+                taps[tap * 6144 + channel] = native[channel * 4 + tap]
+        state.write_bytes(struct.pack(f'<{len(taps)}f', *taps))
+        output = Path(self.temp.name) / f'seeded-{position}.json'
+        env = dict(os.environ, BONSAI_ACTIVATION_F32=str(FIXTURE / f'input-pos{position}.f32'),
+                   BONSAI_LAYER_POSITION=str(position - 1), BONSAI_DUMP=f'BS output:{output}',
+                   BONSAI_DN_STATE=str(Path(STATE) / f'new_state-0-pos{seed_position}.f32'),
+                   BONSAI_CONV_STATE=str(state))
+        run = subprocess.run(['node', str(ROOT / 'tests/scratch/run-vm.js'), str(self.project), '[]', '41'],
+                             capture_output=True, text=True, timeout=300, env=env)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        return [float(v) for v in json.loads(output.read_text())]
+
+    def check_output(self, actual, fixture):
+        expected = read_f32(FIXTURE / fixture)
+        self.assertEqual(len(actual), len(expected), fixture)
+        errors = [abs(a - b) for a, b in zip(actual, expected)]
+        self.assertLessEqual(max(errors), 1e-6, f'{fixture} max abs')
+        self.assertLessEqual((sum(e * e for e in errors) / len(errors)) ** 0.5, 1e-7, f'{fixture} rms')
+
+    @unittest.skipUnless(STATE, 'set BONSAI_LAYER_STATE to the captured state directory')
+    def test_layer_output_matches_native_with_seeded_state(self):
+        for position, seed in ((2, 1), (16, 15)):
+            with self.subTest(position=position):
+                self.check_output(self.seeded_run(position, seed), f'l_out-0-pos{position}.f32')
 
 
 if __name__ == '__main__':

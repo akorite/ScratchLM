@@ -1419,6 +1419,7 @@
   "positions": [
     1,
     2,
+    15,
     16,
     64
   ],
@@ -2091,6 +2092,333 @@
               "file": "l_out-3-pos2.f32",
               "operation": "ADD",
               "sha256": "2f767596b4a2aa30b54ee2bb6b1eb1af7d0a484888a9b96478e97ed8534c06fe",
+              "shape": [
+                2048,
+                1,
+                1,
+                1
+              ]
+            }
+          }
+        },
+        {
+          "input": {
+            "bytes": 8192,
+            "file": "input-pos15.f32",
+            "sha256": "e310573f7a253515eaefeb6fa691d7381a12f8ac0ec5deff12dbf6092871570f"
+          },
+          "position": 15,
+          "state": {
+            "key": {
+              "bytes": 524288,
+              "file": "cache-key-3-pos15.f32",
+              "probe": {
+                "current_token_head_0": [
+                  -1.4000582695007324,
+                  -1.475760579109192,
+                  0.576225221157074,
+                  -1.0653631687164307
+                ],
+                "first_token_head_0": [
+                  1.5208299160003662,
+                  0.8465774655342102,
+                  0.9005396962165833,
+                  0.22680862247943878
+                ]
+              },
+              "sha256": "00fa95744605355593d3d0d3dd50093f77f3238dfa27ec2a1ba7cef3f2daac72",
+              "shape": [
+                256,
+                256,
+                2,
+                1
+              ],
+              "strides_bytes": [
+                4,
+                2048,
+                1024,
+                524288
+              ]
+            },
+            "value": {
+              "bytes": 524288,
+              "file": "cache-value-3-pos15.f32",
+              "probe": {
+                "current_token_head_0": [
+                  0.09927324950695038,
+                  1.0798946619033813,
+                  0.2504892945289612,
+                  -0.38371187448501587
+                ],
+                "first_token_head_0": [
+                  -0.6407290101051331,
+                  -0.5996956825256348,
+                  -0.6503747701644897,
+                  0.11937934160232544
+                ]
+              },
+              "sha256": "14075dacae2207927c3b64a4dad8041918e81cc5928e3be472b998917d438dd9",
+              "shape": [
+                256,
+                256,
+                2,
+                1
+              ],
+              "strides_bytes": [
+                4,
+                1024,
+                262144,
+                524288
+              ]
+            }
+          },
+          "step": 14,
+          "vectors": {
+            "Kcur-3": {
+              "bytes": 2048,
+              "file": "Kcur-3-pos15.f32",
+              "operation": "MUL_MAT",
+              "sha256": "c56a41e2c160d6f68ae080e3a966dd178dafb6fbff31ed7e9007a766eb3914f0",
+              "shape": [
+                512,
+                1,
+                1,
+                1
+              ]
+            },
+            "Kcur_normed-3": {
+              "bytes": 2048,
+              "file": "Kcur_normed-3-pos15.f32",
+              "operation": "MUL",
+              "sha256": "821fe3780e1ba539a5da1aced3090bd8e1f47c3848ac5c95598620a0b4cc3d62",
+              "shape": [
+                256,
+                2,
+                1,
+                1
+              ]
+            },
+            "Qcur-3": {
+              "bytes": 8192,
+              "file": "Qcur-3-pos15.f32",
+              "operation": "ROPE",
+              "sha256": "0c3626ad879a084c174fe18807e5043eb20819c769d2bc001b61e2f1834d3b4a",
+              "shape": [
+                256,
+                8,
+                1,
+                1
+              ]
+            },
+            "Qcur_full-3": {
+              "bytes": 16384,
+              "file": "Qcur_full-3-pos15.f32",
+              "operation": "MUL_MAT",
+              "sha256": "a2692e395bec433ce8aff954a1e3f032d274bad24c641f6d3971837cad98d35b",
+              "shape": [
+                4096,
+                1,
+                1,
+                1
+              ]
+            },
+            "Qcur_normed-3": {
+              "bytes": 8192,
+              "file": "Qcur_normed-3-pos15.f32",
+              "operation": "MUL",
+              "sha256": "8830eb3f83868a697abbf49df20e760143bdd1d94eebe5598ef8727fc6a736db",
+              "shape": [
+                256,
+                8,
+                1,
+                1
+              ]
+            },
+            "Vcur-3": {
+              "bytes": 2048,
+              "file": "Vcur-3-pos15.f32",
+              "operation": "MUL_MAT",
+              "sha256": "268e1dee789e4d7d9ff211177a30d560a81e4107131caa1ecb61aebb8787e246",
+              "shape": [
+                512,
+                1,
+                1,
+                1
+              ]
+            },
+            "attn_gated-3": {
+              "bytes": 8192,
+              "file": "attn_gated-3-pos15.f32",
+              "operation": "MUL",
+              "sha256": "6d20fe073f0728d8546bf7425a5ec2520baaa6b262daa1066ae1d3507e4ca26e",
+              "shape": [
+                2048,
+                1,
+                1,
+                1
+              ]
+            },
+            "attn_norm-3": {
+              "bytes": 8192,
+              "file": "attn_norm-3-pos15.f32",
+              "operation": "MUL",
+              "sha256": "347d9368d2d0d75948fc5df367d007328b442aa789da7438a6f640681f7d05d1",
+              "shape": [
+                2048,
+                1,
+                1,
+                1
+              ]
+            },
+            "attn_output-3": {
+              "bytes": 8192,
+              "file": "attn_output-3-pos15.f32",
+              "operation": "MUL_MAT",
+              "sha256": "1b52345db7113f3df6edcf32854604b59167a7380f3e708797fc3d3869f05960",
+              "shape": [
+                2048,
+                1,
+                1,
+                1
+              ]
+            },
+            "attn_post_norm-3": {
+              "bytes": 8192,
+              "file": "attn_post_norm-3-pos15.f32",
+              "operation": "MUL",
+              "sha256": "3fd708bd37f2982c07c71c67ebf96ea5513fd98cfe5273322d7be2acf3a50524",
+              "shape": [
+                2048,
+                1,
+                1,
+                1
+              ]
+            },
+            "attn_pregate-3": {
+              "bytes": 8192,
+              "file": "attn_pregate-3-pos15.f32",
+              "operation": "CONT",
+              "sha256": "ad1eb8198df6e3197ba5ecb86052632ba5c265c07f773d0abfb9444e4ff5abf0",
+              "shape": [
+                2048,
+                1,
+                1,
+                1
+              ]
+            },
+            "attn_residual-3": {
+              "bytes": 8192,
+              "file": "attn_residual-3-pos15.f32",
+              "operation": "ADD",
+              "sha256": "e230cda5e839edf4117dee8175d128e576a04c74db5017ab0e368ffcc3da1268",
+              "shape": [
+                2048,
+                1,
+                1,
+                1
+              ]
+            },
+            "ffn_gate-3": {
+              "bytes": 24576,
+              "file": "ffn_gate-3-pos15.f32",
+              "operation": "MUL_MAT",
+              "sha256": "22b86dfb63c36d9049e09e952b183ca30fb14f252265ac914e9cf08ef988b634",
+              "shape": [
+                6144,
+                1,
+                1,
+                1
+              ]
+            },
+            "ffn_out-3": {
+              "bytes": 8192,
+              "file": "ffn_out-3-pos15.f32",
+              "operation": "MUL_MAT",
+              "sha256": "6bff3e7b5025e4370cee21f183e9893c6ba224e84cc54f8bcc945e1a1dc06e00",
+              "shape": [
+                2048,
+                1,
+                1,
+                1
+              ]
+            },
+            "ffn_swiglu-3": {
+              "bytes": 24576,
+              "file": "ffn_swiglu-3-pos15.f32",
+              "operation": "GLU",
+              "sha256": "8ff6c3d9fb8d9df5df6b3afb84502502425e854449344cf0094fe30d16b44bb4",
+              "shape": [
+                6144,
+                1,
+                1,
+                1
+              ]
+            },
+            "ffn_up-3": {
+              "bytes": 24576,
+              "file": "ffn_up-3-pos15.f32",
+              "operation": "MUL_MAT",
+              "sha256": "3678c4a95fa943073ce7473762cd1d52398c40ecaa37db32865a0fda2c3f9de6",
+              "shape": [
+                6144,
+                1,
+                1,
+                1
+              ]
+            },
+            "gate_sigmoid-3": {
+              "bytes": 8192,
+              "file": "gate_sigmoid-3-pos15.f32",
+              "operation": "UNARY",
+              "sha256": "d6dfe4b70270c6333b63bbfe402fdb74d4866d49b8dfa022c863ae7affc6e1d3",
+              "shape": [
+                2048,
+                1,
+                1,
+                1
+              ]
+            },
+            "kq-3": {
+              "bytes": 8192,
+              "file": "kq-3-pos15.f32",
+              "operation": "MUL_MAT",
+              "sha256": "5c4ed723df9daf7effc81ed05d2eb6f7bd92228d84c2f692beb263aae9ba7725",
+              "shape": [
+                256,
+                1,
+                8,
+                1
+              ]
+            },
+            "kq_soft_max-3": {
+              "bytes": 8192,
+              "file": "kq_soft_max-3-pos15.f32",
+              "operation": "SOFT_MAX",
+              "sha256": "30350f4bf755c33fc2650c2735ea4732ca6f250e5a85ef920f78c7ddbd54d147",
+              "shape": [
+                256,
+                1,
+                8,
+                1
+              ]
+            },
+            "kqv-3": {
+              "bytes": 8192,
+              "file": "kqv-3-pos15.f32",
+              "operation": "MUL_MAT",
+              "sha256": "ad1eb8198df6e3197ba5ecb86052632ba5c265c07f773d0abfb9444e4ff5abf0",
+              "shape": [
+                256,
+                1,
+                8,
+                1
+              ]
+            },
+            "l_out-3": {
+              "bytes": 8192,
+              "file": "l_out-3-pos15.f32",
+              "operation": "ADD",
+              "sha256": "0249848e151cc690dca2771c145d4c151f4f24cb6b1e08e5d1c6641231ea05b0",
               "shape": [
                 2048,
                 1,
@@ -3072,6 +3400,161 @@
           "greedy_token": 198,
           "logits": {
             "bytes": 993280,
+            "file": "logits-pos15.f32",
+            "sha256": "de92d6451270905a753d20a08e6980a3085de6652cf025ddad1e12d1ac6344bf"
+          },
+          "position": 15,
+          "vectors": [
+            {
+              "bytes": 8192,
+              "file": "l_out-0-pos15.f32",
+              "layer": 0,
+              "sha256": "58896ff278b3038b4af7e20708dc954e2ddf6573437b1825473f08e0cd1c0092"
+            },
+            {
+              "bytes": 8192,
+              "file": "l_out-1-pos15.f32",
+              "layer": 1,
+              "sha256": "533c9499fc3f1c10eee86b68ed2cabf0beae3f0fbad6a1fec0608d7b176f04ce"
+            },
+            {
+              "bytes": 8192,
+              "file": "l_out-2-pos15.f32",
+              "layer": 2,
+              "sha256": "e310573f7a253515eaefeb6fa691d7381a12f8ac0ec5deff12dbf6092871570f"
+            },
+            {
+              "bytes": 8192,
+              "file": "l_out-3-pos15.f32",
+              "layer": 3,
+              "sha256": "0249848e151cc690dca2771c145d4c151f4f24cb6b1e08e5d1c6641231ea05b0"
+            },
+            {
+              "bytes": 8192,
+              "file": "l_out-4-pos15.f32",
+              "layer": 4,
+              "sha256": "2db513f9460e101dbdaf316e7cb435939c7c3998692072c5c5eaa3d39bd127f7"
+            },
+            {
+              "bytes": 8192,
+              "file": "l_out-5-pos15.f32",
+              "layer": 5,
+              "sha256": "d7411de3e00b89962c087b64883e07f7c90fb409634894ee61f629bd282f4972"
+            },
+            {
+              "bytes": 8192,
+              "file": "l_out-6-pos15.f32",
+              "layer": 6,
+              "sha256": "1b432910dd7814d80f938cda0bcf411822af6c1bdc4dc1cf651a0e2008ba79f3"
+            },
+            {
+              "bytes": 8192,
+              "file": "l_out-7-pos15.f32",
+              "layer": 7,
+              "sha256": "bc7a4486aba5c7369d29e013a6be6c2db3909f965e981e7e979f15a100fa4e5d"
+            },
+            {
+              "bytes": 8192,
+              "file": "l_out-8-pos15.f32",
+              "layer": 8,
+              "sha256": "d8f14b447a7e530b3b1c25de9b1560a63c9818d6de81ebd5d3f03188ec0b5eb3"
+            },
+            {
+              "bytes": 8192,
+              "file": "l_out-9-pos15.f32",
+              "layer": 9,
+              "sha256": "9046621875276e1a7f52be0e30491a6c6f2e18c867570bf7c3c420ea879789a1"
+            },
+            {
+              "bytes": 8192,
+              "file": "l_out-10-pos15.f32",
+              "layer": 10,
+              "sha256": "dbc49dd3154a1a000845ccbb6dc25918446a091d71eb78704d9b02a34a22b3d5"
+            },
+            {
+              "bytes": 8192,
+              "file": "l_out-11-pos15.f32",
+              "layer": 11,
+              "sha256": "0525fc744ce0e0c2552c19ef52ebd02421ad1e1566846e33c9c1fc6daa932587"
+            },
+            {
+              "bytes": 8192,
+              "file": "l_out-12-pos15.f32",
+              "layer": 12,
+              "sha256": "bf158b3eac2760f5e7ccb6292f4ee22437db79e9c5ee85ffadc55c4878049415"
+            },
+            {
+              "bytes": 8192,
+              "file": "l_out-13-pos15.f32",
+              "layer": 13,
+              "sha256": "8dfd4e444c9bace5e3370e5f2649a1184a734a4207ae14912ef7cd677983f040"
+            },
+            {
+              "bytes": 8192,
+              "file": "l_out-14-pos15.f32",
+              "layer": 14,
+              "sha256": "944faa063ea095c094497256c88c34c1828de4582f93c00c70c68bf63d6ff5a8"
+            },
+            {
+              "bytes": 8192,
+              "file": "l_out-15-pos15.f32",
+              "layer": 15,
+              "sha256": "cdb73e34f6badd1ed99c13ebf168318c84e527a82f706a811bab35bd8fc50ab0"
+            },
+            {
+              "bytes": 8192,
+              "file": "l_out-16-pos15.f32",
+              "layer": 16,
+              "sha256": "f3dfc2f6add401192e8fb7281dcd0129b849a02368918c7a15c1967c8ca735e7"
+            },
+            {
+              "bytes": 8192,
+              "file": "l_out-17-pos15.f32",
+              "layer": 17,
+              "sha256": "f32e8a7e5f308261cef746be1fef7d88b70462f2bed5f4546a1859c344499f86"
+            },
+            {
+              "bytes": 8192,
+              "file": "l_out-18-pos15.f32",
+              "layer": 18,
+              "sha256": "a91336355c610812703f1c2028f71261fc88305bf5da2cec79f6ab0f51d3bfbd"
+            },
+            {
+              "bytes": 8192,
+              "file": "l_out-19-pos15.f32",
+              "layer": 19,
+              "sha256": "e4878962f90bc756fbf79fdd3a28a8ae357bd7b01fc7670262ff5ef102e4fc60"
+            },
+            {
+              "bytes": 8192,
+              "file": "l_out-20-pos15.f32",
+              "layer": 20,
+              "sha256": "af2e9fcc50934698620ea8ea2cb9f2d9115accfcb445740a5e04cb4f21f8ca95"
+            },
+            {
+              "bytes": 8192,
+              "file": "l_out-21-pos15.f32",
+              "layer": 21,
+              "sha256": "728c615e0931ba81c3b24928852f27520e57fb305fab4f6fabd99393b4d656ec"
+            },
+            {
+              "bytes": 8192,
+              "file": "l_out-22-pos15.f32",
+              "layer": 22,
+              "sha256": "aa110e4323d8522f36b00be554a19466f1c99e6d63463b52e750ec6336202e6c"
+            },
+            {
+              "bytes": 8192,
+              "file": "l_out-23-pos15.f32",
+              "layer": 23,
+              "sha256": "61331d10a7024eea8f2cef66c850174d53fc11fbc65dc9f453d1dbe804c47feb"
+            }
+          ]
+        },
+        {
+          "greedy_token": 198,
+          "logits": {
+            "bytes": 993280,
             "file": "logits-pos16.f32",
             "sha256": "61d692a39745662ac1bb0a341b13189e188e966b421b4ae108658d38f4211cfc"
           },
@@ -4032,6 +4515,329 @@
         {
           "input": {
             "bytes": 8192,
+            "file": "input-pos15.f32",
+            "sha256": "2f266bc029af1c4533484899cfdb629c0d7180e80f8de005a3324887ace4ba45"
+          },
+          "position": 15,
+          "state": {
+            "conv_state_update-0": {
+              "bytes": 73728,
+              "file": "conv_state_update-0-pos15.f32",
+              "probe": {
+                "head": [
+                  -0.10947078466415405,
+                  -0.3622712194919586,
+                  -1.181882619857788,
+                  -0.604927122592926
+                ],
+                "layout": "flat",
+                "tail": [
+                  -1.338423252105713,
+                  -2.48260235786438,
+                  -1.3049086332321167,
+                  -1.259310245513916
+                ]
+              },
+              "sha256": "5f488b30057cf3b880a6520b6529c05d6a1ec752e0d2222900ec5e7f63d9fa81",
+              "shape": [
+                18432,
+                1,
+                1,
+                1
+              ]
+            },
+            "new_state-0": {
+              "bytes": 1048576,
+              "file": "new_state-0-pos15.f32",
+              "probe": {
+                "head_0_head": [
+                  -0.00014119970728643239,
+                  0.0013602563412860036,
+                  0.0005358719499781728,
+                  8.419315417995676e-05
+                ],
+                "head_0_tail": [
+                  0.0004359699960332364,
+                  -0.0026925287675112486,
+                  -0.005231321323662996,
+                  0.007744546979665756
+                ],
+                "head_15_tail": [
+                  -0.0002617614227347076,
+                  -7.793675467837602e-05,
+                  0.0015942458994686604,
+                  0.0003739580570254475
+                ],
+                "layout": "k,v,head"
+              },
+              "sha256": "7984781db32f91a6a075f02eaedfbd62031d12773c28fa7af728b8708e19a17f",
+              "shape": [
+                128,
+                128,
+                16,
+                1
+              ]
+            }
+          },
+          "step": 14,
+          "vectors": {
+            "alpha-0": {
+              "bytes": 64,
+              "file": "alpha-0-pos15.f32",
+              "operation": "RESHAPE",
+              "sha256": "67ac724f211046ac529ebf2b58039e4c7ccef2a4ebc8863bbaab8b6e90f39294",
+              "shape": [
+                16,
+                1,
+                1,
+                1
+              ]
+            },
+            "attn_norm-0": {
+              "bytes": 8192,
+              "file": "attn_norm-0-pos15.f32",
+              "operation": "MUL",
+              "sha256": "d2f12387901293340ff76dfdb17dc94af33b5fcfe7e333d92eea891db1de857d",
+              "shape": [
+                2048,
+                1,
+                1,
+                1
+              ]
+            },
+            "attn_output-0": {
+              "bytes": 8192,
+              "file": "attn_output-0-pos15.f32",
+              "operation": "VIEW",
+              "sha256": "97f6d1e44184d8a2edd7ae08cda537f0f4d7ad45684c628dc8fe089f2f172b17",
+              "shape": [
+                128,
+                16,
+                1,
+                1
+              ]
+            },
+            "attn_post_norm-0": {
+              "bytes": 8192,
+              "file": "attn_post_norm-0-pos15.f32",
+              "operation": "MUL",
+              "sha256": "0a0a35cd4d9903fba7e9bfdba74e3a2522ce01b7523933b2d937bea1eca8c27a",
+              "shape": [
+                2048,
+                1,
+                1,
+                1
+              ]
+            },
+            "attn_residual-0": {
+              "bytes": 8192,
+              "file": "attn_residual-0-pos15.f32",
+              "operation": "ADD",
+              "sha256": "28819b5eb87c4bea29959140a302444185985ce96f2051de294abb232ec89d0b",
+              "shape": [
+                2048,
+                1,
+                1,
+                1
+              ]
+            },
+            "beta-0": {
+              "bytes": 64,
+              "file": "beta-0-pos15.f32",
+              "operation": "RESHAPE",
+              "sha256": "a7d9370ff83492ee6c7b46d789ec214929b3ecbbfbccfdfe1ea17b9254542179",
+              "shape": [
+                1,
+                16,
+                1,
+                1
+              ]
+            },
+            "conv_input-0": {
+              "bytes": 98304,
+              "file": "conv_input-0-pos15.f32",
+              "operation": "CONCAT",
+              "sha256": "db291cd2841cbbe7f5562021cd76bd6ca797fcbe517f7cc11ca3675e18407818",
+              "shape": [
+                4,
+                6144,
+                1,
+                1
+              ]
+            },
+            "conv_output_raw-0": {
+              "bytes": 24576,
+              "file": "conv_output_raw-0-pos15.f32",
+              "operation": "SSM_CONV",
+              "sha256": "f88b7d509fd0bb24702293e650ac630914bffd25225fb10233f13b0cbed3456b",
+              "shape": [
+                6144,
+                1,
+                1,
+                1
+              ]
+            },
+            "conv_output_silu-0": {
+              "bytes": 24576,
+              "file": "conv_output_silu-0-pos15.f32",
+              "operation": "UNARY",
+              "sha256": "ebc7cec59470617b9c5e1580e0e5258c72bb5f6fb4a0e5dbc0839c02bf601c1d",
+              "shape": [
+                6144,
+                1,
+                1,
+                1
+              ]
+            },
+            "ffn_gate-0": {
+              "bytes": 24576,
+              "file": "ffn_gate-0-pos15.f32",
+              "operation": "MUL_MAT",
+              "sha256": "2f5042a4039a04df7abe3ce3a491ac4d0680ff47f5b8567123d9355b1404a0bf",
+              "shape": [
+                6144,
+                1,
+                1,
+                1
+              ]
+            },
+            "ffn_out-0": {
+              "bytes": 8192,
+              "file": "ffn_out-0-pos15.f32",
+              "operation": "MUL_MAT",
+              "sha256": "ed1e9ad5b55615b84d706534fbfa1cbf9afcc6fccf710ced0f6bb23cca4ed6f5",
+              "shape": [
+                2048,
+                1,
+                1,
+                1
+              ]
+            },
+            "ffn_swiglu-0": {
+              "bytes": 24576,
+              "file": "ffn_swiglu-0-pos15.f32",
+              "operation": "GLU",
+              "sha256": "323ad2a1036f845781e6eb368efb59a0157b9460d3de0deccccd116d4ff182e3",
+              "shape": [
+                6144,
+                1,
+                1,
+                1
+              ]
+            },
+            "ffn_up-0": {
+              "bytes": 24576,
+              "file": "ffn_up-0-pos15.f32",
+              "operation": "MUL_MAT",
+              "sha256": "86f6acd188fcccf9414b7a02d45c8435d696bc54dc75f6c208c100856fc1393d",
+              "shape": [
+                6144,
+                1,
+                1,
+                1
+              ]
+            },
+            "final_output-0": {
+              "bytes": 8192,
+              "file": "final_output-0-pos15.f32",
+              "operation": "RESHAPE",
+              "sha256": "767641dd9c04c6403b4866d7c36ccfe938147e9b110500fda22704d00421eb66",
+              "shape": [
+                2048,
+                1,
+                1,
+                1
+              ]
+            },
+            "k_conv_predelta-0": {
+              "bytes": 8192,
+              "file": "k_conv_predelta-0-pos15.f32",
+              "operation": "VIEW",
+              "sha256": "5b7ef6d717b81b2e06289ee02f75233d457ce854c60bd0379dc9604cd4764fe0",
+              "shape": [
+                128,
+                16,
+                1,
+                1
+              ]
+            },
+            "l_out-0": {
+              "bytes": 8192,
+              "file": "l_out-0-pos15.f32",
+              "operation": "ADD",
+              "sha256": "58896ff278b3038b4af7e20708dc954e2ddf6573437b1825473f08e0cd1c0092",
+              "shape": [
+                2048,
+                1,
+                1,
+                1
+              ]
+            },
+            "linear_attn_out-0": {
+              "bytes": 8192,
+              "file": "linear_attn_out-0-pos15.f32",
+              "operation": "MUL_MAT",
+              "sha256": "347aed31debba73da3ea47eb4bf24640d610ab61e1d67fae4db34207c7a5c3f7",
+              "shape": [
+                2048,
+                1,
+                1,
+                1
+              ]
+            },
+            "q_conv_predelta-0": {
+              "bytes": 8192,
+              "file": "q_conv_predelta-0-pos15.f32",
+              "operation": "VIEW",
+              "sha256": "4b461cf0e0d3f32b7059085db82045069cee7197741b8fe4b67a87da3397d59d",
+              "shape": [
+                128,
+                16,
+                1,
+                1
+              ]
+            },
+            "qk_conv_l2-0": {
+              "bytes": 16384,
+              "file": "qk_conv_l2-0-pos15.f32",
+              "operation": "L2_NORM",
+              "sha256": "5b3fd19bd13f91b542b583af4c4054b7d9dad1bdcdbba957743bb4678a573785",
+              "shape": [
+                128,
+                32,
+                1,
+                1
+              ]
+            },
+            "v_conv_predelta-0": {
+              "bytes": 8192,
+              "file": "v_conv_predelta-0-pos15.f32",
+              "operation": "VIEW",
+              "sha256": "68288e214eaa465cb29b651ff80596f98bba39de1c2dcbdcb178554b0ab77adc",
+              "shape": [
+                128,
+                16,
+                1,
+                1
+              ]
+            },
+            "z-0": {
+              "bytes": 8192,
+              "file": "z-0-pos15.f32",
+              "operation": "MUL_MAT",
+              "sha256": "bf228d97ca6b0ecca7855b87c1215b8dc93de55141e9c15301843e0a0a36d029",
+              "shape": [
+                2048,
+                1,
+                1,
+                1
+              ]
+            }
+          }
+        },
+        {
+          "input": {
+            "bytes": 8192,
             "file": "input-pos16.f32",
             "sha256": "7754e859d90129106ebee3311379d45af60caa6349cc12865395cc7be8db03eb"
           },
@@ -4681,7 +5487,7 @@
   "seed": 0,
   "state": {
     "committed": false,
-    "directory": "/home/ubuntu/.cache/bonsaiscratch/m5-expanded-state",
+    "directory": "/home/ubuntu/.cache/bonsaiscratch/m5-state-v2",
     "note": "recurrent and convolution state payloads are regenerated, not committed; probe slices in each position entry are the committed regression check"
   },
   "tensor_index": {

@@ -169,8 +169,9 @@ def delta(h):
               h['setvar']('BS f32 input', mul(v('dn sum'), 0.08838834764831845)), h['call_f32'](),
               addlist(var('BS f32 output'), 'BS gdn out', 'l_gdn_out'),
               change('BS dn j', 1)]
-    per_head = [setvar('BS dn j', 0), repeat(128, scale),
-                setvar('BS dn j', 0), repeat(128, update), change('BS dn head', 1)]
+    scale_all = [setvar('BS dn j', 0),
+                 repeat(128, [setvar('BS dn i', 0), repeat(128, scale), change('BS dn j', 1)])]
+    per_head = [*scale_all, setvar('BS dn j', 0), repeat(128, update), change('BS dn head', 1)]
     fill = [setvar('BS dn i', 0),
             repeat(128, [addlist(0, 'BS state', 'l_state'), change('BS dn i', 1)])]
     return [('data_deletealloflist', {}, {'LIST': ['BS gdn out', 'l_gdn_out']}, {}),
