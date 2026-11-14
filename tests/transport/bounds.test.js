@@ -24,7 +24,7 @@ function file() {
 const args = (id, start, count) => ({ID: id, TENSOR: 'w', START: start, COUNT: count, Q: 'q', SCALE: 's'});
 
 test('all nominal group budgets copy complete groups including the last', async () => {
-  const {loader: e, target, lists} = setup(); await e.openFile(file());
+  const {loader: e, target, lists} = setup(); e.windowBytes = 0; await e.openFile(file());
   for (const budget of [65536, 262144, 1048576, 4194304]) {
     const count = Math.floor(budget / 34);
     await e.loadGroups(args(String(budget), 0, count), {target});
@@ -37,7 +37,8 @@ test('all nominal group budgets copy complete groups including the last', async 
 });
 
 test('new destination owner makes older differently named request stale', async () => {
-  const {loader: e, target, lists} = setup(), f = file(); await e.openFile(f);
+  const {loader: e, target, lists} = setup(), f = file();
+  e.windowBytes = 0; await e.openFile(f);
   const slice = f.slice.bind(f); let release;
   f.slice = (...args) => { const blob = slice(...args); return {arrayBuffer: () => new Promise(resolve => {release = async () => resolve(await blob.arrayBuffer());})}; };
   const old = e.loadGroups(args('old', 0, 1), {target}), oldRelease = release;

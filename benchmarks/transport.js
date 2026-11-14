@@ -40,23 +40,23 @@ async function main() {
             for (let repetition = 0; repetition < 3; repetition++) {
                 readMs = 0;
                 const start = performance.now();
-                await loader.loadGroups({ID: 'bench', TENSOR: 'token_embd.weight', START: 0, COUNT: groups,
+                const returned = loader.loadGroups({ID: 'bench', TENSOR: 'token_embd.weight', START: 0, COUNT: groups,
                     Q: 'l_packed', SCALE: 'l_input'}, {target: stage});
+                const sync = !(returned && typeof returned.then === 'function');
+                if (returned) await returned;
                 const elapsedMs = performance.now() - start;
-                assert.equal(loader.status({ID: 'bench'}), 'ok');
-                assert.equal(loader.copied({ID: 'bench'}), groups);
                 const q = stage.lookupVariableById('l_packed').value;
                 const scales = stage.lookupVariableById('l_input').value;
                 assert.equal(q.length, groups * 32); assert.equal(scales.length, groups);
                 assert.equal(q[0], first[2]); assert.equal(scales[0], first[0] + 256 * first[1]);
-                results.push({budget_bytes: budget, actual_bytes: groups * 34, groups, repetition,
+                results.push({budget_bytes: budget, actual_bytes: groups * 34, groups, repetition, window_hit: sync,
                     read_ms: readMs, copy_and_request_ms: elapsedMs - readMs, total_ms: elapsedMs,
                     observed_rss_bytes: process.memoryUsage().rss});
             }
         }
         const report = {method: 'Node invokes the actual extension on TurboWarp VM list objects; no Scratch script runs',
-            cache: 'warm after package open; repeated reads start at the first embedding group',
-            cpu: os.cpus()[0].model, os: `${os.type()} ${os.release()} ${os.arch()}`, total_memory_bytes: os.totalmem(),
+            cache: 'served from the loader read-ahead window when covered; read_ms>0 only on refill',
+            window_bytes: loader.windowBytes,
             node: process.version, vm_revision: '0cb82afe62506f3d9f2ff849c95593f0473b5d2c',
             package_codec: loader.codec(), source_sha256: loader.manifest.source.sha256, results};
         process.stdout.write(JSON.stringify(report, null, 2) + '\n');

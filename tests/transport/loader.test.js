@@ -56,7 +56,8 @@ test('dense ranges and invalid requests do not corrupt destinations', async () =
 });
 
 test('short reads, cancellation, stale IDs and changed ownership cannot publish', async () => {
-  const {extension: e, target, variables: v} = setup(); const file = packageFile(); await e.openFile(file);
+  const {extension: e, target, variables: v} = setup(); const file = packageFile();
+  e.windowBytes = 0; await e.openFile(file);
   const originalSlice = file.slice.bind(file); let release;
   file.slice = (...args) => { const blob = originalSlice(...args); return {arrayBuffer: () => new Promise(resolve => { release = async () => resolve(await blob.arrayBuffer()); })}; };
   let pending = e.loadGroups(groups('cancel', 0, 1), {target}); e.cancel({ID: 'cancel'}); await release(); await pending;
@@ -68,4 +69,38 @@ test('short reads, cancellation, stale IDs and changed ownership cannot publish'
   assert.equal(e.status({ID: 'owner'}), 'error'); assert.equal(target.variables.q.value.length, 0); assert.deepEqual(Array.from(old.value), Array(32).fill(0x50));
   file.slice = (...args) => ({arrayBuffer: async () => (await originalSlice(...args).arrayBuffer()).slice(0, 1)});
   await e.loadGroups(groups('short', 0, 1), {target}); assert.equal(e.status({ID: 'short'}), 'error');
+});
+
+test('window hits return non-promise and misses refill then publish', async () => {
+  const {extension: e, target, variables: v} = setup(); const file = packageFile();
+  e.windowBytes = 68; await e.openFile(file);
+  assert.equal(e.fileStatus(), 'ok');
+  const first = e.loadGroups(groups('miss', 0, 1), {target});
+  assert.equal(first && typeof first.then, 'function'); assert.equal(e.status({ID: 'miss'}), 'pending');
+  await first;
+  assert.equal(e.status({ID: 'miss'}), 'ok'); assert.equal(e.copied({ID: 'miss'}), 1);
+  assert.deepEqual(Array.from(v.q.value), Array(32).fill(0x24));
+  const hit = e.loadGroups(groups('hit', 0, 1), {target});
+  assert.equal(hit, undefined); assert.equal(e.status({ID: 'hit'}), 'ok');
+  const second = e.loadGroups(groups('hit2', 1, 1), {target});
+  assert.equal(second, undefined); assert.deepEqual(Array.from(v.s.value), [0x7c00]);
+  await e.loadDense(dense('d', 0, 3), {target});
+  assert.deepEqual(Array.from(v.f.value), [1.5, -2.25, 0]);
+});
+
+test('requests larger than the window read through and refill adopts prefetched windows', async () => {
+  const {extension: e, target, variables: v} = setup(); const file = packageFile();
+  e.windowBytes = 10; await e.openFile(file);
+  await e.loadGroups(groups('over', 0, 1), {target});
+  assert.equal(e.status({ID: 'over'}), 'ok'); assert.deepEqual(Array.from(v.q.value), Array(32).fill(0x24));
+  e.windowBytes = 64 * 1024 * 1024;
+  const {extension: e2, target: t2, variables: v2} = setup();
+  e2.windowBytes = 40; await e2.openFile(packageFile());
+  await e2.loadGroups(groups('a', 0, 1), {target: t2});
+  e2.windowBytes = 0;
+  e2.window = null;
+  e2.windowBytes = 40;
+  const miss = e2.loadGroups(groups('b', 1, 1), {target: t2});
+  await miss;
+  assert.equal(e2.status({ID: 'b'}), 'ok'); assert.deepEqual(Array.from(v2.s.value), [0x7c00]);
 });

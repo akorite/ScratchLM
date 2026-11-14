@@ -12,6 +12,9 @@
       this.runtime = Scratch.vm && Scratch.vm.runtime;
       this.file = null;
       this.manifest = null;
+      this.window = null;
+      this.prefetch = null;
+      this.windowBytes = 64 * 1024 * 1024;
       this.generation = 0;
       this.requests = new Map();
       this.owners = new WeakMap();
@@ -54,7 +57,7 @@
     }
     async openFile(file) {
       const generation = ++this.generation;
-      this.file = null; this.manifest = null; this.tensors = null; this.openStatus = 'loading';
+      this.file = null; this.manifest = null; this.tensors = null; this.window = null; this.prefetch = null; this.openStatus = 'loading';
       for (const request of this.requests.values()) if (request.status === 'pending') request.status = 'stale';
       try {
         if (!integer(file.size) || file.size < 16) throw new Error('invalid package size');
@@ -75,8 +78,38 @@
         }
         if (generation !== this.generation) return;
         this.file = file; this.manifest = manifest; this.tensors = tensors; this.payloadStart = payloadStart; this.openStatus = 'ok';
+        this.prefetch = {start: payloadStart, promise: this.readWindow(file, payloadStart, generation)};
       } catch (error) {
         if (generation === this.generation) this.openStatus = `error: ${error.message}`;
+      }
+    }
+    async readWindow(file, offset, generation) {
+      const length = Math.max(0, Math.min(this.windowBytes, file.size - offset));
+      const buffer = await this.read(file, offset, length);
+      if (generation !== this.generation) return null;
+      return {start: offset, end: offset + buffer.byteLength, buffer};
+    }
+    maybePrefetch(end) {
+      const window = this.window;
+      if (!this.file || !window || this.prefetch || end >= this.file.size) return;
+      if (end <= window.end - Math.min(this.windowBytes >> 2, 8 * 1024 * 1024)) return;
+      this.prefetch = {start: end, promise: this.readWindow(this.file, end, this.generation)};
+    }
+    publish(buffer, groups, count, lists) {
+      const view = new DataView(buffer), bytes = new Uint8Array(buffer);
+      if (groups) {
+        const q = lists[0].value, scale = lists[1].value;
+        q.length = count * 32; scale.length = count;
+        for (let i = 0; i < count; i++) {
+          scale[i] = view.getUint16(i * 34, true);
+          for (let j = 0; j < 32; j++) q[i * 32 + j] = bytes[i * 34 + 2 + j];
+        }
+        lists[0]._monitorUpToDate = false; lists[1]._monitorUpToDate = false;
+      } else {
+        const values = lists[0].value;
+        values.length = count;
+        for (let i = 0; i < count; i++) values[i] = view.getFloat32(i * 4, true);
+        lists[0]._monitorUpToDate = false;
       }
     }
     fileStatus() { return this.openStatus; }
@@ -91,9 +124,9 @@
     copied(args) { const r = this.requests.get(String(args.ID)); return r ? r.copied : 0; }
     error(args) { const r = this.requests.get(String(args.ID)); return r ? r.error : ''; }
     cancel(args) { const r = this.requests.get(String(args.ID)); if (r && r.status === 'pending') r.status = 'cancelled'; }
-    async loadGroups(args, util) { return this.load(args, util.target, true); }
-    async loadDense(args, util) { return this.load(args, util.target, false); }
-    async load(args, target, groups) {
+    loadGroups(args, util) { return this.load(args, util.target, true); }
+    loadDense(args, util) { return this.load(args, util.target, false); }
+    load(args, target, groups) {
       const id = String(args.ID), previous = this.requests.get(id);
       if (previous && previous.status === 'pending') previous.status = 'stale';
       const request = {status: 'pending', copied: 0, error: ''};
@@ -113,24 +146,49 @@
           if (owner && owner.status === 'pending') owner.status = 'stale';
           this.owners.set(list, request);
         }
-        const buffer = await this.read(file, this.payloadStart + tensor.offset + start * unit, count * unit);
+        const abs = this.payloadStart + tensor.offset + start * unit, length = count * unit;
+        const window = this.window;
+        if (window && abs >= window.start && abs + length <= window.end) {
+          this.publish(window.buffer.slice(abs - window.start, abs - window.start + length), groups, count, lists);
+          request.copied = count; request.status = 'ok';
+          this.maybePrefetch(abs + length);
+          return undefined;
+        }
+        return this.refill(request, id, generation, file, abs, length, groups, count, target, ids, lists);
+      } catch (error) {
+        if (request.status === 'pending') { request.status = 'error'; request.error = String(error.message || error); }
+        return undefined;
+      }
+    }
+    async refill(request, id, generation, file, abs, length, groups, count, target, ids, lists) {
+      try {
+        let buffer;
+        const prefetch = this.prefetch;
+        if (prefetch && abs >= prefetch.start && abs + length <= prefetch.start + this.windowBytes) {
+          this.prefetch = null;
+          const window = await prefetch.promise;
+          if (window) { this.window = window; this.maybePrefetch(window.end); }
+          if (request.status !== 'pending' || this.requests.get(id) !== request || generation !== this.generation) return;
+          if (this.window && abs >= this.window.start && abs + length <= this.window.end) {
+            buffer = this.window.buffer.slice(abs - this.window.start, abs - this.window.start + length);
+          } else {
+            buffer = await this.read(file, abs, length);
+          }
+        } else if (length > this.windowBytes) {
+          buffer = await this.read(file, abs, length);
+        } else {
+          const window = await this.readWindow(file, abs, generation);
+          if (window && window.start === abs) { this.window = window; this.prefetch = null; this.maybePrefetch(window.end); }
+          if (request.status !== 'pending' || this.requests.get(id) !== request || generation !== this.generation) return;
+          if (this.window && abs >= this.window.start && abs + length <= this.window.end) {
+            buffer = this.window.buffer.slice(abs - this.window.start, abs - this.window.start + length);
+          } else {
+            buffer = await this.read(file, abs, length);
+          }
+        }
         if (request.status !== 'pending' || this.requests.get(id) !== request || generation !== this.generation) return;
         if (!this.runtime.targets.includes(target) || lists.some((list, i) => target.lookupVariableById(ids[i]) !== list || list.type !== 'list' || !Array.isArray(list.value) || this.owners.get(list) !== request)) throw new Error('destination ownership changed');
-        const view = new DataView(buffer), bytes = new Uint8Array(buffer);
-        if (groups) {
-          const q = lists[0].value, scale = lists[1].value;
-          q.length = count * 32; scale.length = count;
-          for (let i = 0; i < count; i++) {
-            scale[i] = view.getUint16(i * 34, true);
-            for (let j = 0; j < 32; j++) q[i * 32 + j] = bytes[i * 34 + 2 + j];
-          }
-          lists[0]._monitorUpToDate = false; lists[1]._monitorUpToDate = false;
-        } else {
-          const values = lists[0].value;
-          values.length = count;
-          for (let i = 0; i < count; i++) values[i] = view.getFloat32(i * 4, true);
-          lists[0]._monitorUpToDate = false;
-        }
+        this.publish(buffer, groups, count, lists);
         request.copied = count; request.status = 'ok';
       } catch (error) {
         if (request.status === 'pending') { request.status = 'error'; request.error = String(error.message || error); }
