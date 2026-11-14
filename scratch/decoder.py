@@ -34,6 +34,7 @@ def stack(h):
         *attention.copy(h, 'BS output', 'l_output', 'BS input', 'l_input'),
         *embedding.load_dense(h, 'outnorm', 'output_norm.weight', 'BS norm weights', 'l_norm_weights',
                               2048, [h['addlist']('load failed')]),
+        ('data_deletealloflist', {}, {'LIST': ['BS output', 'l_output']}, {}),
         *embedding.output_norm(h),
         # token_embd is stored inverse-rotated: signs first, then the Hadamard transform,
         # matching the primitive pipeline's order.

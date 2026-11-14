@@ -80,8 +80,7 @@ def script(h, head=False):
                     setvar('BS benchmark start', timer), *transfer,
                     ('control_wait', {'DURATION': 0}, {}, {})],
                     [setvar('BS head valid', 0), setvar('BS cancel', 0)])]
-        # token_embd is 2048 wide, so every row is 16 PQ2 groups regardless of the input list.
-        work += [setvar('BS groups per row', 16),
+        work += [setvar('BS groups per row', div(length('BS input', 'l_input'), 128)),
                  setvar('BS scanned', 0), setvar('BS head valid', 1), setvar('BS benchmark transfer', 0),
                  setvar('BS benchmark compute', 0),
                  repeat(floor(div(sub(add(v('head rows'), v('tile size')), 1), v('tile size'))),
