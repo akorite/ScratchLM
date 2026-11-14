@@ -27,14 +27,18 @@ async function run() {
     const m4 = process.argv[3] === '--m4';
     const head = process.argv[3] === '--head' || m4;
     const stream = head || process.argv[3] === '--stream';
-    if (process.argv[3] === '--package' || process.argv[3] === '--dot' || stream) {
+    const loaderMode = process.argv[4] === '40';
+    // Projects always declare the storage extension; it only opens a package when one is supplied.
+    if (true) {
         const Scratch = {vm, extensions: {unsandboxed: true, register: value => { loader = value; }},
             BlockType: {COMMAND: 'command', REPORTER: 'reporter'},
             ArgumentType: {STRING: 'string', NUMBER: 'number'}};
         const source = fs.readFileSync(path.join(__dirname, '../../extension/loader.js'), 'utf8');
         require('node:vm').runInNewContext(source, {Scratch, TextDecoder});
-        await loader.openFile(await fs.openAsBlob(process.env.BONSAI_MODEL_PACKAGE));
-        if (loader.fileStatus() !== 'ok') throw new Error(loader.fileStatus());
+        if (process.env.BONSAI_MODEL_PACKAGE) {
+            await loader.openFile(await fs.openAsBlob(process.env.BONSAI_MODEL_PACKAGE));
+            if (loader.fileStatus() !== 'ok') throw new Error(loader.fileStatus());
+        }
         if (head) {
             const read = loader.read.bind(loader);
             loader.read = async (...args) => {
@@ -53,7 +57,7 @@ async function run() {
                 return result;
             };
         }
-        if (!stream) {
+        if (!stream && !loaderMode) {
             const loadGroups = loader.loadGroups.bind(loader);
             loader.loadGroups = async (...args) => {
                 await loadGroups(...args);
@@ -72,7 +76,7 @@ async function run() {
         const output = stage.lookupVariableByNameAndType('BS output', 'list');
         const done = stage.lookupVariableByNameAndType('BS done', '');
         if (!input || !output || !done) throw new Error('project test variables are missing');
-        if (!loader) input.value = JSON.parse(process.argv[3]);
+        if (!loader || process.argv[3].startsWith('[')) input.value = JSON.parse(process.argv[3]);
         if (process.argv[3] === '--dot' || stream || process.env.BONSAI_ACTIVATION_F32) {
             const bytes = fs.readFileSync(process.env.BONSAI_ACTIVATION_F32 || path.join(__dirname, '../../fixtures/native/layer3-q-input.f32'));
             if (bytes.length % 4) throw new Error('invalid F32 fixture');
@@ -91,6 +95,32 @@ async function run() {
             const bytes = fs.readFileSync(process.env.BONSAI_NORM_WEIGHTS_F32);
             if (bytes.length % 4) throw new Error('invalid F32 norm weights fixture');
             nw.value = Array.from({length: bytes.length / 4}, (_, i) => bytes.readFloatLE(i * 4));
+        }
+        if (process.env.BONSAI_KV_KEY && process.env.BONSAI_KV_VALUE) {
+            const tokens = Number(process.env.BONSAI_KV_TOKENS || 1);
+            const floats = file => {
+                const bytes = fs.readFileSync(file);
+                return Array.from({length: bytes.length / 4}, (_, i) => bytes.readFloatLE(i * 4));
+            };
+            const kList = stage.lookupVariableByNameAndType('BS k cache', 'list');
+            const vList = stage.lookupVariableByNameAndType('BS v cache', 'list');
+            if (!kList || !vList) throw new Error('project KV cache lists are missing');
+            const k = floats(process.env.BONSAI_KV_KEY);
+            const v = floats(process.env.BONSAI_KV_VALUE);
+            // Scratch keeps token-major cells of 512; the native V cache is [head][dim][cell].
+            kList.value = k.slice(0, tokens * 512);
+            const out = [];
+            for (let t = 0; t < tokens; t++) {
+                for (let h = 0; h < 2; h++) {
+                    for (let d = 0; d < 256; d++) out.push(v[h * 65536 + d * 256 + t]);
+                }
+            }
+            vList.value = out;
+        }
+        if (process.env.BONSAI_LAYER_POSITION !== undefined) {
+            const lp = stage.lookupVariableByNameAndType('BS layer position', '');
+            if (!lp) throw new Error('project layer position variable is missing');
+            lp.value = Number(process.env.BONSAI_LAYER_POSITION);
         }
         if (process.env.BONSAI_TOKEN_ID !== undefined) {
             const tid = stage.lookupVariableByNameAndType('BS token id', '');
@@ -138,7 +168,8 @@ async function run() {
         clearInterval(heartbeat);
         worstGap = Math.max(worstGap, performance.now() - lastTick);
         if (!attempts.length || attempts.some(compiled => !compiled)) throw new Error('a Scratch thread did not compile');
-        if (loader && !stream && (loader.status({ID: 'resident'}) !== 'ok' || loader.copied({ID: 'resident'}) !== (process.argv[3] === '--dot' ? input.value.length / 128 : 5) || loader.file !== null)) {
+        const packaged = process.argv[3] === '--package' || process.argv[3] === '--dot';
+        if (loader && packaged && (loader.status({ID: 'resident'}) !== 'ok' || loader.copied({ID: 'resident'}) !== (process.argv[3] === '--dot' ? input.value.length / 128 : 5) || loader.file !== null)) {
             throw new Error('compiled loader block did not complete before isolation');
         }
         if (head && (Number(stage.lookupVariableByNameAndType('BS head valid', '').value) !== 1 ||
@@ -176,6 +207,29 @@ async function run() {
                 top_k_logits: topLogits.value.map(Number),
                 logits: output.value,
             }) + '\n');
+        } else if (process.env.BONSAI_DEBUG_REQUESTS) {
+            const reqs = process.env.BONSAI_DEBUG_REQUESTS.split(',');
+            const st = vm.runtime.getTargetForStage();
+            process.stdout.write(JSON.stringify(reqs.map(id => ({
+                id, status: loader.status({ID: id}), copied: loader.copied({ID: id}),
+                error: loader.error({ID: id})}))) + '\n');
+        } else if (process.env.BONSAI_DUMP) {
+            const [name, file] = process.env.BONSAI_DUMP.split(':');
+            const list = vm.runtime.getTargetForStage().lookupVariableByNameAndType(name, 'list');
+            fs.writeFileSync(file, JSON.stringify(list.value));
+            process.stdout.write('[]\n');
+        } else if (process.env.BONSAI_DEBUG_VARS) {
+            const names = process.env.BONSAI_DEBUG_VARS.split(',');
+            const stage2 = vm.runtime.getTargetForStage();
+            const read = spec => {
+                const [name, at] = spec.split('@');
+                const l = stage2.lookupVariableByNameAndType(name, 'list');
+                const v = stage2.lookupVariableByNameAndType(name, '');
+                if (!l) return v ? v.value : null;
+                if (at) return l.value[Number(at) - 1];
+                return `list:${l.value.length}:${JSON.stringify(l.value.slice(0, 4))}:${JSON.stringify(l.value.slice(-4))}`;
+            };
+            process.stdout.write(JSON.stringify(Object.fromEntries(names.map(n => [n, read(n)]))) + '\n');
         } else if (Number(mode.value) === 18) {
             process.stdout.write(JSON.stringify({output: output.value,
                 top_k_tokens: topTokens.value.map(Number), top_k_logits: topLogits.value.map(Number)}) + '\n');

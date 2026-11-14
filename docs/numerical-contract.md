@@ -37,6 +37,14 @@ Compare the `sections` checksums and probes, rather than the manifest's machine-
 
 Diagnostic mode 30 accepts a zero-based position followed by one or more 256-element heads and applies 64-dimensional partial RoPE with base 1e7. It rounds the recurrent angle and sine/cosine to F32, matching the native graph's angle progression; unrotated dimensions are copied unchanged. On this host, the captured layer-3 query vectors at positions 2, 16 and 64 agree within 1e-6 maximum absolute error. This is not a complete attention-layer tolerance.
 
+Mode 40 computes one complete full-attention layer (layer 3) in Scratch: weighted RMS norm, Q with its 2,048 gate channels, per-head q/k norm, partial RoPE, causal softmax over the KV cache, sigmoid output gate, output projection, residual, post-attention norm, SwiGLU MLP and residual. Every PQ2 projection is Hadamard-folded in the package, so the layer applies the mode-12 forward rotation with `prism.hadamard.signs.2048` (and `.6144` before the down projection) before each matmul. The KV cache is appended token-major in Scratch, while the captured native V cache is `[head][dim][cell]`; convert when seeding.
+
+Against `fixtures/native/m5/attention/`, the compiled VM reproduces `l_out-3` with maximum absolute error 3.6e-7 and RMS 3.9e-8 at position 1, 6.5e-5 / 1.4e-5 at position 2 (two-token softmax mixture), and 8.9e-8 / 2.0e-8 at position 64. These measurements freeze the layer tolerance at maximum absolute error <=1e-4 and RMS <=2e-5; the position-2 residual comes from accumulating the fp32 score dots in a different order than the native SIMD kernel. Reproduce with:
+
+```sh
+BONSAI_LAYER_STATE="$WORK/m5-state" python3 -m pytest -q tests/scratch/test_attention.py
+```
+
 Diagnostic mode 31 performs stable causal softmax over the requested prefix; modes 32 and 33 apply SiLU gating and residual addition; modes 34 and 35 apply per-head weighted RMS normalization with and without a SiLU gate. These modes reject malformed dimensions and round outputs to F32. Compiled-VM checks against the captured position-2 layer intermediates use a maximum absolute error of 1e-6; this is not an end-to-end layer tolerance.
 
 The separate `--text` proof uses named costumes across 256 hidden sprites because Scratch string comparisons are case-insensitive. It does not switch the stage backdrop. Compiled-VM tests cover case, UTF-16 surrogate pairs and unpaired-surrogate replacement, UTF-8 boundaries, CJK, and combining marks. Each code unit invokes 256 searches via broadcast-and-wait. On the Xeon host, a single no-renderer run took 58.50 seconds to load and execute and peaked at 3,393,016 KiB RSS. Browser renderer memory, target hardware, and production tokenizer suitability remain unverified.

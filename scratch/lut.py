@@ -1,5 +1,7 @@
 """Visible Scratch LUT4 diagnostic kernel for one resident PQ2 row."""
 
+from scratch import embedding
+
 
 def script(h, head=False):
     var, op, floor, item, length, setvar, addlist, conditional, repeat, change = (
@@ -12,50 +14,10 @@ def script(h, head=False):
     mod = lambda a, b: op('operator_mod', NUM1=a, NUM2=b)
     eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
     v = lambda name: var('BS ' + name)
-    q8 = lambda index: item('BS q8', 'l_q8', index)
-    logical_group0 = sub(v('dot group'), 1)
-    group0 = add(logical_group0, mul(v('tile row'), v('groups per row'))) if head else logical_group0
-    q8_base = mul(floor(div(logical_group0, 2)), 257)
-    q8_idx = lambda a: add(add(mul(floor(div(a, 256)), 257), 2), mod(a, 256))
-    init_entry = [setvar('BS lut sum', sub(v('lut sum'),
-                      q8(q8_idx(add(v('lut a0'), v('lut digit')))))),
-                  change('BS lut digit', 1)]
-    dp = [conditional(eq(v('lut pattern'), v('lut next')),
-                      [setvar('BS lut pow', v('lut next')),
-                       setvar('BS lut next', mul(v('lut pow'), v('lut base'))),
-                       change('BS lut level', 1)]),
-          addlist(add(item('BS lut', 'l_lut',
-                         add(mul(v('lut chunk'), v('lut domain')),
-                             add(mod(v('lut pattern'), v('lut pow')), 1))),
-                     mul(floor(div(v('lut pattern'), v('lut pow'))),
-                         q8(q8_idx(add(v('lut a0'), v('lut level')))))),
-                  'BS lut', 'l_lut'),
-          change('BS lut pattern', 1)]
-    setup = [setvar('BS lut a0', sub(mul(v('lut chunk'), v('lut stride')),
-                                    mul(floor(div(v('lut chunk'), v('lut groups'))),
-                                        sub(mul(v('lut groups'), v('lut stride')), 128)))),
-             setvar('BS lut sum', 0), setvar('BS lut digit', 0),
-             repeat(v('lut stride'), init_entry),
-             addlist(v('lut sum'), 'BS lut', 'l_lut'),
-             setvar('BS lut pattern', 1), setvar('BS lut pow', 1),
-             setvar('BS lut next', v('lut base')), setvar('BS lut level', 0),
-             repeat(sub(v('lut domain'), 1), dp),
-             change('BS lut chunk', 1)]
-    inner = [setvar('BS subtotal', add(v('subtotal'),
-                    item('BS lut', 'l_lut',
-                         add(v('lut cur'), add(item('BS packed bytes', 'l_packed', v('byte cur')), 1))))),
-             change('BS byte cur', 1), change('BS lut cur', v('lut domain'))]
-    from scratch import embedding
-    group = embedding.decode_fp16_scale(h, item('BS weight scales', 'l_scales', add(group0, 1)), on_valid=[
-        setvar('BS subtotal', 0),
-        setvar('BS byte cur', add(mul(group0, 32), 1)),
-        setvar('BS lut cur', mul(logical_group0, mul(v('lut groups'), v('lut domain')))),
-        repeat(v('lut groups'), inner),
-        setvar('BS f32 input', mul(v('weight scale'), q8(add(q8_base, 1)))), h['call_f32'](),
-        setvar('BS f32 input', mul(v('f32 output'), v('subtotal'))), h['call_f32'](),
-        setvar('BS f32 input', add(v('total'), v('f32 output'))), h['call_f32'](),
-        setvar('BS total', v('f32 output')),
-    ]) + [change('BS dot group', 1)]
+    base = sub(v('dot group'), 1)
+    if head:
+        base = add(base, mul(v('tile row'), v('groups per row')))
+    group = group_body(h, base, sub(v('dot group'), 1)) + [change('BS dot group', 1)]
     if head:
         codec = ('bonsailoader_codec', {}, {}, False)
         valid = op('operator_and',
@@ -88,16 +50,9 @@ def script(h, head=False):
         valid = valid_shape
     work += [setvar('BS benchmark quant', sub(timer, v('benchmark start'))),
              setvar('BS benchmark start', timer),
-             conditional(eq(v('codec'), 0),
-                         [setvar('BS lut base', 4), setvar('BS lut domain', 256),
-                          setvar('BS lut stride', 4), setvar('BS lut groups', 32)],
-                 [conditional(eq(v('codec'), 1),
-                         [setvar('BS lut base', 3), setvar('BS lut domain', 81),
-                          setvar('BS lut stride', 4), setvar('BS lut groups', 32)],
-                         [setvar('BS lut base', 3), setvar('BS lut domain', 243),
-                          setvar('BS lut stride', 5), setvar('BS lut groups', 26)])]),
+             *codec_tables(h),
              setvar('BS lut chunk', 0),
-             repeat(div(mul(length('BS input', 'l_input'), v('lut groups')), 128), setup),
+             *build_lut(h),
              setvar('BS benchmark setup', sub(timer, v('benchmark start')))]
     if head:
         status = ('bonsailoader_status', {'ID': 'head'}, {}, False)
@@ -230,3 +185,91 @@ def pipeline(h, call_head=None):
         # As with the head, post-completion flags belong to the next run.
         setvar('BS cancel', 0),
     ]
+
+
+def codec_tables(h):
+    """Set the LUT base, domain, stride and groups from the selected package codec."""
+    var, op, setvar, conditional = (h[name] for name in ('var', 'op', 'setvar', 'conditional'))
+    eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
+    v = lambda name: var('BS ' + name)
+    return [conditional(eq(v('codec'), 0),
+                        [setvar('BS lut base', 4), setvar('BS lut domain', 256),
+                         setvar('BS lut stride', 4), setvar('BS lut groups', 32)],
+                [conditional(eq(v('codec'), 1),
+                        [setvar('BS lut base', 3), setvar('BS lut domain', 81),
+                         setvar('BS lut stride', 4), setvar('BS lut groups', 32)],
+                        [setvar('BS lut base', 3), setvar('BS lut domain', 243),
+                         setvar('BS lut stride', 5), setvar('BS lut groups', 26)])])]
+
+
+def build_lut(h):
+    """Build the block LUT for the whole quantized activation in `BS input`."""
+    var, op, floor, item, length, setvar, addlist, conditional, repeat, change = (
+        h[name] for name in ('var', 'op', 'floor', 'item', 'length', 'setvar',
+                             'addlist', 'conditional', 'repeat', 'change'))
+    add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
+    sub = lambda a, b: op('operator_subtract', NUM1=a, NUM2=b)
+    mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
+    div = lambda a, b: op('operator_divide', NUM1=a, NUM2=b)
+    mod = lambda a, b: op('operator_mod', NUM1=a, NUM2=b)
+    eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
+    v = lambda name: var('BS ' + name)
+    q8 = lambda index: item('BS q8', 'l_q8', index)
+    q8_idx = lambda a: add(add(mul(floor(div(a, 256)), 257), 2), mod(a, 256))
+    init_entry = [setvar('BS lut sum', sub(v('lut sum'), q8(q8_idx(add(v('lut a0'), v('lut digit')))))),
+                  change('BS lut digit', 1)]
+    dp = [conditional(eq(v('lut pattern'), v('lut next')),
+                      [setvar('BS lut pow', v('lut next')),
+                       setvar('BS lut next', mul(v('lut pow'), v('lut base'))),
+                       change('BS lut level', 1)]),
+          addlist(add(item('BS lut', 'l_lut', add(mul(v('lut chunk'), v('lut domain')),
+                                                 add(mod(v('lut pattern'), v('lut pow')), 1))),
+                     mul(floor(div(v('lut pattern'), v('lut pow'))),
+                         q8(q8_idx(add(v('lut a0'), v('lut level')))))),
+                  'BS lut', 'l_lut'),
+          change('BS lut pattern', 1)]
+    setup = [setvar('BS lut a0', sub(mul(v('lut chunk'), v('lut stride')),
+                                    mul(floor(div(v('lut chunk'), v('lut groups'))),
+                                        sub(mul(v('lut groups'), v('lut stride')), 128)))),
+             setvar('BS lut sum', 0), setvar('BS lut digit', 0),
+             repeat(v('lut stride'), init_entry),
+             addlist(v('lut sum'), 'BS lut', 'l_lut'),
+             setvar('BS lut pattern', 1), setvar('BS lut pow', 1),
+             setvar('BS lut next', v('lut base')), setvar('BS lut level', 0),
+             repeat(sub(v('lut domain'), 1), dp),
+             change('BS lut chunk', 1)]
+    return [setvar('BS lut chunk', 0),
+            repeat(div(mul(length('BS input', 'l_input'), v('lut groups')), 128), setup)]
+
+
+def group_body(h, base, logical=None):
+    """Accumulate one 128-weight PQ2 group into BS total.
+
+    `base` indexes this tile's packed bytes and scales; `logical` indexes the
+    activation's LUT and Q8_K data, which repeat for every row of the tile.
+    """
+    if logical is None:
+        logical = base
+    from scratch import embedding
+    var, op, floor, item, setvar, addlist, repeat, change = (
+        h[name] for name in ('var', 'op', 'floor', 'item', 'setvar', 'addlist', 'repeat', 'change'))
+    add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
+    mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
+    div = lambda a, b: op('operator_divide', NUM1=a, NUM2=b)
+    v = lambda name: var('BS ' + name)
+    q8 = lambda index: item('BS q8', 'l_q8', index)
+    q8_base = mul(floor(div(logical, 2)), 257)
+    inner = [setvar('BS subtotal', add(v('subtotal'),
+                    item('BS lut', 'l_lut',
+                         add(v('lut cur'), add(item('BS packed bytes', 'l_packed', v('byte cur')), 1))))),
+             change('BS byte cur', 1), change('BS lut cur', v('lut domain'))]
+    return embedding.decode_fp16_scale(h, item('BS weight scales', 'l_scales', add(base, 1)), on_valid=[
+        setvar('BS subtotal', 0),
+        setvar('BS byte cur', add(mul(base, 32), 1)),
+        setvar('BS lut cur', mul(logical, mul(v('lut groups'), v('lut domain')))),
+        repeat(v('lut groups'), inner),
+        setvar('BS f32 input', mul(v('weight scale'), q8(add(q8_base, 1)))), h['call_f32'](),
+        setvar('BS f32 input', mul(v('f32 output'), v('subtotal'))), h['call_f32'](),
+        setvar('BS f32 input', add(v('total'), v('f32 output'))), h['call_f32'](),
+        setvar('BS total', v('f32 output')),
+    ])

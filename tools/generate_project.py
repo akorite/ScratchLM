@@ -8,7 +8,7 @@ import sys
 import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scratch import embedding, layers, lut, numeric, text, transform
+from scratch import attention, embedding, layers, lut, numeric, text, transform
 
 
 class Blocks:
@@ -279,6 +279,7 @@ def scalar_dot_script():
 
 def project(with_text=False, with_benchmark=False):
     graph = Blocks()
+    helpers = dict(globals(), rope=layers.rope, combine=layers.combine)
     hat = graph.add('event_whenflagclicked', top=True)
     w, e, m, sign, idx = map(var, ('BS word', 'BS exponent', 'BS mantissa', 'BS sign', 'BS index'))
     scaled = op('operator_multiply', NUM1=sign, NUM2=op('operator_multiply', NUM1=op('operator_add', NUM1=1024, NUM2=m), NUM2=item('BS powers', 'l_powers', op('operator_add', NUM1=e, NUM2=1))))
@@ -323,6 +324,8 @@ def project(with_text=False, with_benchmark=False):
     for mode in (32, 33):
         fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=mode),
                                 layers.combine(globals(), gated=mode == 32), fallback)]
+    fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=40),
+                            attention.layer(helpers), fallback)]
     for mode in (34, 35):
         fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=mode),
                                 layers.head_norm(globals(), gated=mode == 34), fallback)]
@@ -366,7 +369,10 @@ def project(with_text=False, with_benchmark=False):
              'BS greedy token', 'BS greedy logit', 'BS second logit', 'BS top position', 'BS top scan',
              'BS iterations', 'BS benchmark start', 'BS benchmark quant', 'BS benchmark setup', 'BS benchmark compute',
              'BS rope position', 'BS rope head', 'BS rope pair', 'BS rope x', 'BS rope y',
-             'BS rope theta', 'BS rope cosine', 'BS rope sine', 'BS rope width', 'BS rope heads')
+             'BS rope theta', 'BS rope cosine', 'BS rope sine', 'BS rope width', 'BS rope heads',
+             'BS layer position', 'BS layer head', 'BS layer token', 'BS layer index', 'BS layer sum',
+             'BS layer maximum', 'BS layer weight', 'BS layer divisor',
+             'BS proj scanned', 'BS proj tile', 'BS proj valid')
     if with_benchmark:
         names += ('BS head rows', 'BS head tensor', 'BS tile size', 'BS tile count', 'BS tile row',
                   'BS scanned', 'BS head valid', 'BS cancel', 'BS benchmark transfer', 'BS groups per row')
@@ -388,7 +394,21 @@ def project(with_text=False, with_benchmark=False):
                        'l_q8': ['BS q8', []], 'l_raw_powers': ['BS raw powers', [1, 4, 16, 64]],
                       'l_trit_powers': ['BS trit powers', [1, 3, 9, 27, 81]], 'l_lut': ['BS lut', []],
                      'l_signs': ['BS signs', []], 'l_norm_weights': ['BS norm weights', []],
-                     'l_top_tokens': ['BS top tokens', []], 'l_top_logits': ['BS top logits', []]},
+                     'l_top_tokens': ['BS top tokens', []], 'l_top_logits': ['BS top logits', []],
+                     'l_layer_input': ['BS layer input', []], 'l_normed': ['BS normed', []],
+                     'l_q_full': ['BS q full', []], 'l_q': ['BS q', []], 'l_gate': ['BS gate', []],
+                     'l_qn': ['BS qn', []], 'l_kn': ['BS kn', []], 'l_k': ['BS k', []], 'l_v': ['BS v', []],
+                     'l_k_cache': ['BS k cache', []], 'l_v_cache': ['BS v cache', []],
+                     'l_scores': ['BS scores', []], 'l_weights': ['BS weights', []],
+                     'l_attn': ['BS attn', []], 'l_attn_gated': ['BS attn gated', []],
+                     'l_attn_out': ['BS attn out', []], 'l_residual': ['BS residual', []],
+                     'l_ffn_gate': ['BS ffn gate', []], 'l_ffn_up': ['BS ffn up', []],
+                     'l_ffn': ['BS ffn', []], 'l_ffn_out': ['BS ffn out', []],
+                     'l_norm_w': ['BS norm w', []], 'l_post_w': ['BS post w', []],
+                     'l_q_norm': ['BS q norm', []], 'l_k_norm': ['BS k norm', []],
+                     'l_rope_out': ['BS rope out', []], 'l_layer_out': ['BS layer out', []],
+                     'l_signs_wide': ['BS signs wide', []],
+                     'l_rope_in': ['BS rope in', []]},
              'broadcasts': {}, 'blocks': graph.blocks, 'comments': {}, 'currentCostume': 0,
              'costumes': [{'name': 'backdrop', 'dataFormat': 'svg', 'assetId': asset,
                            'md5ext': asset + '.svg', 'rotationCenterX': 240, 'rotationCenterY': 180}],
@@ -415,7 +435,7 @@ def project(with_text=False, with_benchmark=False):
                             'costumes': text.costume_data(asset, high), 'sounds': [], 'volume': 100,
                             'layerOrder': high + 1, 'visible': False, 'x': 0, 'y': 0, 'size': 100,
                             'direction': 90, 'draggable': False, 'rotationStyle': 'all around'})
-    content = {'targets': targets, 'monitors': [], 'extensions': ['bonsailoader'] if with_benchmark else [],
+    content = {'targets': targets, 'monitors': [], 'extensions': ['bonsailoader'] if with_benchmark else ['bonsailoader'],
                'meta': {'semver': '3.0.0', 'vm': '0.2.0', 'agent': 'BonsaiScratch'}}
     return json.dumps(content, ensure_ascii=True, separators=(',', ':')).encode('utf-8'), asset + '.svg', svg
 

@@ -70,7 +70,7 @@ def apply_signs(h, list_name='BS output', list_id='l_output', signs_name='BS sig
     ]
 
 
-def make(mode, h):
+def make(mode, h, signs_name='BS signs', signs_id='l_signs'):
     if mode not in (12, 13):
         return None
     var, op, item, length, setvar, addlist, conditional, repeat, change = (
@@ -81,7 +81,7 @@ def make(mode, h):
     mod = lambda a, b: op('operator_mod', NUM1=a, NUM2=b)
     mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
     in_len = length('BS input', 'l_input')
-    sign_len = length('BS signs', 'l_signs')
+    sign_len = length(signs_name, signs_id)
     valid = op('operator_and',
                OPERAND1=op('operator_and', OPERAND1=gt(in_len, 0), OPERAND2=eq(mod(in_len, 512), 0)),
                OPERAND2=op('operator_or', OPERAND1=eq(sign_len, 0), OPERAND2=eq(sign_len, in_len)))
@@ -94,11 +94,12 @@ def make(mode, h):
         copy = conditional(gt(sign_len, 0), [
             setvar('BS index', 1),
             repeat(in_len, [
-                addlist(mul(item('BS input', 'l_input', idx), item('BS signs', 'l_signs', idx))),
+                addlist(mul(item('BS input', 'l_input', idx), item(signs_name, signs_id, idx))),
                 change('BS index', 1),
             ]),
         ], plain_copy)
         work = [copy] + hadamard(h)
     else:
-        work = plain_copy + hadamard(h) + [conditional(gt(sign_len, 0), apply_signs(h))]
+        work = plain_copy + hadamard(h) + [conditional(gt(sign_len, 0),
+                                                       apply_signs(h, signs_name=signs_name, signs_id=signs_id))]
     return [conditional(valid, work, [addlist('invalid dimensions')])]
