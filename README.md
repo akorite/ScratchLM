@@ -52,6 +52,10 @@ The tokenizer and detokenizer run in Scratch blocks. `python3 tools/generate_pro
 
 The pre-tokenizer reproduces the pinned runtime's own splitter. Its code point classes come from `fixtures/unicode/qwen35-classes.json`, derived by `tools/unicode_classes.py` from `src/unicode-data.cpp` at the pinned revision rather than from the host's Unicode build, because newer assignments would split prompts differently. The pair merge table is packed into the package as `prism.bpe.*` tensors by `tools/package_model.py`. Ten fixture classes match the pinned tokenizer exactly in the compiled VM; see `tests/scratch/test_tokenizer.py`. Each decode step is one Scratch run, so a prompt plus eight tokens takes minutes on this host.
 
+## Decoder benchmark
+
+`python3 benchmarks/decoder.py --output benchmarks/results/decoder-xeon.json` runs two prompts end to end at the production configuration, one flag press per decode step, and rejects a run whose first generated token differs from the pinned native build's choice. It records prompt tokens, wall and CPU time, per-step time, peak RSS and the rendered text; the current Xeon numbers are in that file and summarized in the decision record.
+
 ## Tests
 
 ```sh

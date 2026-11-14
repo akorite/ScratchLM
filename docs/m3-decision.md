@@ -20,6 +20,19 @@ The plan specifies an approximate ~22 s head target rather than a strict 22.00 s
 
 At the retuned 640-row default, three compiled M4 head runs in `benchmarks/results/head-m4-topk-xeon.json` had a 21.68 s median and 23.40 s worst wall time. Scratch-selected top-8 and greedy tokens matched the native fixture in all three; maximum error across all 248,320 logits was `1.91e-6`, below half the native `0.990841` top-1/top-2 margin. The full native logits were regenerated outside Git from the locked model and reference build.
 
+## Measured prompt-to-text (end to end)
+
+`benchmarks/decoder.py` drives the released project the way the Scratch loop does — one flag press per decode step, the prompt prefilled first — and rejects any run whose first generated token differs from the pinned native build's choice. Two prompts on the recorded Xeon host, Node VM, no renderer, 250 fps, `bslut5` package (`benchmarks/results/decoder-xeon.json`):
+
+| Prompt | Prompt tokens | Steps | Wall | Per step | First token | Peak RSS |
+|---|---|---|---|---|---|---|
+| `hello world` | 10 | 11 | 723.8 s | 65.8 s | 248068 (native 248068) | 4346 MiB |
+| `it's 你好` | 12 | 13 | 906.0 s | 69.7 s | 248068 (native 248068) | 4839 MiB |
+
+Both runs rendered `<think>` for that token and kept all 248,321 logits. Per step here is higher than the 41.8 s single-step benchmark because it includes the one-time 5 MB BPE table load (about 45 s), the per-token detokenize pass, and a busier host during this run; the runs were sequential, so treat the table as a range, not a precise per-token figure. Memory is dominated by the 256 costume-lookup sprites, the embedded 65,536-unit list, the 248,320 vocabulary strings, the five BPE tensors, and the decoder state (six 262,144-float DeltaNet states plus the KV cache).
+
+Interactive feel: a short prompt costs roughly 12 minutes to first token and about a minute per further token on this host. That is a demonstration, not a usable chat session; the plan's batched-prefill unit is the change that would move it, since prompt prefill re-streams every weight for each token.
+
 ## Evidence
 
 | Measurement | Prior baseline (60 fps, tile 120, async) | Redesign (`bslut5`, 250 fps, tile 1280, sync window) | Source |
