@@ -48,6 +48,23 @@ Prefill reuses the same weight stream per prompt position with no KV-batched mat
 | Memory bounded | **Pass on host** — ≤ 511 MB RSS in Node VM (includes 64 MiB read-ahead window); browser 6 GB/8 GB thresholds remain unexercised in a browser renderer |
 | Decode > 5 min/token | **No** — pause trigger cleared |
 
+## M4 end-to-end head evidence (Xeon host)
+
+After integrating `output_norm` (mode 5 RMS norm + F32-rounded `output_norm.weight`), explicit ±1 `prism.hadamard.signs.2048` dense loading, normalized block-512 Sylvester-Walsh-Hadamard transform, Q8_K quantization, `bslut5` DP LUT scan across all 248,320 `token_embd.weight` rows (zero pruning), and deterministic lower-ID-tie-breaking greedy selection in Scratch (`benchmarks/results/head-m4-xeon.json`, 3 repetitions, tile 1,280, `bslut5`):
+
+| Metric | Measured result | Source |
+|---|---|---|
+| End-to-end M4 head wall time | **24.16 s** median (`27.73 s` worst; compute `21.72–25.61 s`) | `benchmarks/results/head-m4-xeon.json` |
+| Vocabulary rows scanned | 248,320 / 248,320 (complete vocabulary) | same |
+| Greedy next token (token 1 input) | **321** (exact match to native reference) | `fixtures/native/m4/head/manifest.json` |
+| Top-8 token ID order | `[321, 220, 369, 3709, 318, 198, 2, 653]` (exact match) | same |
+| Top-8 max abs logit error vs margin | `9.54e-7` max error vs `0.990841` top-1/top-2 margin | same |
+| Worst event-loop gap | **96.3 ms** (`66.7–96.3 ms` across 3 runs) | `benchmarks/results/head-m4-xeon.json` |
+| Peak RSS | **515.1 MB** (Node VM, no renderer) | same |
+| M4 cancellation latency (mid-scan abort) | `< 250 ms` at tile 1,280 (`test_m4_cancellation_aborts_at_tile_boundary`) | `tests/scratch/test_head.py` |
+
+**M5 readiness:** All M4 exit criteria pass on the Xeon host (`bslut5` adopted, end-to-end head verified against native logits/greedy/top-k, transforms and inverse embedding verified across widths 2048/6144 and tokens 1/321/248046). Proceeding to per-layer state integration (M5) is supported on this host, subject to the limitations below.
+
 ## Limitations
 
-Host-only results on Intel Xeon Platinum 8488C in headless Node VM (no browser renderer); Ryzen 7 Pro-class target unmeasured; Chrome background-tab timer throttling (~1 Hz non-rAF clamp) would stall 250 fps unattended execution in background tabs; browser renderer memory unmeasured; head benchmark still uses a captured transformed activation (`layer3-q-input.f32`) pending M4 end-to-end head integration.
+Host-only results on Intel Xeon Platinum 8488C in headless Node VM (no browser renderer); Ryzen 7 Pro-class target unmeasured; Chrome background-tab timer throttling (~1 Hz non-rAF clamp) would stall 250 fps unattended execution in background tabs; browser renderer memory unmeasured; prefill remains linear in prompt length (`~2.6–3.6 h` at 128 tokens) and is reported independently from decode.
