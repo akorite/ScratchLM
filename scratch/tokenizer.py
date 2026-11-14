@@ -335,7 +335,7 @@ def make(h):
         def read_piece_bytes():
             return [
                 ('data_deletealloflist', {}, {'LIST': ['BS bytes', 'l_bytes']}, {}),
-                setvar('BS detok index', 1),
+                setvar('BS detok index', var('BS render start')),
                 until(gt(index, length('BS out tokens', 'l_out_tokens')), [
                     setvar('BS detok piece',
                            item('BS vocab', 'l_vocab',
@@ -377,26 +377,46 @@ def make(h):
         """One flag run: tokenize the prompt, then one decode broadcast per token."""
         index = var('BS generate index')
         eos = var('BS greedy token')
-        ask = [conditional(eq(var('BS ask'), 1), [
-            ('sensing_askandwait', {'QUESTION': 'Prompt'}, {}, {}),
-            setvar('BS prompt', ('sensing_answer', {}, {}, False))])]
-        return [
-            *ask,
+        save, stop = var('BS prompt saved'), var('BS stop')
+        segment = lambda text: [
+            setvar('BS prompt', text),
             ('procedures_call', {}, {'PROCCODE': ('BS tokenize', 'true')}, {}),
-            ('data_deletealloflist', {}, {'LIST': ['BS out tokens', 'l_out_tokens']}, {}),
             setvar('BS generate index', 1),
             until(gt(index, length('BS prompt tokens', 'l_prompt')), [
                 addlist(item('BS prompt tokens', 'l_prompt', index), 'BS out tokens', 'l_out_tokens'),
-                change('BS generate index', 1)]),
+                change('BS generate index', 1)])]
+        special = lambda token_id: [addlist(token_id, 'BS out tokens', 'l_out_tokens')]
+        body = [
+            # The locked template wraps the prompt so the model sees the turn markers.
+            conditional(eq(var('BS template'), 1), [
+                *special(248045), *segment('user\n'), *segment(save), *special(248046),
+                *segment('\n'), *special(248045), *segment('assistant\n')],
+                [*segment(save)]),
+            setvar('BS prompt', save),
             ('procedures_call', {}, {'PROCCODE': ('BS detok load', 'true')}, {}),
-            setvar('BS step', 0),
-            repeat(var('BS max tokens'), [
+            setvar('BS step', 0), setvar('BS generate index', 0), setvar('BS render start', 1),
+            until(either(eq(stop, 1), not_(lt(index, var('BS max tokens')))), [
                 ('event_broadcastandwait', {'BROADCAST_INPUT': 'BS decode step'}, {}, {}),
-                addlist(eos, 'BS out tokens', 'l_out_tokens'),
-                ('procedures_call', {}, {'PROCCODE': ('BS detok render', 'true')}, {}),
-                ('event_broadcastandwait', {'BROADCAST_INPUT': 'BS show'}, {}, {}),
-                conditional(eq(eos, var('BS eos token')), [setvar('BS generate index', 1000000000)]),
+                change('BS generate index', 1),
+                conditional(eq(eos, var('BS eos token')), [setvar('BS stop', 1)], [
+                    addlist(eos, 'BS out tokens', 'l_out_tokens'),
+                    # only the generated tail is shown, not the templated prompt
+                    setvar('BS render start', sub(add(length('BS out tokens', 'l_out_tokens'), 1), index)),
+                    ('procedures_call', {}, {'PROCCODE': ('BS detok render', 'true')}, {}),
+                    ('event_broadcastandwait', {'BROADCAST_INPUT': 'BS show'}, {}, {}),
+                ]),
             ]),
+        ]
+        guard = conditional(eq(var('BS prompt saved'), ''), [
+            setvar('BS text', ''), setvar('BS stop', 1),
+        ], [setvar('BS stop', 0), *body])
+        return [
+            conditional(eq(var('BS ask'), 1), [
+                ('sensing_askandwait', {'QUESTION': 'Prompt'}, {}, {}),
+                setvar('BS prompt', ('sensing_answer', {}, {}, False))]),
+            setvar('BS prompt saved', var('BS prompt')),
+            ('data_deletealloflist', {}, {'LIST': ['BS out tokens', 'l_out_tokens']}, {}),
+            guard,
         ]
 
     detok = detokenize()
