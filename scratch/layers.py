@@ -108,9 +108,12 @@ def combine(h, gated, input_name='BS input', input_id='l_input', output=('BS out
     shift = 1 if paired else 0
     body = [setvar('BS x', at(add(index, shift)))] + value + [
         h['call_f32'](), addlist(var('BS f32 output'), *output), change('BS index', 1)]
-    return [setvar('BS subtotal', at(1) if paired else length(input_name, input_id)),
-            conditional(valid, [setvar('BS index', 1), repeat(count, body)],
-                        [addlist('invalid dimensions', *output)])]
+    # The diagnostic layout shares its input and output list, so only the separate-list
+    # call may clear the destination; leaving it uncleared makes repeated calls accumulate.
+    clear = [] if paired else [('data_deletealloflist', {}, {'LIST': list(output)}, {})]
+    return clear + [setvar('BS subtotal', at(1) if paired else length(input_name, input_id)),
+                    conditional(valid, [setvar('BS index', 1), repeat(count, body)],
+                                [addlist('invalid dimensions', *output)])]
 
 
 def head_norm(h, gated):
