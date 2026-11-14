@@ -32,8 +32,9 @@ class ScratchTokenizerTests(unittest.TestCase):
             generated = subprocess.run([sys.executable, str(ROOT / 'tools/generate_project.py'), str(project),
                                         '--text', '--benchmark'], capture_output=True, text=True)
             self.assertEqual(generated.returncode, 0, generated.stderr)
-            env = dict(os.environ, BONSAI_PROMPTS=json.dumps([text for text, _ in CASES]),
-                       BONSAI_TIMEOUT_MS='180000')
+            env = {key: value for key, value in os.environ.items()
+                   if key in ('BONSAI_TURBOWARP_VM', 'BONSAI_MODEL_PACKAGE', 'NODE_PATH')}
+            env.update(BONSAI_PROMPTS=json.dumps([text for text, _ in CASES]), BONSAI_TIMEOUT_MS='180000')
             run = subprocess.run(['node', str(ROOT / 'tests/scratch/run-vm.js'), str(project), '--tokenize', '22'],
                                  env=env, capture_output=True, text=True, timeout=600)
             self.assertEqual(run.returncode, 0, run.stderr)
@@ -51,7 +52,9 @@ class ScratchTokenizerTests(unittest.TestCase):
             generated = subprocess.run([sys.executable, str(ROOT / 'tools/generate_project.py'), str(project),
                                         '--text', '--benchmark'], capture_output=True, text=True)
             self.assertEqual(generated.returncode, 0, generated.stderr)
-            env = dict(os.environ, BONSAI_OUT_TOKENS=json.dumps(tokens), BONSAI_TIMEOUT_MS='240000',
+            env = {key: value for key, value in os.environ.items()
+                   if key in ('BONSAI_TURBOWARP_VM', 'BONSAI_MODEL_PACKAGE', 'NODE_PATH')}
+            env.update(BONSAI_OUT_TOKENS=json.dumps(tokens), BONSAI_TIMEOUT_MS='240000',
                        BONSAI_DEBUG_VARS='BS text')
             run = subprocess.run(['node', str(ROOT / 'tests/scratch/run-vm.js'), str(project), '--detokenize', '23'],
                                  env=env, capture_output=True, text=True, timeout=600)
