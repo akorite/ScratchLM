@@ -390,6 +390,7 @@ def project(with_text=False, with_benchmark=False):
                   'BS text needle', 'BS text result')
     variables = {var(name)[2]: [name, 0] for name in names}
     variables[var('BS iterations')[2]][1] = 1
+    variables[var('BS layer')[2]][1] = 3  # the attention layer by default; the decoder sets it per layer
     if with_benchmark:
         variables[var('BS head rows')[2]][1] = 248320
         variables[var('BS head tensor')[2]][1] = 'token_embd.weight'

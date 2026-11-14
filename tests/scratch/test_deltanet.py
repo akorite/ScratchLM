@@ -38,7 +38,7 @@ class DeltaNetStageTests(unittest.TestCase):
     def run_stage(self, position, activation, dump):
         output = Path(self.temp.name) / f'{dump.replace(" ", "-")}-{position}.json'
         env = dict(os.environ, BONSAI_ACTIVATION_F32=str(activation), BONSAI_LAYER_POSITION=str(position - 1),
-                   BONSAI_DUMP=f'{dump}:{output}')
+                   BONSAI_LAYER='0', BONSAI_DUMP=f'{dump}:{output}')
         run = subprocess.run(['node', str(ROOT / 'tests/scratch/run-vm.js'), str(self.project), '[]', '41'],
                              capture_output=True, text=True, timeout=300, env=env)
         self.assertEqual(run.returncode, 0, run.stderr)
@@ -102,7 +102,8 @@ class DeltaNetStageTests(unittest.TestCase):
         state.write_bytes(struct.pack(f'<{len(taps)}f', *taps))
         output = Path(self.temp.name) / f'seeded-{position}.json'
         env = dict(os.environ, BONSAI_ACTIVATION_F32=str(FIXTURE / f'input-pos{position}.f32'),
-                   BONSAI_LAYER_POSITION=str(position - 1), BONSAI_DUMP=f'BS output:{output}',
+                   BONSAI_LAYER_POSITION=str(position - 1), BONSAI_LAYER='0',
+                   BONSAI_DUMP=f'BS output:{output}',
                    BONSAI_DN_STATE=str(Path(STATE) / f'new_state-0-pos{seed_position}.f32'),
                    BONSAI_CONV_STATE=str(state))
         run = subprocess.run(['node', str(ROOT / 'tests/scratch/run-vm.js'), str(self.project), '[]', '41'],
