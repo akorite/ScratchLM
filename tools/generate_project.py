@@ -439,6 +439,8 @@ def project(with_text=False, with_benchmark=False):
                   'BS ids count', 'BS ids index', 'BS lower', 'BS lower2', 'BS ws count', 'BS nl end',
                   'BS detok index', 'BS detok position', 'BS detok unit', 'BS detok byte',
                   'BS detok code', 'BS detok piece', 'BS detok slot', 'BS text', 'BS byte index',
+                  'BS detok need', 'BS detok valid', 'BS detok advance', 'BS detok stop',
+                  'BS detok scan',
                   'BS generate index', 'BS max tokens', 'BS eos token', 'BS ask', 'BS stop',
                   'BS prompt saved', 'BS template', 'BS render start',
                   'BS prompt length', 'BS decode budget', 'BS started', 'BS loop')
@@ -452,7 +454,7 @@ def project(with_text=False, with_benchmark=False):
     variables[var('BS readout')[2]][1] = 1  # the decoder runs the readout unless a prefill step turns it off
     if with_text and with_benchmark:
         variables[var('BS prompt')[2]][1] = ''
-        variables[var('BS max tokens')[2]][1] = 8
+        variables[var('BS max tokens')[2]][1] = 128  # the release bound on generated tokens
         variables[var('BS eos token')[2]][1] = 248046
         variables[var('BS ask')[2]][1] = 1
         variables[var('BS template')[2]][1] = 1

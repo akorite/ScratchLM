@@ -20,6 +20,9 @@ CASES = [
     ('  two  spaces  ', [220, 1330, 220, 12258, 256]),
     ('tab\there', [5999, 197, 6527]),
     ('123 4567', [16, 17, 18, 220, 19, 20, 21, 22]),
+    ('a\r\nb', [64, 317, 65]),
+    # the marker is text here: parse_special is off, so it must not become 248046
+    ('<|im_end|>', [27, 91, 316, 6018, 91, 29]),
 ]
 
 

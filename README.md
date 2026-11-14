@@ -2,6 +2,31 @@
 
 BonsaiScratch investigates visible Scratch-block inference with the locked PrismML Ternary Bonsai 2 2B model in TurboWarp. The [implementation plan](docs/bonsaiscratch-plan-v1.1.md) defines the numerical contract, execution boundary, milestones and acceptance gates. Native code in this repository is for offline reference fixtures only; the deployed project must perform model math in Scratch blocks.
 
+## Release set
+
+| Artifact | Where | Notes |
+|---|---|---|
+| Generated project | `dist/fp16-q8-scalar.sb3` | sha256 in `fixtures/artifact-checksums.json`, checked by `tests/test_artifacts.py` |
+| Storage extension | `extension/loader.js` | storage-only I/O; contains no model arithmetic |
+| Model packages | not in Git | built from the locked GGUF with `tools/package_model.py` (see below) |
+| Prompt-to-text project | generated per machine | `tools/generate_project.py OUT.sb3 --text --benchmark` |
+| Native expectations | `fixtures/native/` | layer, head, tokenizer and prompt fixtures with recorded tolerances |
+
+Reproducing the project and the prompt path from a fresh checkout needs only the locked GGUF and the pinned TurboWarp VM checkout:
+
+```sh
+WORK="$HOME/.cache/bonsaiscratch"
+python3 tools/inspect_gguf.py "$WORK/model.gguf" "$WORK/model-manifest.json"
+TMPDIR="$WORK/build-tmp" python3 tools/package_model.py "$WORK/model.gguf" "$WORK/model-bslut5-tokenizer.bsp" --codec bslut5
+python3 tools/generate_project.py dist/fp16-q8-scalar.sb3
+python3 tools/generate_project.py "$WORK/release.sb3" --text --benchmark
+node tests/scratch/run-vm.js "$WORK/release.sb3" --generate 24   # in TurboWarp: press the flag
+```
+
+Packages are large; the packer writes through `TMPDIR`, so point it at a disk with at least 1 GB free rather than a small tmpfs. `fixtures/package-checksums.json` records the byte counts and hashes of the three codecs, and the packer is deterministic: two builds into fresh files produce the same hash. The `bslut5` and `bslut4` packages embed the tokenizer's pair-merge table as `prism.bpe.*` tensors, which is what makes the Scratch tokenizer possible without any JavaScript tokenization.
+
+Measured limits on the recorded Xeon host, Node VM without a renderer: **41.8 s per decode step** (640-row tiles, two interleaved repetitions), **723.8 s to first token for a 10-token prompt** and 906.0 s for a 12-token prompt including the one-time 5 MB BPE table load, **4.3-4.8 GiB peak RSS**, and a generation bound of 128 tokens. The 16 GB Ryzen-class target and a browser renderer were not measured. Prompt prefill re-streams every weight per token, so long prompts scale linearly; batched prefill is the next planned unit.
+
 ## Model identity and inventory
 
 The model is not stored in Git. Download the locked file and check its SHA-256 and size before using it:

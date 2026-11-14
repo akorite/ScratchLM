@@ -349,28 +349,62 @@ def make(h):
                     change('BS detok index', 1)])]
 
         def decode_bytes():
+            """Decode the byte list; an incomplete multi-byte tail is held for the next token."""
+            available = bytes_of()
+            need, valid, advance = var('BS detok need'), var('BS detok valid'), var('BS detok advance')
+            stopped = var('BS detok stop')
+            scan = var('BS detok scan')
+            continuation_ok = lambda at: op('operator_and',
+                OPERAND1=op('operator_gt', OPERAND1=data(at), OPERAND2=127),
+                OPERAND2=op('operator_lt', OPERAND1=data(at), OPERAND2=192))
             return [
-                setvar('BS text', ''), setvar('BS byte index', 1),
-                until(gt(cursor, bytes_of()), [
+                setvar('BS text', ''), setvar('BS byte index', 1), setvar('BS detok stop', 0),
+                until(either(eq(stopped, 1), gt(cursor, available)), [
                     setvar('BS detok byte', data(cursor)),
-                    conditional(lt(byte, 128), [
-                        setvar('BS detok code', byte), change('BS byte index', 1)], [
-                        conditional(lt(byte, 224), [
-                            setvar('BS detok code', add(mul(sub(byte, 192), 64), continuation(add(cursor, 1)))),
-                            change('BS byte index', 2)], [
-                            conditional(lt(byte, 240), [
-                                setvar('BS detok code', add(add(mul(sub(byte, 224), 4096),
-                                    mul(continuation(add(cursor, 1)), 64)), continuation(add(cursor, 2)))),
-                                change('BS byte index', 3)], [
-                                setvar('BS detok code', add(add(add(
-                                    mul(sub(byte, 240), 262144),
-                                    mul(continuation(add(cursor, 1)), 4096)),
-                                    mul(continuation(add(cursor, 2)), 64)), continuation(add(cursor, 3)))),
-                                change('BS byte index', 4)])])]),
-                    *append_text()])]
+                    setvar('BS detok need', 0), setvar('BS detok valid', 1),
+                    setvar('BS detok advance', 1),
+                    conditional(lt(byte, 128), [setvar('BS detok code', byte)], [
+                        conditional(lt(byte, 224), [setvar('BS detok need', 1)], [
+                            conditional(lt(byte, 240), [setvar('BS detok need', 2)], [
+                                conditional(lt(byte, 248), [setvar('BS detok need', 3)],
+                                            [setvar('BS detok valid', 0)])])]),
+                        # a lead byte whose continuations have not arrived yet is withheld
+                        conditional(both(eq(valid, 1), gt(add(cursor, need), available)),
+                                    [setvar('BS detok stop', 1)]),
+                        conditional(both(eq(valid, 1), eq(stopped, 0)), [
+                            setvar('BS detok scan', 1),
+                            repeat(need, [
+                                conditional(continuation_ok(add(cursor, scan)), [],
+                                            [setvar('BS detok valid', 0)]),
+                                change('BS detok scan', 1)]),
+                            conditional(eq(valid, 0), [setvar('BS detok code', 65533)], [
+                                setvar('BS detok advance', add(need, 1)),
+                                conditional(eq(need, 1), [
+                                    setvar('BS detok code', op('operator_add', NUM1=mul(sub(byte, 192), 64),
+                                                               NUM2=continuation(add(cursor, 1))))]),
+                                conditional(eq(need, 2), [
+                                    setvar('BS detok code', op('operator_add',
+                                        NUM1=op('operator_add', NUM1=mul(sub(byte, 224), 4096),
+                                                NUM2=mul(continuation(add(cursor, 1)), 64)),
+                                        NUM2=continuation(add(cursor, 2))))]),
+                                conditional(eq(need, 3), [
+                                    setvar('BS detok code', op('operator_add',
+                                        NUM1=op('operator_add',
+                                            NUM1=op('operator_add', NUM1=mul(sub(byte, 240), 262144),
+                                                    NUM2=mul(continuation(add(cursor, 1)), 4096)),
+                                            NUM2=mul(continuation(add(cursor, 2)), 64)),
+                                        NUM2=continuation(add(cursor, 3))))]),
+                            ]),
+                        ]),
+                    ]),
+                    conditional(eq(stopped, 0), [
+                        *append_text(),
+                        setvar('BS byte index', add(cursor, advance))]),
+                ]),
+            ]
 
         return {'load': load_strings(h, 'tokenizer.ggml.tokens', 'BS vocab', 'l_vocab', 'detok-vocab'),
-                'render': [*read_piece_bytes(), *decode_bytes()]}
+                        'render': [*read_piece_bytes(), *decode_bytes()]}
 
     # --- 'BS generate': prompt -> tokens, then one decode step per flag run ---
     def generate():
