@@ -23,6 +23,7 @@ async function run() {
     vm.setCompatibilityMode(false);
     vm.setTurboMode(true);
     vm.setCompilerOptions({enabled: true});
+    vm.runtime.setFramerate(Number(process.env.BONSAI_FRAMERATE || 250));
     let loader, heartbeat, loaderReadMs = 0, loaderCommandMs = 0, loaderRequests = 0;
     const head = process.argv[3] === '--head';
     if (process.argv[3] === '--package' || process.argv[3] === '--dot' || head) {
@@ -122,6 +123,7 @@ async function run() {
             process.stdout.write(JSON.stringify({output: output.value, quant_tick_seconds: get('quant'),
                 setup_tick_seconds: get('setup'), compute_tick_seconds: get('compute'),
                 scratch_transfer_and_scheduler_seconds: head ? get('transfer') : null,
+                framerate: vm.runtime.frameLoop ? vm.runtime.frameLoop.framerate : null,
                 loader_requests: loaderRequests, loader_read_ms: loaderReadMs,
                 loader_command_ms: loaderCommandMs, loader_copy_and_overhead_ms: loaderCommandMs - loaderReadMs,
                 worst_event_loop_gap_ms: worstGap, peak_rss_bytes: process.resourceUsage().maxRSS * 1024}) + '\n');

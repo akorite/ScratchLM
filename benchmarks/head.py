@@ -24,7 +24,7 @@ def main():
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--native-projection', required=True, type=Path)
     parser.add_argument('--repetitions', type=int, default=3)
-    parser.add_argument('--tile-rows', type=int, default=120)
+    parser.add_argument('--tile-rows', type=int, default=1920)
     args = parser.parse_args()
     if args.repetitions < 1 or not 1 <= args.tile_rows <= 7710:
         parser.error('repetitions must be positive and tile-rows in 1..7710')

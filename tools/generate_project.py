@@ -322,7 +322,7 @@ def project(with_text=False, with_benchmark=False):
     if with_benchmark:
         variables[var('BS head rows')[2]][1] = 248320
         variables[var('BS head tensor')[2]][1] = 'token_embd.weight'
-        variables[var('BS tile size')[2]][1] = 120
+        variables[var('BS tile size')[2]][1] = 1920
         variables[var('BS mode')[2]][1] = 11
     stage = {'isStage': True, 'name': 'Stage', 'variables': variables,
              'lists': {'l_input': ['BS input', [0, 1, 15360, 31744]], 'l_output': ['BS output', []],

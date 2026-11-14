@@ -79,6 +79,7 @@
         if (generation !== this.generation) return;
         this.file = file; this.manifest = manifest; this.tensors = tensors; this.payloadStart = payloadStart; this.openStatus = 'ok';
         this.prefetch = {start: payloadStart, promise: this.readWindow(file, payloadStart, generation)};
+        if (this.runtime && typeof this.runtime.setFramerate === 'function') this.runtime.setFramerate(250);
       } catch (error) {
         if (generation === this.generation) this.openStatus = `error: ${error.message}`;
       }
