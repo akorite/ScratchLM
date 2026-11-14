@@ -271,11 +271,13 @@ async function run() {
         } else if (process.env.BONSAI_DEBUG_VARS) {
             const names = process.env.BONSAI_DEBUG_VARS.split(',');
             const stage2 = vm.runtime.getTargetForStage();
+            const full = process.env.BONSAI_DEBUG_FULL === '1';
             const read = spec => {
                 const [name, at] = spec.split('@');
                 const l = stage2.lookupVariableByNameAndType(name, 'list');
                 const v = stage2.lookupVariableByNameAndType(name, '');
                 if (!l) return v ? v.value : null;
+                if (full && !at) return l.value.map(Number);
                 if (at) return l.value[Number(at) - 1];
                 return `list:${l.value.length}:${JSON.stringify(l.value.slice(0, 4))}:${JSON.stringify(l.value.slice(-4))}`;
             };
