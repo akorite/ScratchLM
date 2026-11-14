@@ -147,6 +147,16 @@ class DeltaNetStageTests(unittest.TestCase):
         tokens = json.loads(output.read_text())
         self.assertEqual(int(float(tokens[0])), 11, 'native greedy token from the embedding lookup')
 
+    def test_successive_decode_steps_carry_state(self):
+        """Two prompt tokens in one VM: step two must see step one's state and predict 286."""
+        env = dict(os.environ, BONSAI_PROMPT_TOKENS='1237,9156', BONSAI_STEPS='2',
+                   BONSAI_TIMEOUT_MS='900000')
+        run = subprocess.run(['node', str(ROOT / 'tests/scratch/run-vm.js'), str(self.project), '[]', '42'],
+                             capture_output=True, text=True, timeout=900, env=env)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        tokens = json.loads(run.stdout)['tokens']
+        self.assertEqual(tokens, [11, 286], 'native greedy tokens after one and two prompt tokens')
+
     @unittest.skipUnless(STATE, 'set BONSAI_LAYER_STATE to the captured state directory')
     def test_layer_output_matches_native_with_seeded_state(self):
         for position, seed in ((2, 1), (16, 15)):

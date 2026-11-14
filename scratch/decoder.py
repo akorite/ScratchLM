@@ -32,12 +32,23 @@ def stack(h):
     # Readout: final output_norm, the full head scan over the vocabulary, then greedy selection.
     # Start from the token embedding when a token id is supplied, else the vector in `BS input`.
     codec = ('bonsailoader_codec', {}, {}, False)
-    entry = [setvar('BS decode by id', 0), embedding.set_codec_from_loader(h, codec),
+    # One script run is one decode step: the prompt list supplies the token for the first
+    # runs, later runs feed the generated token back; all state lives in the lists.
+    step, prompt_len = h['var']('BS step'), h['length']('BS prompt tokens', 'l_prompt')
+    choose = [h['conditional'](h['op']('operator_lt', OPERAND1=step, OPERAND2=prompt_len),
+                [setvar('BS token id', h['item']('BS prompt tokens', 'l_prompt',
+                                                add(step, 1))), setvar('BS decode by id', 1)],
+                [h['conditional'](h['op']('operator_gt', OPERAND1=step, OPERAND2=0),
+                                  [setvar('BS token id', h['var']('BS greedy token'))], []),
+                 h['conditional'](h['op']('operator_gt', OPERAND1=h['var']('BS token id'), OPERAND2=-1),
+                                  [setvar('BS decode by id', 1)], [setvar('BS decode by id', 0)])])]
+    entry = [setvar('BS layer position', step), *choose,
+             embedding.set_codec_from_loader(h, codec),
              *embedding.load_dense(h, 'decode-signs', 'prism.hadamard.signs.2048', 'BS signs', 'l_signs',
                                    2048, [h['addlist']('load failed')])]
-    entry += [h['conditional'](h['op']('operator_gt', OPERAND1=h['var']('BS token id'), OPERAND2=-1,
-                                       ), [setvar('BS decode by id', 1), h['call_embed']()], [])]
-    entry += [*([('control_if', {}, {}, {})])][:0]
+    entry += [h['conditional'](h['op']('operator_equals', OPERAND1=h['var']('BS decode by id'), OPERAND2=1),
+                               [h['call_embed'](),
+                                *attention.copy(h, 'BS output', 'l_output', 'BS input', 'l_input')], [])]
     readout = [
         *attention.copy(h, 'BS output', 'l_output', 'BS input', 'l_input'),
         *embedding.load_dense(h, 'outnorm', 'output_norm.weight', 'BS norm weights', 'l_norm_weights',
@@ -54,6 +65,5 @@ def stack(h):
         *lut.greedy_select(h),
         h['addlist'](h['var']('BS greedy token')),
     ]
-    entry += [h['conditional'](h['op']('operator_equals', OPERAND1=h['var']('BS decode by id'), OPERAND2=1),
-                               [*attention.copy(h, 'BS output', 'l_output', 'BS input', 'l_input')], [])]
-    return [setvar('BS dn slot', 0), setvar('BS attn slot', 0), *entry, *run, *readout]
+    return [setvar('BS dn slot', 0), setvar('BS attn slot', 0), *entry, *run, *readout,
+            h['change']('BS step', 1)]

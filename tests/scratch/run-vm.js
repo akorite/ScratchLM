@@ -127,6 +127,11 @@ async function run() {
             if (process.env.BONSAI_DN_STATE) load(process.env.BONSAI_DN_STATE, 'BS state');
             if (process.env.BONSAI_CONV_STATE) load(process.env.BONSAI_CONV_STATE, 'BS conv state');
         }
+        if (process.env.BONSAI_PROMPT_TOKENS) {
+            const prompt = stage.lookupVariableByNameAndType('BS prompt tokens', 'list');
+            if (!prompt) throw new Error('project prompt token list is missing');
+            prompt.value = process.env.BONSAI_PROMPT_TOKENS.split(',').map(Number);
+        }
         if (process.env.BONSAI_LAYER !== undefined) {
             const layer = stage.lookupVariableByNameAndType('BS layer', '');
             if (!layer) throw new Error('project layer variable is missing');
@@ -167,8 +172,12 @@ async function run() {
             worstGap = Math.max(worstGap, now - lastTick);
             lastTick = now;
         }, 5);
-        await vm.greenFlag();
-        await new Promise((resolve, reject) => {
+        const steps = Number(process.env.BONSAI_STEPS || 1);
+        const produced = [];
+        for (let step = 0; step < steps; step++) {
+            done.value = 0;
+            await vm.greenFlag();
+            await new Promise((resolve, reject) => {
             const deadline = Date.now() + Number(process.env.BONSAI_TIMEOUT_MS || 30000);
             const timer = setInterval(() => {
                 if (compileError || Date.now() > deadline) {
@@ -179,7 +188,10 @@ async function run() {
                     resolve();
                 }
             }, 5);
-        });
+            });
+            const producedToken = stage.lookupVariableByNameAndType('BS greedy token', '');
+            if (producedToken) produced.push(Number(producedToken.value));
+        }
         clearInterval(heartbeat);
         worstGap = Math.max(worstGap, performance.now() - lastTick);
         if (!attempts.length || attempts.some(compiled => !compiled)) throw new Error('a Scratch thread did not compile');
@@ -245,6 +257,8 @@ async function run() {
                 return `list:${l.value.length}:${JSON.stringify(l.value.slice(0, 4))}:${JSON.stringify(l.value.slice(-4))}`;
             };
             process.stdout.write(JSON.stringify(Object.fromEntries(names.map(n => [n, read(n)]))) + '\n');
+        } else if (steps > 1) {
+            process.stdout.write(JSON.stringify({tokens: produced}) + '\n');
         } else if (Number(mode.value) === 18) {
             process.stdout.write(JSON.stringify({output: output.value,
                 top_k_tokens: topTokens.value.map(Number), top_k_logits: topLogits.value.map(Number)}) + '\n');
