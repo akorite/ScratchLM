@@ -65,5 +65,8 @@ def stack(h):
         *lut.greedy_select(h),
         h['addlist'](h['var']('BS greedy token')),
     ]
-    return [setvar('BS dn slot', 0), setvar('BS attn slot', 0), *entry, *run, *readout,
+    # During prompt prefill only the last step's logits are used, so the head scan and
+    # the readout are skipped on the earlier ones: same state, less work.
+    gated = h['conditional'](h['op']('operator_equals', OPERAND1=h['var']('BS readout'), OPERAND2=1), readout, [])
+    return [setvar('BS dn slot', 0), setvar('BS attn slot', 0), *entry, *run, gated,
             h['change']('BS step', 1)]
