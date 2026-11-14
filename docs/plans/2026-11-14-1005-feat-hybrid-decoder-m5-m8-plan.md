@@ -94,6 +94,8 @@ None blocking. The capture capability for per-layer boundaries is verified in U1
 - KTD7. **BPE ranking uses a sorted pair-rank list with binary search.** Rank pairs are emitted by the packer in rank order; each merge costs logarithmic comparisons instead of a linear scan over 150,000 entries. Rejected a linear scan, which is quadratic per word.
 - KTD8. **Detokenization streams bytes through the existing costume-based code-unit lookup.** Long tokens are emitted as their byte sequence, with incomplete UTF-8 sequences held until the next token. Rejected building a new string engine.
 
+- KTD9. **Every mode body lives in its own procedure.** An inlined body pushes the main script past the size where TurboWarp compiles it, and the whole script then runs interpreted: with mode 40 inlined, one head tile took 0.362 s instead of 0.194 s and head-scan cancellation took 317 ms instead of 121 ms against a 250 ms bound. Moving the body into `BS layer` restored 128 ms with byte-identical head code. Governs U4–U7: add a procedure, never an inline branch, for each new mode body.
+
 ### High-Level Technical Design
 
 ```mermaid
