@@ -91,6 +91,51 @@ class PackageTests(unittest.TestCase):
             self.assertNotEqual(self.package(codec, path).returncode, 0)
             self.assertFalse(path.exists())
 
+    def test_bslut5_records_carry_index_bytes_and_round_trip(self):
+        path = self.root / 'bslut5'
+        result = self.package('bslut5', path)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        metadata, payload = self.unpack(path)
+        self.assertEqual(metadata['codec'], 'bslut5')
+        weights = metadata['tensors'][0]
+        w = payload[weights['offset']:weights['offset'] + weights['length']]
+        for record in (w[:34], w[34:68]):
+            indices = record[2:28]
+            self.assertEqual(record[28:], bytes(6))
+            self.assertTrue(all(index <= 242 for index in indices[:25]))
+            self.assertTrue(108 <= indices[25] <= 134)
+        # 0x24 = fields (0,1,2,0); 5-field groups misalign with 4-field code bytes
+        # -> index period 4: 21,88,191,63; tail fields (1,2,0) -> 1+6+108 = 115
+        self.assertEqual(list(w[2:27]), [21, 88, 191, 63] * 6 + [21])
+        self.assertEqual(w[27], 115)
+        self.assertEqual(w[36:61], bytes([242]) * 25)
+        self.assertEqual(w[61], 134)
+
+    def test_bslut5_all_patterns_and_reserved_code(self):
+        name = b'weights'
+        tensor = struct.pack('<Q', len(name)) + name + struct.pack('<IQQIQ', 2, 128, 3, 142, 0)
+        header = b'GGUF' + struct.pack('<IQQ', 3, 1, 0) + tensor
+        header += bytes((-len(header)) % 32)
+        raw = [((n % 3) | ((n // 3 % 3) << 2) | ((n // 9 % 3) << 4) | ((n // 27) << 6)) for n in range(81)]
+        raw.extend([0] * (96 - len(raw)))
+        model = header + b''.join(b'\0\0' + bytes(raw[i:i + 32]) for i in range(0, 96, 32))
+        self.model.write_bytes(model)
+        self.lock.write_text(json.dumps({'size_bytes': len(model), 'sha256': hashlib.sha256(model).hexdigest()}))
+        output = self.root / 'all-patterns-5'
+        self.assertEqual(self.package('bslut5', output).returncode, 0)
+        manifest, payload = self.unpack(output)
+        packed = payload[manifest['tensors'][0]['offset']:]
+        # record 0 holds trit patterns 0..127: group g index = pattern ids summed in base 3
+        indices = packed[2:28]
+        self.assertEqual(indices[0], 81)   # trits 0-4 = (0,0,0,0, field0 of byte 1 = 1) -> 81
+        self.assertTrue(108 <= indices[25] <= 134)
+        bad = bytearray(model)
+        bad[-34 + 2] = 3  # field value 3 inside a PQ2 record
+        self.model.write_bytes(bytes(bad))
+        self.lock.write_text(json.dumps({'size_bytes': len(bad), 'sha256': hashlib.sha256(bad).hexdigest()}))
+        self.assertNotEqual(self.package('bslut5', self.root / 'bad5').returncode, 0)
+        self.assertFalse((self.root / 'bad5').exists())
+
     def test_mismatched_source_and_existing_output_are_preserved(self):
         output = self.root / 'package'
         output.write_bytes(b'prior')
@@ -100,6 +145,40 @@ class PackageTests(unittest.TestCase):
         missing = self.root / 'missing'
         self.assertNotEqual(self.package('raw', missing).returncode, 0)
         self.assertFalse(missing.exists())
+
+    def test_bslut5_full_243_and_decode_rejections(self):
+        sys.path.insert(0, str(SCRIPT.parent))
+        import package_model
+        # Exercise all 243 5-trit patterns in aligned (g=0) and unaligned (g=1, 24) positions plus all 27 tail patterns.
+        for pat in range(243):
+            trits = [1] * 128
+            x = pat
+            for i in range(5):
+                trits[i] = x % 3
+                x //= 3
+            x = pat
+            for i in range(5):
+                trits[5 + i] = x % 3
+                x //= 3
+            x = pat
+            for i in range(5):
+                trits[120 + i] = x % 3
+                x //= 3
+            t = pat % 27
+            trits[125], trits[126], trits[127] = t % 3, (t // 3) % 3, t // 9
+            raw = bytearray(b'\x00\x3c')
+            for j in range(32):
+                raw.append(trits[4 * j] | (trits[4 * j + 1] << 2) | (trits[4 * j + 2] << 4) | (trits[4 * j + 3] << 6))
+            enc = package_model.encode5(bytes(raw))
+            self.assertEqual(package_model.decode5(enc), bytes(raw))
+            self.assertEqual(package_model.recode5(bytes(raw)), enc)
+            self.assertEqual(package_model.decode5_chunk(enc), bytes(raw))
+        good = bytearray(package_model.encode5(b'\x00\x3c' + bytes([0x55] * 32)))
+        for bad_pos, bad_val in [(28, 1), (33, 1), (2, 243), (26, 255), (27, 107), (27, 135)]:
+            corrupt = bytearray(good)
+            corrupt[bad_pos] = bad_val
+            with self.assertRaises(package_model.InvalidGGUF):
+                package_model.decode5(bytes(corrupt))
 
 
 if __name__ == '__main__':

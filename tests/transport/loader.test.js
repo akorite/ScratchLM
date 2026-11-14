@@ -30,7 +30,7 @@ const groups = (id, start, count, q = 'q', s = 's') => ({ID: id, TENSOR: 'weight
 const dense = (id, start, count) => ({ID: id, TENSOR: 'dense', START: start, COUNT: count, DEST: 'f'});
 
 test('indexed metadata and group ranges preserve storage and reuse list variables', async () => {
-  for (const codec of ['raw', 'bslut4']) {
+  for (const codec of ['raw', 'bslut4', 'bslut5']) {
     const {extension: e, target, variables: v} = setup(); await e.openFile(packageFile(codec));
     assert.equal(e.metadataCount(), 1); assert.equal(e.metadataKey({INDEX: 1}), 'foo');
     assert.equal(e.metadataValue({KEY: 'foo'}), 'bar'); assert.equal(e.tensorName({INDEX: 2}), 'dense');
@@ -44,6 +44,11 @@ test('indexed metadata and group ranges preserve storage and reuse list variable
     assert.deepEqual(Array.from(q.value), Array(32).fill(0x50)); assert.deepEqual(Array.from(s.value), [0x7c00]);
     await e.loadGroups(groups('eof', 2, 0), {target}); assert.equal(e.status({ID: 'eof'}), 'ok'); assert.deepEqual(Array.from(q.value), []);
   }
+});
+test('unknown codec fails file selection loudly', async () => {
+  const {extension: e} = setup();
+  await e.openFile(packageFile('bslut6'));
+  assert.ok(e.fileStatus().startsWith('error:'));
 });
 
 test('dense ranges and invalid requests do not corrupt destinations', async () => {

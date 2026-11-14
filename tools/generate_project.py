@@ -309,7 +309,9 @@ def project(with_text=False, with_benchmark=False):
              'BS f32 unit', 'BS f32 integer', 'BS f32 fraction', 'BS f32 sign',
              'BS codec', 'BS dot group', 'BS dot position', 'BS weight scale', 'BS subtotal',
              'BS total', 'BS divisor', 'BS base', 'BS dot valid', 'BS lut base', 'BS lut domain',
-             'BS lut chunk', 'BS lut pattern', 'BS lut sum', 'BS lut power', 'BS lut digit',
+             'BS lut chunk', 'BS lut pattern', 'BS lut sum', 'BS lut pow', 'BS lut digit',
+             'BS lut groups', 'BS lut stride', 'BS lut cur', 'BS byte cur', 'BS lut a0',
+             'BS lut level', 'BS lut next',
              'BS iterations', 'BS benchmark start', 'BS benchmark quant', 'BS benchmark setup', 'BS benchmark compute')
     if with_benchmark:
         names += ('BS head rows', 'BS head tensor', 'BS tile size', 'BS tile count', 'BS tile row',

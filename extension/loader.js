@@ -68,7 +68,7 @@
         if (!integer(length) || length > MAX_MANIFEST || length > file.size - 16) throw new Error('invalid manifest length');
         const manifest = JSON.parse(new TextDecoder('utf-8', {fatal: true}).decode(await this.read(file, 16, length)));
         const payloadStart = 16 + length;
-        if (manifest.schema !== 'bonsaiscratch-package/v1' || manifest.endianness !== 'little' || !['raw', 'bslut4'].includes(manifest.codec) || !integer(manifest.payload_length) || manifest.payload_length !== file.size - payloadStart || !manifest.metadata || typeof manifest.metadata !== 'object' || Array.isArray(manifest.metadata) || !Array.isArray(manifest.tensors)) throw new Error('invalid manifest');
+        if (manifest.schema !== 'bonsaiscratch-package/v1' || manifest.endianness !== 'little' || !['raw', 'bslut4', 'bslut5'].includes(manifest.codec) || !integer(manifest.payload_length) || manifest.payload_length !== file.size - payloadStart || !manifest.metadata || typeof manifest.metadata !== 'object' || Array.isArray(manifest.metadata) || !Array.isArray(manifest.tensors)) throw new Error('invalid manifest');
         const tensors = new Map();
         for (const tensor of manifest.tensors) {
           if (!tensor || typeof tensor.name !== 'string' || !tensor.name || tensors.has(tensor.name) || !integer(tensor.offset) || !integer(tensor.length) || tensor.offset > manifest.payload_length || tensor.length > manifest.payload_length - tensor.offset || !Array.isArray(tensor.dimensions) || !tensor.dimensions.length || tensor.dimensions.length > 4 || tensor.dimensions.some(d => !integer(d) || d === 0)) throw new Error('invalid tensor');

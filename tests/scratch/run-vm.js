@@ -73,7 +73,7 @@ async function run() {
         if (process.argv[3] === '--dot' || head) {
             const codec = stage.lookupVariableByNameAndType('BS codec', '');
             if (!codec) throw new Error('project codec variable is missing');
-            codec.value = loader.codec() === 'raw' ? 0 : 1;
+            codec.value = loader.codec() === 'raw' ? 0 : loader.codec() === 'bslut4' ? 1 : 2;
         }
         done.value = 0;
         const mode = stage.lookupVariableByNameAndType('BS mode', '');

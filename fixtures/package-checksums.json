@@ -9,6 +9,10 @@
     "bslut4": {
       "bytes": 533504211,
       "sha256": "4255247910a0f1a1af5056541a1623d6af50b71dbc189fdaa7e5afcac44869c9"
+    },
+    "bslut5": {
+      "bytes": 533504211,
+      "sha256": "962e80d1caf79dbbaff71166574ecaaddde828b7890b7b08ab2db471437af410"
     }
   }
 }

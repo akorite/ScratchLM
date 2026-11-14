@@ -24,6 +24,7 @@ def main():
                     if line.startswith('model name')), cpu)
     parser.add_argument('--raw', required=True, type=Path)
     parser.add_argument('--bslut4', required=True, type=Path)
+    parser.add_argument('--bslut5', type=Path)
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--repetitions', type=int, default=3)
     args = parser.parse_args()
@@ -38,8 +39,10 @@ def main():
             subprocess.run([sys.executable, str(ROOT / 'tools/generate_project.py'), str(project)], check=True)
             add_loader_block(project, width // 128, 'l_scales', tensor=tensor)
             expected_output = None
-            for label, package, mode in [('scalar-raw', args.raw, 2), ('raw-lut4', args.raw, 9),
-                                         ('bs-lut4', args.bslut4, 9)]:
+            cases = [('scalar-raw', args.raw, 2), ('raw-lut4', args.raw, 9), ('bs-lut4', args.bslut4, 9)]
+            if args.bslut5:
+                cases.append(('bs-lut5', args.bslut5, 9))
+            for label, package, mode in cases:
                 for contributions in (1000000, 10000000):
                     iterations = (contributions + width - 1) // width
                     runs = []
@@ -57,7 +60,7 @@ def main():
                     times = [run['compute_tick_seconds'] for run in runs]
                     results.append({'kernel': label, 'tensor': tensor, 'width': width, 'iterations': iterations,
                                     'contributions': iterations * width,
-                                    'lookups': iterations * width // 4 if mode == 9 else None,
+                                    'lookups': iterations * (width // 128) * (26 if label == 'bs-lut5' else 32) if mode == 9 else None,
                                     'median_compute_tick_seconds': statistics.median(times),
                                     'worst_compute_tick_seconds': max(times), 'runs': runs})
         payload = {'schema': 'bonsai-resident-kernels/v1', 'cpu': cpu, 'platform': platform.platform(),

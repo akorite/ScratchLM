@@ -16,20 +16,35 @@ def script(h, head=False):
     logical_group0 = sub(v('dot group'), 1)
     group0 = add(logical_group0, mul(v('tile row'), v('groups per row'))) if head else logical_group0
     q8_base = mul(floor(div(logical_group0, 2)), 257)
-    q8_offset = add(add(mul(floor(div(v('lut chunk'), 64)), 257), 2),
-                    mul(mod(v('lut chunk'), 64), 4))
-    digit = mod(floor(div(v('lut pattern'), v('lut power'))), v('lut base'))
-    entry = [setvar('BS lut sum', add(v('lut sum'), mul(sub(digit, 1), q8(add(q8_offset, v('lut digit')))))),
-             setvar('BS lut power', mul(v('lut power'), v('lut base'))), change('BS lut digit', 1)]
-    patterns = [setvar('BS lut sum', 0), setvar('BS lut power', 1), setvar('BS lut digit', 0),
-                repeat(4, entry), addlist(v('lut sum'), 'BS lut', 'l_lut'), change('BS lut pattern', 1)]
-    setup = [setvar('BS lut pattern', 0), repeat(v('lut domain'), patterns), change('BS lut chunk', 1)]
-    byte_index = add(add(mul(group0, 32), v('dot position')), 1)
-    lut_byte_index = add(add(mul(logical_group0, 32), v('dot position')), 1)
-    lut_index = add(add(mul(sub(lut_byte_index, 1), v('lut domain')),
-                        item('BS packed bytes', 'l_packed', byte_index)), 1)
-    inner = [setvar('BS subtotal', add(v('subtotal'), item('BS lut', 'l_lut', lut_index))),
-             change('BS dot position', 1)]
+    q8_idx = lambda a: add(add(mul(floor(div(a, 256)), 257), 2), mod(a, 256))
+    init_entry = [setvar('BS lut sum', sub(v('lut sum'),
+                      q8(q8_idx(add(v('lut a0'), v('lut digit')))))),
+                  change('BS lut digit', 1)]
+    dp = [conditional(eq(v('lut pattern'), v('lut next')),
+                      [setvar('BS lut pow', v('lut next')),
+                       setvar('BS lut next', mul(v('lut pow'), v('lut base'))),
+                       change('BS lut level', 1)]),
+          addlist(add(item('BS lut', 'l_lut',
+                         add(mul(v('lut chunk'), v('lut domain')),
+                             add(mod(v('lut pattern'), v('lut pow')), 1))),
+                     mul(floor(div(v('lut pattern'), v('lut pow'))),
+                         q8(q8_idx(add(v('lut a0'), v('lut level')))))),
+                  'BS lut', 'l_lut'),
+          change('BS lut pattern', 1)]
+    setup = [setvar('BS lut a0', sub(mul(v('lut chunk'), v('lut stride')),
+                                    mul(floor(div(v('lut chunk'), v('lut groups'))),
+                                        sub(mul(v('lut groups'), v('lut stride')), 128)))),
+             setvar('BS lut sum', 0), setvar('BS lut digit', 0),
+             repeat(v('lut stride'), init_entry),
+             addlist(v('lut sum'), 'BS lut', 'l_lut'),
+             setvar('BS lut pattern', 1), setvar('BS lut pow', 1),
+             setvar('BS lut next', v('lut base')), setvar('BS lut level', 0),
+             repeat(sub(v('lut domain'), 1), dp),
+             change('BS lut chunk', 1)]
+    inner = [setvar('BS subtotal', add(v('subtotal'),
+                    item('BS lut', 'l_lut',
+                         add(v('lut cur'), add(item('BS packed bytes', 'l_packed', v('byte cur')), 1))))),
+             change('BS byte cur', 1), change('BS lut cur', v('lut domain'))]
     word, exponent, mantissa, sign = (v('word'), v('exponent'), v('mantissa'), v('sign'))
     normal = mul(sign, mul(add(1024, mantissa), item('BS powers', 'l_powers', add(exponent, 1))))
     subnormal = mul(sign, mul(mantissa, 2**-24))
@@ -40,7 +55,10 @@ def script(h, head=False):
                          [setvar('BS sign', -1)], [setvar('BS sign', 1)]),
              conditional(eq(exponent, 31), [setvar('BS dot valid', 0)], [
                  conditional(eq(exponent, 0), [setvar('BS weight scale', subnormal)], [setvar('BS weight scale', normal)]),
-                 setvar('BS subtotal', 0), setvar('BS dot position', 0), repeat(32, inner),
+                 setvar('BS subtotal', 0),
+                 setvar('BS byte cur', add(mul(group0, 32), 1)),
+                setvar('BS lut cur', mul(logical_group0, mul(v('lut groups'), v('lut domain')))),
+                 repeat(v('lut groups'), inner),
                  setvar('BS f32 input', mul(v('weight scale'), q8(add(q8_base, 1)))), h['call_f32'](),
                  setvar('BS f32 input', mul(v('f32 output'), v('subtotal'))), h['call_f32'](),
                  setvar('BS f32 input', add(v('total'), v('f32 output'))), h['call_f32'](),
@@ -51,7 +69,9 @@ def script(h, head=False):
                    OPERAND1=op('operator_and',
                                OPERAND1=op('operator_gt', OPERAND1=length('BS input', 'l_input'), OPERAND2=0),
                                OPERAND2=eq(mod(length('BS input', 'l_input'), 256), 0)),
-                   OPERAND2=op('operator_or', OPERAND1=eq(codec, 'raw'), OPERAND2=eq(codec, 'bslut4')))
+                   OPERAND2=op('operator_or', OPERAND1=eq(codec, 'raw'),
+                               OPERAND2=op('operator_or', OPERAND1=eq(codec, 'bslut4'),
+                                           OPERAND2=eq(codec, 'bslut5'))))
         valid_shape = op('operator_and', OPERAND1=valid,
                        OPERAND2=op('operator_and', OPERAND1=op('operator_gt', OPERAND1=v('tile size'), OPERAND2=0),
                        OPERAND2=op('operator_and',
@@ -73,13 +93,21 @@ def script(h, head=False):
             ('data_deletealloflist', {}, {'LIST': ['BS lut', 'l_lut']}, {})]
     work += h['q8_script']('BS q8', 'l_q8')
     if head:
-        work += [conditional(eq(codec, 'raw'), [setvar('BS codec', 0)], [setvar('BS codec', 1)])]
+        work += [conditional(eq(codec, 'raw'), [setvar('BS codec', 0)],
+                 [conditional(eq(codec, 'bslut4'), [setvar('BS codec', 1)], [setvar('BS codec', 2)])])]
         valid = valid_shape
     work += [setvar('BS benchmark quant', sub(timer, v('benchmark start'))),
              setvar('BS benchmark start', timer),
-             conditional(eq(v('codec'), 0), [setvar('BS lut base', 4), setvar('BS lut domain', 256)],
-                         [setvar('BS lut base', 3), setvar('BS lut domain', 81)]),
-             setvar('BS lut chunk', 0), repeat(div(length('BS input', 'l_input'), 4), setup),
+             conditional(eq(v('codec'), 0),
+                         [setvar('BS lut base', 4), setvar('BS lut domain', 256),
+                          setvar('BS lut stride', 4), setvar('BS lut groups', 32)],
+                 [conditional(eq(v('codec'), 1),
+                         [setvar('BS lut base', 3), setvar('BS lut domain', 81),
+                          setvar('BS lut stride', 4), setvar('BS lut groups', 32)],
+                         [setvar('BS lut base', 3), setvar('BS lut domain', 243),
+                          setvar('BS lut stride', 5), setvar('BS lut groups', 26)])]),
+             setvar('BS lut chunk', 0),
+             repeat(div(mul(length('BS input', 'l_input'), v('lut groups')), 128), setup),
              setvar('BS benchmark setup', sub(timer, v('benchmark start')))]
     if head:
         status = ('bonsailoader_status', {'ID': 'head'}, {}, False)
