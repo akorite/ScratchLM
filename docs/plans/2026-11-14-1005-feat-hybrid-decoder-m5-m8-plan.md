@@ -251,6 +251,21 @@ The DeltaNet recurrence is a *fused* kernel (`ggml_compute_forward_gated_delta_n
 
 `q` and `k` are the L2-normalized convolution outputs (`qk_conv_l2`), `v` the raw convolution output. Outputs feed the gated RMS norm (`ssm_norm`, SiLU gate) and `ssm_out`. Fixture anchors per position: `conv_output_raw`, `conv_output_silu`, `qk_conv_l2`, `alpha`, `beta`, `new_state`, `final_output`, `linear_attn_out`, `l_out-0`, with the convolution history captured post-copy. State seeding follows the attention layer: token-major Scratch cells, native V/D state converted on load.
 
+### U6 status note (blocked, recorded per the stop rule)
+
+Both layer families are verified individually through the captured chain at position 1 (layers 0, 1, 2 and 3 within 3.6e-7), the layer procedures build their tensor names from `BS layer`, and state/KV are addressed through `BS state base` / `BS kv base`.
+
+The driver loop does not yet work. Calling a layer procedure a second time inside one script appends exactly one `invalid dimensions` item to `BS output` on top of the previous result: the layer's own 2048 values are correct and match the native boundary, but the list ends at 2049, so the next layer's `length == 2048` guard fails and every remaining layer bails instantly (a 24-layer pass finished in 5.7 s, versus ~1.5 s for layer 0 alone).
+
+Corrective passes already tried without changing the symptom:
+- waiting for loader refills in `load_dense` before checking status;
+- handing the layer result off in place instead of copying in the driver;
+- copying `BS output` into `BS input` between calls (the copy itself is verified: the marker right after it reads 2048).
+
+Evidence that the guard and nested calls work: a single call leaves the input at 6144 (the last intermediate, as expected), a one-element input makes the guard append the measured length `1`, and the first 2048 values of the second call match `l_out-0` exactly. So the extra item is appended to `BS output` by a block that runs after the layer's publish, not by the guard.
+
+Next probe: instrument `scratch/deltanet.py` so every branch that appends to `BS output` or `l_output` also appends its own tag, then run call→copy→call and read the tag sequence.
+
 ### U6. 24-layer decoder
 
 - **Goal:** the project produces the native next token from fixed token IDs across the locked layer schedule.
