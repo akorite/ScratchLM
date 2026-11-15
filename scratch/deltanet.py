@@ -271,16 +271,11 @@ def _unused_weight(h, suffix):
     return join('blk.', join(h['var']('BS layer'), suffix))
 
 
-def stage(h):
-    """One Gated DeltaNet layer for the token in `BS input`."""
-    var, op, item, setvar, addlist, length, conditional, repeat, change = (
-        h[name] for name in ('var', 'op', 'item', 'setvar', 'addlist', 'length', 'conditional',
-                             'repeat', 'change'))
-    gt = lambda a, b: op('operator_gt', OPERAND1=a, OPERAND2=b)
-    add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
-    eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
+def stage_begin(h):
+    """Loads and the weighted norm/rotation; leaves the rotated token in `BS input`."""
+    setvar = h['setvar']
     codec = ('bonsailoader_codec', {}, {}, False)
-    body = [
+    return [
         embedding.set_codec_from_loader(h, codec),
         *embedding.load_dense(h, 'dn-norm', weight(h, '.attn_norm.weight'), 'BS norm w', 'l_norm_w', 2048,
                               [setvar('BS proj valid', 0)]),
@@ -292,13 +287,32 @@ def stage(h):
         *attention.copy(h, 'BS input', 'l_input', 'BS layer input', 'l_layer_input'),
         *attention.copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *attention.rotate_in(h, 2048),
+    ]
+
+
+def stage_qkv(h):
+    """One sequential segment of the DeltaNet stage; segments compose in order."""
+    return [
         *attention.matvec(h, weight(h, '.attn_qkv.weight'), CONV_WIDTH, 'BS qkv', 'l_qkv', request='dn-qkv', proc='BS mv dn-qkv'),
         *conv(h),
         *shift_state(h),
-        # z is its own folded projection; beta and alpha are small dense rows.
+    ]
+
+
+def stage_z(h):
+    """One sequential segment of the DeltaNet stage; segments compose in order."""
+    return [
         *attention.copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *attention.rotate_in(h, 2048),
         *attention.matvec(h, weight(h, '.attn_gate.weight'), 2048, 'BS z', 'l_z', request='dn-z', proc='BS mv dn-z'),
+    ]
+
+
+def stage_state(h):
+    """One sequential segment of the DeltaNet stage; segments compose in order."""
+    var, item, setvar, addlist, repeat, change = (h[n] for n in ('var', 'item', 'setvar', 'addlist', 'repeat', 'change'))
+    add = lambda a, b: h['op']('operator_add', NUM1=a, NUM2=b)
+    return [
         *embedding.load_dense(h, 'dn-beta', weight(h, '.ssm_beta.weight'), 'BS beta w', 'l_beta_w',
                               16 * 2048, [setvar('BS proj valid', 0)]),
         *attention.copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
@@ -320,6 +334,13 @@ def stage(h):
                               [setvar('BS proj valid', 0)]),
         *gates(h),
         *delta(h),
+    ]
+
+
+def stage_out(h):
+    """One sequential segment of the DeltaNet stage; segments compose in order."""
+    setvar = h['setvar']
+    return [
         *embedding.load_dense(h, 'dn-normw', weight(h, '.ssm_norm.weight'), 'BS ssm norm', 'l_ssm_norm', 128,
                               [setvar('BS proj valid', 0)]),
         *embedding.load_dense(h, 'dn-postw', weight(h, '.post_attention_norm.weight'), 'BS post w', 'l_post_w', 2048,
@@ -332,6 +353,12 @@ def stage(h):
         *attention.matvec(h, weight(h, '.ssm_out.weight'), 2048, 'BS attn out', 'l_attn_out', request='dn-out', proc='BS mv dn-out'),
         *h['combine'](h, gated=False, rhs=('BS attn out', 'l_attn_out'), input_name='BS layer input',
                       input_id='l_layer_input', output=('BS residual', 'l_residual')),
+    ]
+
+
+def stage_ffn(h):
+    """One sequential segment of the DeltaNet stage; segments compose in order."""
+    return [
         *attention.copy(h, 'BS residual', 'l_residual', 'BS input', 'l_input'),
         *attention.weighted_norm(h, 'BS post w', 'l_post_w', 'BS normed2', 'l_normed2'),
         *attention.copy(h, 'BS normed2', 'l_normed2', 'BS input', 'l_input'),
@@ -349,6 +376,26 @@ def stage(h):
                       input_id='l_residual', output=('BS dn layer out', 'l_dn_layer_out')),
         ('data_deletealloflist', {}, {'LIST': ['BS output', 'l_output']}, {}),
         *attention.copy(h, 'BS dn layer out', 'l_dn_layer_out', 'BS output', 'l_output'),
+    ]
+
+
+def stage(h):
+    """One Gated DeltaNet layer for the token in `BS input`."""
+    var, op, item, setvar, addlist, length, conditional, repeat, change = (
+        h[name] for name in ('var', 'op', 'item', 'setvar', 'addlist', 'length', 'conditional',
+                             'repeat', 'change'))
+    gt = lambda a, b: op('operator_gt', OPERAND1=a, OPERAND2=b)
+    add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
+    eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
+    codec = ('bonsailoader_codec', {}, {}, False)
+    body = [
+        *stage_begin(h),
+        *stage_qkv(h),
+        # z is its own folded projection; beta and alpha are small dense rows.
+        *stage_z(h),
+        *stage_state(h),
+        *stage_out(h),
+        *stage_ffn(h),
     ]
     valid = op('operator_and', OPERAND1=eq(length('BS input', 'l_input'), 2048),
                 OPERAND2=eq(h['var']('BS step valid'), 1))
