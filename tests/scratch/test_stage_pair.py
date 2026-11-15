@@ -55,6 +55,22 @@ class StagePairTests(unittest.TestCase):
         self.assertEqual(len(b), len(want))
         self.assertNotEqual(b, want, 'the second token continues the recurrence')
 
+    def control(self, first, second):
+        state = self.invoke('47', BONSAI_ACTIVATION_F32=str(first), BONSAI_ACTIVATION_B_F32=str(second),
+                            BONSAI_DEBUG_VARS='BS ctl out a,BS ctl out b,BS state')
+        return state['BS ctl out a'], state['BS ctl out b'], state['BS state']
+
+    def test_both_tokens_match_a_sequential_run_and_leave_the_same_state(self):
+        first = FIXTURES / 'layer3-q-input.f32'
+        second = FIXTURES / 'layer0-attn-norm.f32'
+        a, b = self.pair(first, second)
+        ctl_a, ctl_b, ctl_state = self.control(first, second)
+        self.assertEqual(a, ctl_a, 'the first token must match a sequential run')
+        self.assertEqual(b, ctl_b, 'the second token must match a sequential run after the first')
+        final = self.invoke('46', BONSAI_ACTIVATION_F32=str(first), BONSAI_ACTIVATION_B_F32=str(second),
+                            BONSAI_DEBUG_VARS='BS state')['BS state']
+        self.assertEqual(final, ctl_state, 'the recurrent state must advance identically')
+
     def test_the_second_token_does_not_change_the_first(self):
         first = FIXTURES / 'layer3-q-input.f32'
         second = FIXTURES / 'layer0-attn-norm.f32'

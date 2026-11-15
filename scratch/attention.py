@@ -131,7 +131,7 @@ def matvec_pair_kernel_body(h, spec):
                          ('data_deletealloflist', {}, {'LIST': ['BS q8 b', 'l_q8_b']}, {}),
                          *h['q8_script']('BS q8 b', 'l_q8_b', 'BS input b', 'l_input_b'),
                          ('data_deletealloflist', {}, {'LIST': ['BS lut b', 'l_lut_b']}, {}),
-                         *lut.build_lut(h, 'BS lut b', 'l_lut_b', 'BS input b', 'l_input_b'),
+                         *lut.build_lut(h, 'BS lut b', 'l_lut_b', 'BS input b', 'l_input_b', 'BS q8 b', 'l_q8_b'),
                          repeat(floor(div(sub(add(rows, TILE), 1), TILE)),
                                 [conditional(eq(v('proj valid'), 1), chunk)])],
                         [setvar('BS proj valid', 0)])]

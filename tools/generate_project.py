@@ -353,6 +353,8 @@ def project(with_text=False, with_benchmark=False):
                             [call_proc('BS decode', 'true')], fallback)]
     fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=46),
                             [call_proc('BS stage pair', 'true')], fallback)]
+    fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=47),
+                            [call_proc('BS stage pair control', 'true')], fallback)]
     # mode 43: project the same activation pair through one weight pass, the
     # primitive the batched prefill is built from
     fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=43),
@@ -393,6 +395,15 @@ def project(with_text=False, with_benchmark=False):
     add_procedure(graph, 'BS deltanet', deltanet_body, x=2400, warp='true')
     add_procedure(graph, 'BS head', lut.script(globals(), head=True), x=3000, warp='false')
     add_procedure(graph, 'BS embed', embedding.make(15, globals()), x=3300, warp='true')
+    add_procedure(graph, 'BS stage pair control',
+                  [setvar('BS step valid', 1),
+                   *copy(helpers, 'BS input b', 'l_input_b', 'BS ctl b', 'l_ctl_b'),
+                   *deltanet.stage(helpers),
+                   *copy(helpers, 'BS dn layer out', 'l_dn_layer_out', 'BS ctl out a', 'l_ctl_out_a'),
+                   *copy(helpers, 'BS ctl b', 'l_ctl_b', 'BS input', 'l_input'),
+                   *deltanet.stage(helpers),
+                   *copy(helpers, 'BS dn layer out', 'l_dn_layer_out', 'BS ctl out b', 'l_ctl_out_b')],
+                  x=4750, warp='true')
     add_procedure(graph, 'BS stage pair',
                   [setvar('BS step valid', 1), *deltanet.stage_pair(helpers)], x=4700, warp='true')
     add_procedure(graph, 'BS pair demo',

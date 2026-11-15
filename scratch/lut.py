@@ -203,7 +203,8 @@ def codec_tables(h):
                          setvar('BS lut stride', 5), setvar('BS lut groups', 26)])])]
 
 
-def build_lut(h, lut_name='BS lut', lut_id='l_lut', input_name='BS input', input_id='l_input'):
+def build_lut(h, lut_name='BS lut', lut_id='l_lut', input_name='BS input', input_id='l_input',
+              q8_name='BS q8', q8_id='l_q8'):
     """Build the block LUT for the whole quantized activation of one token."""
     var, op, floor, item, length, setvar, addlist, conditional, repeat, change = (
         h[name] for name in ('var', 'op', 'floor', 'item', 'length', 'setvar',
@@ -215,7 +216,7 @@ def build_lut(h, lut_name='BS lut', lut_id='l_lut', input_name='BS input', input
     mod = lambda a, b: op('operator_mod', NUM1=a, NUM2=b)
     eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
     v = lambda name: var('BS ' + name)
-    q8 = lambda index: item('BS q8', 'l_q8', index)
+    q8 = lambda index: item(q8_name, q8_id, index)
     q8_idx = lambda a: add(add(mul(floor(div(a, 256)), 257), 2), mod(a, 256))
     init_entry = [setvar('BS lut sum', sub(v('lut sum'), q8(q8_idx(add(v('lut a0'), v('lut digit')))))),
                   change('BS lut digit', 1)]
