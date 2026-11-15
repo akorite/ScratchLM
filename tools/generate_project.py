@@ -8,6 +8,7 @@ import sys
 import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from scratch.attention import copy
 from scratch import attention, decoder, deltanet, embedding, layers, lut, numeric, text, tokenizer, transform
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -350,6 +351,8 @@ def project(with_text=False, with_benchmark=False):
                             [call_proc('BS deltanet', 'true')], fallback)]
     fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=42),
                             [call_proc('BS decode', 'true')], fallback)]
+    fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=46),
+                            [call_proc('BS stage pair', 'true')], fallback)]
     # mode 43: project the same activation pair through one weight pass, the
     # primitive the batched prefill is built from
     fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=43),
@@ -390,6 +393,8 @@ def project(with_text=False, with_benchmark=False):
     add_procedure(graph, 'BS deltanet', deltanet_body, x=2400, warp='true')
     add_procedure(graph, 'BS head', lut.script(globals(), head=True), x=3000, warp='false')
     add_procedure(graph, 'BS embed', embedding.make(15, globals()), x=3300, warp='true')
+    add_procedure(graph, 'BS stage pair',
+                  [setvar('BS step valid', 1), *deltanet.stage_pair(helpers)], x=4700, warp='true')
     add_procedure(graph, 'BS pair demo',
                   attention.matvec_pair(globals(), 'blk.3.attn_q.weight', 4096, 'BS pair kernel demo',
                                         request='pair-demo') + [],

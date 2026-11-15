@@ -464,6 +464,88 @@ def stage_ffn(h):
     ]
 
 
+def _cp(h, src, dst):
+    """Copy between two named lists, deriving each list id from its name."""
+    return attention.copy(h, src, 'l_' + src[3:].replace(' ', '_'), dst,
+                          'l_' + dst[3:].replace(' ', '_'))
+
+
+def stage_pair(h):
+    """Two tokens through one DeltaNet layer, one weight pass per projection.
+
+    `BS input` and `BS input b` hold the two pre-layer tokens. Every list a
+    later segment re-reads is stashed per token, because `stage_begin`
+    overwrites `BS normed`, `conv` overwrites `BS conv silu` and `stage_out_prep`
+    overwrites `BS final out`; the matching token's copy is restored right
+    before the segment that consumes it, so the recurrence stays causal.
+    """
+    def per_token(segment):
+        return [*segment(h)]
+
+    body = []
+    for tag in ('a', 'b'):
+        src = 'BS input' if tag == 'a' else 'BS input b'
+        body += [*_cp(h, src, 'BS raw ' + tag), *_cp(h, 'BS raw ' + tag, 'BS input'),
+                 *stage_begin(h), *_cp(h, 'BS input', 'BS rot ' + tag),
+                 *_cp(h, 'BS normed', 'BS normed ' + tag),
+                 *_cp(h, 'BS layer input', 'BS layer input ' + tag)]
+    body += [*[h['setvar']('BS sp step', 1)], *_cp(h, 'BS rot a', 'BS input'), *_cp(h, 'BS rot b', 'BS input b'),
+             *attention.matvec_pair(h, weight(h, '.attn_qkv.weight'), CONV_WIDTH, 'BS pair qkv',
+                                    request='pair-qkv'),
+             *_cp(h, 'BS pair a', 'BS qkv a'), *_cp(h, 'BS pair b', 'BS qkv b')]
+    for tag in ('a', 'b'):
+        body += [*_cp(h, 'BS qkv ' + tag, 'BS qkv'), *stage_conv(h),
+                 *_cp(h, 'BS conv silu', 'BS conv silu ' + tag)]
+    for tag in ('a', 'b'):
+        # rotate each token's normed vector into its own stash: copy() clears the
+        # destination, so a self-copy would erase the token before it is read
+        body += [*_cp(h, 'BS normed ' + tag, 'BS input'), *attention.rotate_in(h, 2048),
+                 *_cp(h, 'BS input', 'BS z rot ' + tag)]
+    body += [*_cp(h, 'BS z rot a', 'BS input'), *_cp(h, 'BS z rot b', 'BS input b'),
+             *attention.matvec_pair(h, weight(h, '.attn_gate.weight'), 2048, 'BS pair z',
+                                    request='pair-z'),
+             *_cp(h, 'BS pair a', 'BS z a'), *_cp(h, 'BS pair b', 'BS z b')]
+    for tag in ('a', 'b'):
+        # stage_state re-reads BS normed for the beta/alpha rows, so restore it
+        body += [*_cp(h, 'BS conv silu ' + tag, 'BS conv silu'), *_cp(h, 'BS z ' + tag, 'BS z'),
+                 *_cp(h, 'BS normed ' + tag, 'BS normed'),
+                 *stage_state(h),
+                 *stage_out_prep(h),
+                 *_cp(h, 'BS input', 'BS out rot ' + tag)]
+    body += [*_cp(h, 'BS out rot a', 'BS input'), *_cp(h, 'BS out rot b', 'BS input b'),
+             *attention.matvec_pair(h, weight(h, '.ssm_out.weight'), 2048, 'BS pair out',
+                                    request='pair-out'),
+             *_cp(h, 'BS pair a', 'BS attn out a'), *_cp(h, 'BS pair b', 'BS attn out b')]
+    for tag in ('a', 'b'):
+        body += [*_cp(h, 'BS layer input ' + tag, 'BS layer input'),
+                 *_cp(h, 'BS attn out ' + tag, 'BS attn out'), *stage_out_res(h),
+                 *_cp(h, 'BS residual', 'BS residual ' + tag), *stage_ffn_prep(h),
+                 *_cp(h, 'BS input', 'BS ffn rot ' + tag)]
+    body += [*_cp(h, 'BS ffn rot a', 'BS input'), *_cp(h, 'BS ffn rot b', 'BS input b'),
+             *attention.matvec_pair(h, weight(h, '.ffn_gate.weight'), 6144, 'BS pair fg',
+                                    request='pair-fg'),
+             *_cp(h, 'BS pair a', 'BS ffn gate a'), *_cp(h, 'BS pair b', 'BS ffn gate b'),
+             *_cp(h, 'BS ffn rot a', 'BS input'), *_cp(h, 'BS ffn rot b', 'BS input b'),
+             *attention.matvec_pair(h, weight(h, '.ffn_up.weight'), 6144, 'BS pair fu',
+                                    request='pair-fu'),
+             *_cp(h, 'BS pair a', 'BS ffn up a'), *_cp(h, 'BS pair b', 'BS ffn up b')]
+    for tag in ('a', 'b'):
+        gate = 'BS ffn gate ' + tag
+        up = 'BS ffn up ' + tag
+        body += [*_cp(h, gate, 'BS ffn gate'), *_cp(h, up, 'BS ffn up'), *stage_ffn_act(h),
+                 *_cp(h, 'BS ffn', 'BS input'), *attention.rotate_in(h, 6144),
+                 *_cp(h, 'BS input', 'BS dn rot ' + tag)]
+    body += [*_cp(h, 'BS dn rot a', 'BS input'), *_cp(h, 'BS dn rot b', 'BS input b'),
+             *attention.matvec_pair(h, weight(h, '.ffn_down.weight'), 2048, 'BS pair fd',
+                                    request='pair-fd'),
+             *_cp(h, 'BS pair a', 'BS ffn out a'), *_cp(h, 'BS pair b', 'BS ffn out b')]
+    for tag in ('a', 'b'):
+        out = 'BS ffn out ' + tag
+        body += [*_cp(h, out, 'BS ffn out'), *_cp(h, 'BS residual ' + tag, 'BS residual'),
+                 *stage_ffn_out(h), *_cp(h, 'BS dn layer out', 'BS pair out ' + tag)]
+    return body
+
+
 def stage(h):
     """One Gated DeltaNet layer for the token in `BS input`."""
     var, op, item, setvar, addlist, length, conditional, repeat, change = (

@@ -31,7 +31,7 @@ async function run() {
     const head = process.argv[3] === '--head' || m4;
     const stream = head || process.argv[3] === '--stream';
     // modes 22-24 stream tables across many requests; 14-16 load once and then must not read again
-const loaderMode = ['22', '23', '24', '40', '41', '42', '43'].includes(process.argv[4]);
+const loaderMode = ['22', '23', '24', '40', '41', '42', '43', '46', '47'].includes(process.argv[4]);
     // Projects always declare the storage extension; it only opens a package when one is supplied.
     if (true) {
         const Scratch = {vm, extensions: {unsandboxed: true, register: value => { loader = value; }},
