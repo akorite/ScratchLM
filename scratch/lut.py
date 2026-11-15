@@ -203,8 +203,8 @@ def codec_tables(h):
                          setvar('BS lut stride', 5), setvar('BS lut groups', 26)])])]
 
 
-def build_lut(h):
-    """Build the block LUT for the whole quantized activation in `BS input`."""
+def build_lut(h, lut_name='BS lut', lut_id='l_lut', input_name='BS input', input_id='l_input'):
+    """Build the block LUT for the whole quantized activation of one token."""
     var, op, floor, item, length, setvar, addlist, conditional, repeat, change = (
         h[name] for name in ('var', 'op', 'floor', 'item', 'length', 'setvar',
                              'addlist', 'conditional', 'repeat', 'change'))
@@ -223,27 +223,27 @@ def build_lut(h):
                       [setvar('BS lut pow', v('lut next')),
                        setvar('BS lut next', mul(v('lut pow'), v('lut base'))),
                        change('BS lut level', 1)]),
-          addlist(add(item('BS lut', 'l_lut', add(mul(v('lut chunk'), v('lut domain')),
+          addlist(add(item(lut_name, lut_id, add(mul(v('lut chunk'), v('lut domain')),
                                                  add(mod(v('lut pattern'), v('lut pow')), 1))),
                      mul(floor(div(v('lut pattern'), v('lut pow'))),
                          q8(q8_idx(add(v('lut a0'), v('lut level')))))),
-                  'BS lut', 'l_lut'),
+                  lut_name, lut_id),
           change('BS lut pattern', 1)]
     setup = [setvar('BS lut a0', sub(mul(v('lut chunk'), v('lut stride')),
                                     mul(floor(div(v('lut chunk'), v('lut groups'))),
                                         sub(mul(v('lut groups'), v('lut stride')), 128)))),
              setvar('BS lut sum', 0), setvar('BS lut digit', 0),
              repeat(v('lut stride'), init_entry),
-             addlist(v('lut sum'), 'BS lut', 'l_lut'),
+             addlist(v('lut sum'), lut_name, lut_id),
              setvar('BS lut pattern', 1), setvar('BS lut pow', 1),
              setvar('BS lut next', v('lut base')), setvar('BS lut level', 0),
              repeat(sub(v('lut domain'), 1), dp),
              change('BS lut chunk', 1)]
     return [setvar('BS lut chunk', 0),
-            repeat(div(mul(length('BS input', 'l_input'), v('lut groups')), 128), setup)]
+            repeat(div(mul(length(input_name, input_id), v('lut groups')), 128), setup)]
 
 
-def group_body(h, base, logical=None):
+def group_body(h, base, logical=None, lut_name='BS lut', lut_id='l_lut', total='BS total'):
     """Accumulate one 128-weight PQ2 group into BS total.
 
     `base` indexes this tile's packed bytes and scales; `logical` indexes the
@@ -260,17 +260,18 @@ def group_body(h, base, logical=None):
     v = lambda name: var('BS ' + name)
     q8 = lambda index: item('BS q8', 'l_q8', index)
     q8_base = mul(floor(div(logical, 2)), 257)
+    # the lut_cur value already carries the list's +1 offset
     inner = [setvar('BS subtotal', add(v('subtotal'),
-                    item('BS lut', 'l_lut',
-                         add(v('lut cur'), add(item('BS packed bytes', 'l_packed', v('byte cur')), 1))))),
+                    item(lut_name, lut_id,
+                         add(v('lut cur'), item('BS packed bytes', 'l_packed', v('byte cur')))))),
              change('BS byte cur', 1), change('BS lut cur', v('lut domain'))]
     return embedding.decode_fp16_scale(h, item('BS weight scales', 'l_scales', add(base, 1)), on_valid=[
         setvar('BS subtotal', 0),
         setvar('BS byte cur', add(mul(base, 32), 1)),
-        setvar('BS lut cur', mul(logical, mul(v('lut groups'), v('lut domain')))),
+        setvar('BS lut cur', add(1, mul(logical, mul(v('lut groups'), v('lut domain'))))),
         repeat(v('lut groups'), inner),
         setvar('BS f32 input', mul(v('weight scale'), q8(add(q8_base, 1)))), h['call_f32'](),
         setvar('BS f32 input', mul(v('f32 output'), v('subtotal'))), h['call_f32'](),
-        setvar('BS f32 input', add(v('total'), v('f32 output'))), h['call_f32'](),
-        setvar('BS total', v('f32 output')),
+        setvar('BS f32 input', add(var(total), v('f32 output'))), h['call_f32'](),
+        setvar(total, v('f32 output')),
     ])
