@@ -147,16 +147,27 @@ load source you trust. This works in the browser editor as well as the desktop a
 
 ### 4. Load the project and the package
 
-Open `dist/bonsai-prompt-to-text.sb3`, run the **`select Bonsai package`** block, pick the
-`.bsp` you built, and wait for package status `ok`. A failed selection reports `error: …`.
+Open `dist/bonsai-prompt-to-text.sb3`. The updated loader opens the **Bonsai chat**
+window automatically; use **Open Bonsai chat** to reopen it after closing it.
+Click **Select model**, choose the `.bsp` you built, and wait for **Ready**.
+A failed selection displays its error in the status area.
 
 ### 5. Run
 
-Keep the tab in the foreground: selecting a package sets the framerate to 250, and
-background-tab throttling will stall the compiled scheduler. Press the green flag. Expect
-about 12 minutes to the first token and about a minute per further token on the recorded
-Xeon host; typing a new prompt resets tokens, KV cells, convolution history and recurrent
-state, so you can re-run without reloading.
+Type in **Message Bonsai** and click **Send** (or Enter; Shift+Enter inserts a new
+line). Responses appear in the conversation as tokens arrive. **Stop** interrupts
+generation and keeps any text already generated. Each send starts a fresh model
+context; earlier messages in the conversation are display-only and stay in this tab.
+Without the browser chat UI, the green flag still opens the native Scratch prompt.
 
-Measured memory was 4.2–4.8 GiB peak RSS in the headless Node VM. A browser tab has not
-been measured and will need at least that much; treat a laptop or a browser tab as untested.
+The status shows real VM phases: tokenization, embedding, the current **layer / 24**
+for the current prompt/generation token, vocabulary rows scored during head scanning,
+and response-token count with elapsed time. The progress bar is phase-local, not an
+estimated overall percentage or countdown. Keep the tab foreground: background-tab
+throttling slows the scheduler. Model math still runs entirely in Scratch blocks.
+
+Measured memory was 4.2–4.8 GiB peak RSS in the headless Node VM; browser memory and
+full-generation performance have not been benchmarked. The updated chat was
+smoke-tested in TurboWarp web with a real package through live layer progress and Stop.
+For an optional browser smoke check, see `tests/scratch/check-chat-ui.js`; it sends
+one short prompt and stops after observing a real layer.

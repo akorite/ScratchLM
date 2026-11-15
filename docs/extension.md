@@ -4,6 +4,17 @@ Load `extension/loader.js` as a **custom unsandboxed extension** in TurboWarp (E
 
 The loader checks the package header, manifest, tensor shapes and ranges, but does not authenticate the package or scan the entire payload. Package only the verified model with the supplied packer. The package codec reporter is `raw`, `bslut4`, or `bslut5`; the bytes are copied unchanged. Metadata and tensor indices are **1-based**. Metadata value returns a scalar or JSON for an array; tensor fields include `type_id`, `dimensions` (JSON), `offset`, and `length`. Metadata keys can be enumerated with the count and key blocks; tensors with the count and name blocks. For large tokenizer arrays, JSON reporters can be large.
 
+## Chat view
+
+With the prompt-to-text project loaded, the extension opens a browser chat window
+with a multiline composer, local conversation display, model picker and Stop control.
+It reads the project's `BS ui phase`, `BS layer`, `BS step`, prompt length, head-scan
+row count and decoded text; it does not compute model outputs or simulate progress.
+Send sets the prompt and starts the existing Scratch generation loop. Each send
+resets the sequence; displayed previous turns are not fed back to the model.
+Closing the view keeps inference running; use Stop to interrupt it. The view is
+absent in headless environments and is removed when the project/runtime is replaced.
+
 ## Transfers
 
 Create ordinary Scratch lists before loading. Supply their **variable IDs**, not their displayed names: find IDs in the project's `project.json` list definitions, or in the project's block generator. IDs resolve in the calling sprite first, then the stage, just as the VM resolves variables. Different sprites cannot address each other's local lists. A group request takes a tensor name, zero-based group start and whole-group count, two distinct list IDs (packed bytes and scale words), and a caller-chosen request ID. A dense request takes a tensor name, zero-based float start and element count, one list ID, and a request ID. A request whose range falls inside the loader's read-ahead window copies and returns **synchronously** in the same block step; a request that misses the window waits for one refill, then publishes. Use a separate script to cancel an outstanding request — cancellation cannot interrupt a synchronous copy already underway.

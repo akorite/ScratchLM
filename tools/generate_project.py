@@ -432,7 +432,7 @@ def project(with_text=False, with_benchmark=False):
     svg = (b'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>' if with_text else
            b'<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360"></svg>')
     asset = hashlib.md5(svg).hexdigest()
-    names = ('BS done', 'BS mode', 'BS word', 'BS exponent', 'BS mantissa', 'BS sign', 'BS index',
+    names = ('BS ui phase', 'BS done', 'BS mode', 'BS word', 'BS exponent', 'BS mantissa', 'BS sign', 'BS index',
              'BS group start', 'BS maximum', 'BS absmax', 'BS x', 'BS iscale', 'BS rounded', 'BS fraction',
              'BS f32 input', 'BS f32 output', 'BS f32 abs', 'BS f32 exponent', 'BS f32 power',
              'BS f32 unit', 'BS f32 integer', 'BS f32 fraction', 'BS f32 sign',
@@ -499,7 +499,7 @@ def project(with_text=False, with_benchmark=False):
         variables[var('BS loop')[2]][1] = 1
         variables[var('BS decode budget')[2]][1] = 11
     if with_benchmark:
-        variables[var('BS mode')[2]][1] = 11
+        variables[var('BS mode')[2]][1] = 24 if with_text else 11
     stage = {'isStage': True, 'name': 'Stage', 'variables': variables,
              'lists': {'l_input': ['BS input', [0, 1, 15360, 31744]], 'l_output': ['BS output', []],
                        'l_powers': ['BS powers', [2**(i - 25) for i in range(31)]],
