@@ -421,13 +421,14 @@ def layer_q(h):
                                              'BS gate', 'l_gate'),
                                      change('BS index', 1)]),
                         change('BS layer head', 1)])]
-    _post = [
+    def post():
+        return [
         conditional(eq(v('proj valid'), 1), split),
         *head_norm(h, 'BS q', 'l_q', 'BS qn', 'l_qn', 'BS q norm', 'l_q_norm', 256, 8),
         *rope_list(h, 'BS qn', 'l_qn', 'BS q', 'l_q', v('layer position')),
-    ]
-    return [*layer_q_proj(h), *_post, ]
+        ]
 
+    return [*layer_q_proj(h), *post()]
 
 def layer_q_proj(h):
     """Project the staged activation through the .attn_q.weight matrix."""
@@ -443,15 +444,17 @@ def layer_k(h):
     eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
     add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
     mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
-    _pre = [
+    def pre():
+        return [
         *copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
-    ]
-    _post = [
+        ]
+    def post():
+        return [
         *head_norm(h, 'BS k', 'l_k', 'BS kn', 'l_kn', 'BS k norm', 'l_k_norm', 256, 2),
         *rope_list(h, 'BS kn', 'l_kn', 'BS k', 'l_k', v('layer position')),
-    ]
-    return [*_pre, *layer_k_proj(h), *_post, ]
+        ]
+    return [*pre(), *layer_k_proj(h), *post()]
 
 
 def layer_k_proj(h):
@@ -468,15 +471,17 @@ def layer_v(h):
     eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
     add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
     mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
-    _pre = [
+    def pre():
+        return [
         *copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
-    ]
-    _post = [
+        ]
+    def post():
+        return [
         *cache_write(h, 'BS k', 'l_k', 'BS k cache', 'l_k_cache', v('layer position')),
         *cache_write(h, 'BS v', 'l_v', 'BS v cache', 'l_v_cache', v('layer position')),
-    ]
-    return [*_pre, *layer_v_proj(h), *_post, ]
+        ]
+    return [*pre(), *layer_v_proj(h), *post()]
 
 
 def layer_v_proj(h):
@@ -510,15 +515,17 @@ def layer_out(h):
     eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
     add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
     mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
-    _pre = [
+    def pre():
+        return [
         *copy(h, 'BS attn gated', 'l_attn_gated', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
-    ]
-    _post = [
+        ]
+    def post():
+        return [
         *h['combine'](h, gated=False, rhs=('BS attn out', 'l_attn_out'), input_name='BS layer input',
                       input_id='l_layer_input', output=('BS residual', 'l_residual')),
-    ]
-    return [*_pre, *layer_out_proj(h), *_post, ]
+        ]
+    return [*pre(), *layer_out_proj(h), *post()]
 
 
 def layer_out_proj(h):
@@ -568,11 +575,12 @@ def layer_ffn_up(h):
     eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
     add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
     mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
-    _pre = [
+    def pre():
+        return [
         *copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
-    ]
-    return [*_pre, *layer_ffn_up_proj(h), ]
+        ]
+    return [*pre(), *layer_ffn_up_proj(h), ]
 
 
 def layer_ffn_up_proj(h):
@@ -603,11 +611,12 @@ def layer_ffn_down(h):
     eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
     add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
     mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
-    _pre = [
+    def pre():
+        return [
         *copy(h, 'BS ffn', 'l_ffn', 'BS input', 'l_input'),
         *rotate_in(h, 6144),
-    ]
-    return [*_pre, *layer_ffn_down_proj(h), ]
+        ]
+    return [*pre(), *layer_ffn_down_proj(h), ]
 
 
 def layer_ffn_down_proj(h):
