@@ -290,21 +290,42 @@ def stage_begin(h):
     ]
 
 
-def stage_qkv(h):
-    """One sequential segment of the DeltaNet stage; segments compose in order."""
+def stage_qkv_proj(h):
+    """Project the rotated token through the fused q/k/v tensor."""
     return [
-        *attention.matvec(h, weight(h, '.attn_qkv.weight'), CONV_WIDTH, 'BS qkv', 'l_qkv', request='dn-qkv', proc='BS mv dn-qkv'),
+        *attention.matvec(h, weight(h, '.attn_qkv.weight'), CONV_WIDTH, 'BS qkv', 'l_qkv',
+                          request='dn-qkv', proc='BS mv dn-qkv'),
+    ]
+
+
+def stage_conv(h):
+    """Causal convolution and state shift over the projected q/k/v values."""
+    return [
         *conv(h),
         *shift_state(h),
+    ]
+
+
+def stage_z_prep(h):
+    """One sequential segment of the DeltaNet stage; segments compose in order."""
+    return [
+        *attention.copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
+        *attention.rotate_in(h, 2048),
+    ]
+
+
+def stage_z_proj(h):
+    """One sequential segment of the DeltaNet stage; segments compose in order."""
+    return [
+        *attention.matvec(h, weight(h, '.attn_gate.weight'), 2048, 'BS z', 'l_z', request='dn-z', proc='BS mv dn-z'),
     ]
 
 
 def stage_z(h):
     """One sequential segment of the DeltaNet stage; segments compose in order."""
     return [
-        *attention.copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
-        *attention.rotate_in(h, 2048),
-        *attention.matvec(h, weight(h, '.attn_gate.weight'), 2048, 'BS z', 'l_z', request='dn-z', proc='BS mv dn-z'),
+        *stage_z_prep(h),
+        *stage_z_proj(h),
     ]
 
 
@@ -356,26 +377,68 @@ def stage_out(h):
     ]
 
 
-def stage_ffn(h):
+def stage_ffn_prep(h):
     """One sequential segment of the DeltaNet stage; segments compose in order."""
     return [
         *attention.copy(h, 'BS residual', 'l_residual', 'BS input', 'l_input'),
         *attention.weighted_norm(h, 'BS post w', 'l_post_w', 'BS normed2', 'l_normed2'),
         *attention.copy(h, 'BS normed2', 'l_normed2', 'BS input', 'l_input'),
         *attention.rotate_in(h, 2048),
+    ]
+
+
+def stage_ffn_gate(h):
+    """One sequential segment of the DeltaNet stage; segments compose in order."""
+    return [
         *attention.matvec(h, weight(h, '.ffn_gate.weight'), 6144, 'BS ffn gate', 'l_ffn_gate', request='dn-fg', proc='BS mv dn-g'),
+    ]
+
+
+def stage_ffn_up(h):
+    """One sequential segment of the DeltaNet stage; segments compose in order."""
+    return [
         *attention.copy(h, 'BS normed2', 'l_normed2', 'BS input', 'l_input'),
         *attention.rotate_in(h, 2048),
         *attention.matvec(h, weight(h, '.ffn_up.weight'), 6144, 'BS ffn up', 'l_ffn_up', request='dn-fu', proc='BS mv dn-u'),
+    ]
+
+
+def stage_ffn_act(h):
+    """One sequential segment of the DeltaNet stage; segments compose in order."""
+    return [
         *h['combine'](h, gated=True, rhs=('BS ffn up', 'l_ffn_up'), input_name='BS ffn gate',
                       input_id='l_ffn_gate', output=('BS ffn', 'l_ffn')),
+    ]
+
+
+def stage_ffn_down(h):
+    """One sequential segment of the DeltaNet stage; segments compose in order."""
+    return [
         *attention.copy(h, 'BS ffn', 'l_ffn', 'BS input', 'l_input'),
         *attention.rotate_in(h, 6144),
         *attention.matvec(h, weight(h, '.ffn_down.weight'), 2048, 'BS ffn out', 'l_ffn_out', request='dn-fd', proc='BS mv dn-d'),
+    ]
+
+
+def stage_ffn_out(h):
+    """One sequential segment of the DeltaNet stage; segments compose in order."""
+    return [
         *h['combine'](h, gated=False, rhs=('BS ffn out', 'l_ffn_out'), input_name='BS residual',
                       input_id='l_residual', output=('BS dn layer out', 'l_dn_layer_out')),
         ('data_deletealloflist', {}, {'LIST': ['BS output', 'l_output']}, {}),
         *attention.copy(h, 'BS dn layer out', 'l_dn_layer_out', 'BS output', 'l_output'),
+    ]
+
+
+def stage_ffn(h):
+    """One sequential segment of the DeltaNet stage; segments compose in order."""
+    return [
+        *stage_ffn_prep(h),
+        *stage_ffn_gate(h),
+        *stage_ffn_up(h),
+        *stage_ffn_act(h),
+        *stage_ffn_down(h),
+        *stage_ffn_out(h),
     ]
 
 
@@ -390,7 +453,8 @@ def stage(h):
     codec = ('bonsailoader_codec', {}, {}, False)
     body = [
         *stage_begin(h),
-        *stage_qkv(h),
+        *stage_qkv_proj(h),
+        *stage_conv(h),
         # z is its own folded projection; beta and alpha are small dense rows.
         *stage_z(h),
         *stage_state(h),
