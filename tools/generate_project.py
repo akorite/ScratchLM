@@ -291,6 +291,20 @@ def category_runs():
 
 
 
+
+def frame_costume():
+    """Rounded panel that frames the reply area on the 480x360 stage."""
+    return ('<svg xmlns="http://www.w3.org/2000/svg" width="440" height="250" viewBox="0 0 440 250">'
+            '<rect x="0" y="0" width="440" height="250" rx="18" fill="#141b24"/>'
+            '<rect x="0.5" y="0.5" width="439" height="249" rx="18" fill="none" stroke="#2b3746"/>'
+            '<circle cx="26" cy="26" r="7" fill="#77d7b5"/>'
+            '<text x="42" y="31" font-family="Inter, system-ui, sans-serif" font-size="15" '
+            'font-weight="600" fill="#e8eef2">Bonsai</text>'
+            '<text x="102" y="31" font-family="Inter, system-ui, sans-serif" font-size="10" '
+            'fill="#7f8ea3">LOCAL · SCRATCH BLOCKS</text>'
+            '<line x1="16" y1="46" x2="424" y2="46" stroke="#243040"/>'
+            '</svg>').encode()
+
 def status_bar(fill, label):
     """One Scratch costume: a 300x28 progress bar with a static label."""
     filled = max(0, min(300, int(300 * fill)))
@@ -639,7 +653,7 @@ def project(with_text=False, with_benchmark=False):
                         'broadcasts': {}, 'blocks': speaker.blocks, 'comments': {}, 'currentCostume': 0,
                         'costumes': [{'name': 'backdrop', 'dataFormat': 'svg', 'assetId': asset,
                                       'md5ext': asset + '.svg', 'rotationCenterX': 240, 'rotationCenterY': 180}],
-                        'sounds': [], 'volume': 100, 'layerOrder': 300, 'visible': True, 'x': 0, 'y': -120,
+                        'sounds': [], 'volume': 100, 'layerOrder': 300, 'visible': True, 'x': 0, 'y': -30,
                         'size': 100, 'direction': 90, 'draggable': False, 'rotationStyle': 'all around'})
         # The progress panel is a Scratch sprite: one costume per phase and per layer,
         # switched by blocks as the decode state changes. No DOM, no styling.
@@ -650,6 +664,17 @@ def project(with_text=False, with_benchmark=False):
             assets[digest + '.svg'] = data
             costumes.append({'name': name, 'dataFormat': 'svg', 'assetId': digest,
                              'md5ext': digest + '.svg', 'rotationCenterX': 150, 'rotationCenterY': 14})
+        frame_data = frame_costume()
+        frame_digest = hashlib.md5(frame_data).hexdigest()
+        assets[frame_digest + '.svg'] = frame_data
+        targets.append({'isStage': False, 'name': 'Bonsai frame', 'variables': {}, 'lists': {},
+                        'broadcasts': {}, 'blocks': {}, 'comments': {}, 'currentCostume': 0,
+                        'costumes': [{'name': 'panel', 'dataFormat': 'svg', 'assetId': frame_digest,
+                                      'md5ext': frame_digest + '.svg', 'rotationCenterX': 220,
+                                      'rotationCenterY': 125}],
+                        'sounds': [], 'volume': 100, 'layerOrder': 299, 'visible': True,
+                        'x': 0, 'y': 30, 'size': 100, 'direction': 90, 'draggable': False,
+                        'rotationStyle': 'all around'})
         status = Blocks()
         step_hat = status.add('event_whenbroadcastreceived',
                               fields={'BROADCAST_OPTION': ['BS decode step', 'bs-decode-step']}, top=True)
@@ -670,7 +695,7 @@ def project(with_text=False, with_benchmark=False):
         targets.append({'isStage': False, 'name': 'Bonsai progress', 'variables': {}, 'lists': {},
                         'broadcasts': {}, 'blocks': status.blocks, 'comments': {}, 'currentCostume': 0,
                         'costumes': costumes, 'sounds': [], 'volume': 100, 'layerOrder': 301,
-                        'visible': True, 'x': 0, 'y': -140, 'size': 100, 'direction': 90,
+                        'visible': True, 'x': 0, 'y': -118, 'size': 100, 'direction': 90,
                         'draggable': False, 'rotationStyle': 'all around'})
     content = {'targets': targets, 'monitors': [], 'extensions': ['bonsailoader'] if with_benchmark else ['bonsailoader'],
                'meta': {'semver': '3.0.0', 'vm': '0.2.0', 'agent': 'BonsaiScratch'}}
