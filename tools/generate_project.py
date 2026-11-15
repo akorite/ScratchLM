@@ -385,6 +385,9 @@ def project(with_text=False, with_benchmark=False):
     add_procedure(graph, 'BS deltanet', deltanet_body, x=2400, warp='true')
     add_procedure(graph, 'BS head', lut.script(globals(), head=True), x=3000, warp='false')
     add_procedure(graph, 'BS embed', embedding.make(15, globals()), x=3300, warp='true')
+    for index, (proc, spec) in enumerate(sorted(attention.KERNELS.items())):
+        add_procedure(graph, proc, attention.matvec_kernel_body(globals(), spec),
+                      x=4300 + 60 * index, warp='true')
     add_procedure(graph, 'BS decode', decoder_body, x=2700, warp='true')
     if with_text and with_benchmark:
         tokenizer_bodies = tokenizer.make(helpers)

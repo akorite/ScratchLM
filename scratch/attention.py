@@ -50,8 +50,24 @@ def weight(h, suffix):
     return join('blk.', join(h['var']('BS layer'), suffix))
 
 
-def matvec(h, tensor, rows, dest_name, dest_id, request='layer'):
-    """Project `BS input` through a PQ2 tensor, one tile of rows at a time."""
+KERNELS = {}
+
+
+def matvec(h, tensor, rows, dest_name, dest_id, request='layer', proc='BS matvec kernel'):
+    """Project `BS input` through a PQ2 tensor via a dedicated kernel procedure.
+
+    Each call site gets its own zero-argument procedure whose body is the tiled
+    loop with its tensor, row count and destination baked in. V8 refuses to
+    optimise a compiled Scratch procedure whose bytecode passes roughly 61 kB,
+    and the layer body was well over that, so its hot loop ran unoptimised.
+    """
+    KERNELS[proc] = {'tensor': tensor, 'rows': rows, 'dest': dest_name,
+                     'dest_id': dest_id, 'request': request}
+    return [('procedures_call', {}, {'PROCCODE': (proc, 'true')}, {})]
+
+
+def matvec_kernel_body(h, spec):
+    """Tiled PQ2 projection kernel for one call site."""
     var, op, floor, item, length, setvar, addlist, conditional, repeat, change = (
         h[name] for name in ('var', 'op', 'floor', 'item', 'length', 'setvar',
                              'addlist', 'conditional', 'repeat', 'change'))
@@ -62,12 +78,13 @@ def matvec(h, tensor, rows, dest_name, dest_id, request='layer'):
     eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
     gt = lambda a, b: op('operator_gt', OPERAND1=a, OPERAND2=b)
     v = lambda name: var('BS ' + name)
+    tensor, rows = spec['tensor'], spec['rows']
+    dest_name, dest_id, request = spec['dest'], spec['dest_id'], spec['request']
     status = ('bonsailoader_status', {'ID': request}, {}, False)
     copied = ('bonsailoader_copied', {'ID': request}, {}, False)
     groups = div(length('BS input', 'l_input'), 128)
     tile_rows = v('proj tile')
     tile_groups = mul(tile_rows, groups)
-    # The loader replaces l_packed/l_scales with the current tile, so row indices are tile-relative.
     row_base = mul(v('tile row'), groups)
     row = [setvar('BS total', 0), setvar('BS dot group', 0),
            repeat(groups, lut.group_body(h, add(row_base, v('dot group')), v('dot group'))
@@ -79,7 +96,6 @@ def matvec(h, tensor, rows, dest_name, dest_id, request='layer'):
               {'ID': request, 'TENSOR': tensor, 'START': mul(v('proj scanned'), groups),
                'COUNT': tile_groups, 'Q': 'l_packed', 'SCALE': 'l_scales'}, {}, {}),
              ('control_wait', {'DURATION': 0}, {}, {}),
-             # A refill may need several frames; wait until the request settles.
              setvar('BS settle', 0),
              repeat(600, [conditional(eq(v('settle'), 0), [
                  conditional(eq(status, 'pending'), [('control_wait', {'DURATION': 0}, {}, {})],
@@ -93,8 +109,8 @@ def matvec(h, tensor, rows, dest_name, dest_id, request='layer'):
             setvar('BS proj scanned', 0), setvar('BS proj valid', 1),
             conditional(eq(op('operator_mod', NUM1=length('BS input', 'l_input'), NUM2=256), 0),
                         [('data_deletealloflist', {}, {'LIST': ['BS q8', 'l_q8']}, {}),
-                         ('data_deletealloflist', {}, {'LIST': ['BS lut', 'l_lut']}, {}),
                          *h['q8_script']('BS q8', 'l_q8'),
+                         ('data_deletealloflist', {}, {'LIST': ['BS lut', 'l_lut']}, {}),
                          *lut.codec_tables(h), *lut.build_lut(h),
                          repeat(floor(div(sub(add(rows, TILE), 1), TILE)),
                                 [conditional(eq(v('proj valid'), 1), chunk)])],
@@ -329,18 +345,18 @@ def layer(h):
         *copy(h, 'BS input', 'l_input', 'BS layer input', 'l_layer_input'),
         *copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
-        *matvec(h, weight(h, '.attn_q.weight'), 4096, 'BS q full', 'l_q_full', request='layer-q'),
+        *matvec(h, weight(h, '.attn_q.weight'), 4096, 'BS q full', 'l_q_full', request='layer-q', proc='BS mv q'),
         conditional(eq(v('proj valid'), 1), split),
         *head_norm(h, 'BS q', 'l_q', 'BS qn', 'l_qn', 'BS q norm', 'l_q_norm', 256, 8),
         *rope_list(h, 'BS qn', 'l_qn', 'BS q', 'l_q', v('layer position')),
         *copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
-        *matvec(h, weight(h, '.attn_k.weight'), 512, 'BS k', 'l_k', request='layer-k'),
+        *matvec(h, weight(h, '.attn_k.weight'), 512, 'BS k', 'l_k', request='layer-k', proc='BS mv k'),
         *head_norm(h, 'BS k', 'l_k', 'BS kn', 'l_kn', 'BS k norm', 'l_k_norm', 256, 2),
         *rope_list(h, 'BS kn', 'l_kn', 'BS k', 'l_k', v('layer position')),
         *copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
-        *matvec(h, weight(h, '.attn_v.weight'), 512, 'BS v', 'l_v', request='layer-v'),
+        *matvec(h, weight(h, '.attn_v.weight'), 512, 'BS v', 'l_v', request='layer-v', proc='BS mv v'),
         *cache_write(h, 'BS k', 'l_k', 'BS k cache', 'l_k_cache', v('layer position')),
         *cache_write(h, 'BS v', 'l_v', 'BS v cache', 'l_v_cache', v('layer position')),
         ('data_deletealloflist', {}, {'LIST': ['BS attn', 'l_attn']}, {}),
@@ -350,22 +366,22 @@ def layer(h):
         *gate_mul(h, 'BS attn', 'l_attn', 'BS gate', 'l_gate', 'BS attn gated', 'l_attn_gated'),
         *copy(h, 'BS attn gated', 'l_attn_gated', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
-        *matvec(h, weight(h, '.attn_output.weight'), 2048, 'BS attn out', 'l_attn_out', request='layer-o'),
+        *matvec(h, weight(h, '.attn_output.weight'), 2048, 'BS attn out', 'l_attn_out', request='layer-o', proc='BS mv o'),
         *h['combine'](h, gated=False, rhs=('BS attn out', 'l_attn_out'), input_name='BS layer input',
                       input_id='l_layer_input', output=('BS residual', 'l_residual')),
         *copy(h, 'BS residual', 'l_residual', 'BS input', 'l_input'),
         *weighted_norm(h, 'BS post w', 'l_post_w', 'BS normed', 'l_normed'),
         *copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
-        *matvec(h, weight(h, '.ffn_gate.weight'), 6144, 'BS ffn gate', 'l_ffn_gate', request='layer-g'),
+        *matvec(h, weight(h, '.ffn_gate.weight'), 6144, 'BS ffn gate', 'l_ffn_gate', request='layer-g', proc='BS mv g'),
         *copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
-        *matvec(h, weight(h, '.ffn_up.weight'), 6144, 'BS ffn up', 'l_ffn_up', request='layer-u'),
+        *matvec(h, weight(h, '.ffn_up.weight'), 6144, 'BS ffn up', 'l_ffn_up', request='layer-u', proc='BS mv u'),
         *h['combine'](h, gated=True, rhs=('BS ffn up', 'l_ffn_up'), input_name='BS ffn gate',
                       input_id='l_ffn_gate', output=('BS ffn', 'l_ffn')),
         *copy(h, 'BS ffn', 'l_ffn', 'BS input', 'l_input'),
         *rotate_in(h, 6144),
-        *matvec(h, weight(h, '.ffn_down.weight'), 2048, 'BS ffn out', 'l_ffn_out', request='layer-d'),
+        *matvec(h, weight(h, '.ffn_down.weight'), 2048, 'BS ffn out', 'l_ffn_out', request='layer-d', proc='BS mv d'),
         *h['combine'](h, gated=False, rhs=('BS ffn out', 'l_ffn_out'), input_name='BS residual',
                       input_id='l_residual', output=('BS layer out', 'l_layer_out')),
         ('data_deletealloflist', {}, {'LIST': ['BS output', 'l_output']}, {}),
