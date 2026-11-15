@@ -1,6 +1,7 @@
 {
  "schema": "bonsai-artifact-checksums/v1",
  "artifacts": {
-  "dist/fp16-q8-scalar.sb3": "3960553ea933037d956511e22f4ae586243f4c18cdc8b36f7d1ad87efb2518f0"
+  "dist/fp16-q8-scalar.sb3": "3960553ea933037d956511e22f4ae586243f4c18cdc8b36f7d1ad87efb2518f0",
+  "dist/bonsai-prompt-to-text.sb3": "d2ad5ad4a93a14f880b23a93db3f852526730742eacf34083c5633036292e896"
  }
 }

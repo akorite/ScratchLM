@@ -6,10 +6,11 @@ BonsaiScratch investigates visible Scratch-block inference with the locked Prism
 
 | Artifact | Where | Notes |
 |---|---|---|
-| Generated project | `dist/fp16-q8-scalar.sb3` | sha256 in `fixtures/artifact-checksums.json`, checked by `tests/test_artifacts.py` |
+| Prompt-to-text project | **`dist/bonsai-prompt-to-text.sb3`** | the runnable release: 256 lookup sprites, modes 22-24, ask-and-wait input, `Bonsai` speaker, storage extension declared |
+| Primitive project | `dist/fp16-q8-scalar.sb3` | diagnostic modes 0-42, no text pipeline |
+| Hashes | `fixtures/artifact-checksums.json` | both projects, checked by `tests/test_artifacts.py` |
 | Storage extension | `extension/loader.js` | storage-only I/O; contains no model arithmetic |
 | Model packages | not in Git | built from the locked GGUF with `tools/package_model.py` (see below) |
-| Prompt-to-text project | generated per machine | `tools/generate_project.py OUT.sb3 --text --benchmark` |
 | Native expectations | `fixtures/native/` | layer, head, tokenizer and prompt fixtures with recorded tolerances |
 
 Reproducing the project and the prompt path from a fresh checkout needs only the locked GGUF and the pinned TurboWarp VM checkout:
@@ -19,8 +20,7 @@ WORK="$HOME/.cache/bonsaiscratch"
 python3 tools/inspect_gguf.py "$WORK/model.gguf" "$WORK/model-manifest.json"
 TMPDIR="$WORK/build-tmp" python3 tools/package_model.py "$WORK/model.gguf" "$WORK/model-bslut5-tokenizer.bsp" --codec bslut5
 python3 tools/generate_project.py dist/fp16-q8-scalar.sb3
-python3 tools/generate_project.py "$WORK/release.sb3" --text --benchmark
-node tests/scratch/run-vm.js "$WORK/release.sb3" --generate 24   # in TurboWarp: press the flag
+python3 tools/generate_project.py dist/bonsai-prompt-to-text.sb3 --text --benchmark
 ```
 
 Packages are large; the packer writes through `TMPDIR`, so point it at a disk with at least 1 GB free rather than a small tmpfs. `fixtures/package-checksums.json` records the byte counts and hashes of the three codecs, and the packer is deterministic: two builds into fresh files produce the same hash. The `bslut5` and `bslut4` packages embed the tokenizer's pair-merge table as `prism.bpe.*` tensors, which is what makes the Scratch tokenizer possible without any JavaScript tokenization.
@@ -78,6 +78,14 @@ For full-logit head validation, generate an external native reference using `too
 The tokenizer and detokenizer run in Scratch blocks. `python3 tools/generate_project.py dist/text-proof.sb3 --text --benchmark` adds three modes for a selected package: mode 22 turns the prompt in `BS prompt` into token ids in `BS prompt tokens`, mode 23 maps `BS out tokens` back to text in `BS text`, and mode 24 tokenizes the prompt, then broadcasts one decode step per token (`BS max tokens`, default 8) and shows the growing text on the `Bonsai` sprite.
 
 The pre-tokenizer reproduces the pinned runtime's own splitter. Its code point classes come from `fixtures/unicode/qwen35-classes.json`, derived by `tools/unicode_classes.py` from `src/unicode-data.cpp` at the pinned revision rather than from the host's Unicode build, because newer assignments would split prompts differently. The pair merge table is packed into the package as `prism.bpe.*` tensors by `tools/package_model.py`. Ten fixture classes match the pinned tokenizer exactly in the compiled VM; see `tests/scratch/test_tokenizer.py`. Each decode step is one Scratch run, so a prompt plus eight tokens takes minutes on this host.
+
+## Running the demo
+
+1. Open `dist/bonsai-prompt-to-text.sb3` in TurboWarp.
+2. Add the storage extension (`extension/loader.js`) and click **select Bonsai package**, choosing the `bslut5` package built above.
+3. Press the green flag. An ask box takes the prompt; the `Bonsai` sprite says the generated text as each token lands.
+
+One flag press runs the whole generation on the Scratch side (the loop broadcasts one decode step per token). Expect about 12 minutes before the first token and about a minute per further token on the recorded Xeon host, with 4.3-4.8 GiB peak memory in the Node VM; the browser renderer adds to that. A new prompt resets the sequence state, and generation stops at `<|im_end|>`, at the 128-token bound, or when the prompt has filled the 128-cell KV cache.
 
 ## Decoder benchmark
 
