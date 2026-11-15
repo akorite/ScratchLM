@@ -290,6 +290,29 @@ def category_runs():
     return [row[0] for row in runs], [row[1] for row in runs]
 
 
+
+def status_bar(fill, label):
+    """One Scratch costume: a 300x28 progress bar with a static label."""
+    filled = max(0, min(300, int(300 * fill)))
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="300" height="28" viewBox="0 0 300 28">'
+            f'<rect x="0" y="0" width="300" height="28" rx="6" fill="#101820" opacity="0.82"/>'
+            f'<rect x="4" y="18" width="292" height="6" rx="3" fill="#2a3542"/>'
+            f'<rect x="4" y="18" width="{max(0, filled - 8)}" height="6" rx="3" fill="#77d7b5"/>'
+            f'<text x="8" y="14" font-family="Inter, system-ui, sans-serif" font-size="11" '
+            f'fill="#e8eef2">{label}</text></svg>').encode()
+
+
+def status_costumes():
+    """Phase and per-layer bar frames; index 1 is idle, 5..28 are layers 1..24."""
+    frames = [('ready', status_bar(0, 'Ready'))]
+    for label in ('Tokenizing', 'Embedding', 'Reading prompt'):
+        frames.append((label.lower().replace(' ', '-'), status_bar(0, label)))
+    for layer in range(1, 25):
+        frames.append((f'layer-{layer:02d}', status_bar(layer / 24, f'Layer {layer} / 24')))
+    frames.append(('choosing-token', status_bar(1, 'Choosing next token')))
+    frames.append(('writing-text', status_bar(1, 'Writing response')))
+    return frames
+
 def project(with_text=False, with_benchmark=False):
     graph = Blocks()
     helpers = dict(globals(), rope=layers.rope, combine=layers.combine)
@@ -605,6 +628,7 @@ def project(with_text=False, with_benchmark=False):
                             'costumes': text.costume_data(asset, high), 'sounds': [], 'volume': 100,
                             'layerOrder': high + 1, 'visible': False, 'x': 0, 'y': 0, 'size': 100,
                             'direction': 90, 'draggable': False, 'rotationStyle': 'all around'})
+    assets = {asset + '.svg': svg}
     if with_text and with_benchmark:
         speaker = Blocks()
         show_hat = speaker.add('event_whenbroadcastreceived',
@@ -615,20 +639,51 @@ def project(with_text=False, with_benchmark=False):
                         'broadcasts': {}, 'blocks': speaker.blocks, 'comments': {}, 'currentCostume': 0,
                         'costumes': [{'name': 'backdrop', 'dataFormat': 'svg', 'assetId': asset,
                                       'md5ext': asset + '.svg', 'rotationCenterX': 240, 'rotationCenterY': 180}],
-                        'sounds': [], 'volume': 100, 'layerOrder': 300, 'visible': True, 'x': 0, 'y': 0,
+                        'sounds': [], 'volume': 100, 'layerOrder': 300, 'visible': True, 'x': 0, 'y': -120,
                         'size': 100, 'direction': 90, 'draggable': False, 'rotationStyle': 'all around'})
+        # The progress panel is a Scratch sprite: one costume per phase and per layer,
+        # switched by blocks as the decode state changes. No DOM, no styling.
+        frames = status_costumes()
+        costumes = []
+        for name, data in frames:
+            digest = hashlib.md5(data).hexdigest()
+            assets[digest + '.svg'] = data
+            costumes.append({'name': name, 'dataFormat': 'svg', 'assetId': digest,
+                             'md5ext': digest + '.svg', 'rotationCenterX': 150, 'rotationCenterY': 14})
+        status = Blocks()
+        step_hat = status.add('event_whenbroadcastreceived',
+                              fields={'BROADCAST_OPTION': ['BS decode step', 'bs-decode-step']}, top=True)
+        phase = var('BS ui phase')
+        layer_number = op('operator_add', NUM1=var('BS layer'), NUM2=1)
+        same = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
+        pick = [
+            conditional(same(phase, 'layers'), [('looks_switchcostumeto', {'COSTUME': op('operator_add', NUM1=4, NUM2=layer_number)}, {}, {})],
+                        [conditional(same(phase, 'head'), [('looks_switchcostumeto', {'COSTUME': 29}, {}, {})],
+                                     [conditional(same(phase, 'rendering'), [('looks_switchcostumeto', {'COSTUME': 30}, {}, {})],
+                                                  [conditional(same(phase, 'embedding'), [('looks_switchcostumeto', {'COSTUME': 3}, {}, {})],
+                                                               [('looks_switchcostumeto', {'COSTUME': 2}, {}, {})])])])]),
+            ('looks_sayforsecs', {'MESSAGE': op('operator_join', STRING1='Layer ',
+                                                STRING2=op('operator_join', STRING1=layer_number, STRING2=' / 24')),
+                                  'SECS': 0}, {}, {}),
+        ]
+        status.blocks[step_hat]['next'] = status.stack(pick, step_hat)
+        targets.append({'isStage': False, 'name': 'Bonsai progress', 'variables': {}, 'lists': {},
+                        'broadcasts': {}, 'blocks': status.blocks, 'comments': {}, 'currentCostume': 0,
+                        'costumes': costumes, 'sounds': [], 'volume': 100, 'layerOrder': 301,
+                        'visible': True, 'x': 0, 'y': -140, 'size': 100, 'direction': 90,
+                        'draggable': False, 'rotationStyle': 'all around'})
     content = {'targets': targets, 'monitors': [], 'extensions': ['bonsailoader'] if with_benchmark else ['bonsailoader'],
                'meta': {'semver': '3.0.0', 'vm': '0.2.0', 'agent': 'BonsaiScratch'}}
-    return json.dumps(content, ensure_ascii=True, separators=(',', ':')).encode('utf-8'), asset + '.svg', svg
+    return json.dumps(content, ensure_ascii=True, separators=(',', ':')).encode('utf-8'), assets
 
 
 def main():
     flags = set(sys.argv[2:])
     if not sys.argv[1:] or flags - {'--text', '--benchmark'}:
         raise SystemExit('usage: generate_project.py OUTPUT.sb3 [--text] [--benchmark]')
-    data, name, svg = project(with_text='--text' in sys.argv, with_benchmark='--benchmark' in sys.argv)
+    data, assets = project(with_text='--text' in sys.argv, with_benchmark='--benchmark' in sys.argv)
     with zipfile.ZipFile(Path(sys.argv[1]), 'w', compression=zipfile.ZIP_DEFLATED) as archive:
-        for filename, contents in (('project.json', data), (name, svg)):
+        for filename, contents in [('project.json', data), *sorted(assets.items())]:
             info = zipfile.ZipInfo(filename, (1980, 1, 1, 0, 0, 0))
             info.compress_type = zipfile.ZIP_DEFLATED
             # Pin the platform byte so the archive hash does not depend on the host OS.

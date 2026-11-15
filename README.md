@@ -147,24 +147,28 @@ load source you trust. This works in the browser editor as well as the desktop a
 
 ### 4. Load the project and the package
 
-Open `dist/bonsai-prompt-to-text.sb3`. The updated loader opens the **Bonsai chat**
-window automatically; use **Open Bonsai chat** to reopen it after closing it.
-Click **Select model**, choose the `.bsp` you built, and wait for **Ready**.
-A failed selection displays its error in the status area.
+Open `dist/bonsai-prompt-to-text.sb3`, run the **`select Bonsai package`** block, and wait
+for package status `ok`. A failed selection reports `error: …`.
 
 ### 5. Run
 
-Type in **Message Bonsai** and click **Send** (or Enter; Shift+Enter inserts a new
-line). Responses appear in the conversation as tokens arrive. **Stop** interrupts
-generation and keeps any text already generated. Each send starts a fresh model
-context; earlier messages in the conversation are display-only and stay in this tab.
-Without the browser chat UI, the green flag still opens the native Scratch prompt.
+Press the green flag: the project saves `BS mode` 24, so the prompt flow starts without a
+manual edit, and Scratch's own **ask and wait** prompt is the text input. The reply appears
+in the **Bonsai** sprite's say bubble, rendered from the decoded token stream.
 
-The status shows real VM phases: tokenization, embedding, the current **layer / 24**
-for the current prompt/generation token, vocabulary rows scored during head scanning,
-and response-token count with elapsed time. The progress bar is phase-local, not an
-estimated overall percentage or countdown. Keep the tab foreground: background-tab
-throttling slows the scheduler. Model math still runs entirely in Scratch blocks.
+The **Bonsai progress** sprite is the status panel. It is built from Scratch blocks and
+costumes only — no HTML, no CSS, no DOM. Its costume switches to a progress bar that fills
+across the real 24 layers (`Reading prompt · layer N / 24`), then to `Choosing next token`
+while the head scans the vocabulary, then `Writing response` while text is rendered. Layer
+and phase come from `BS layer` and `BS ui phase`, which the decoder sets as it runs; nothing
+in the panel is simulated or time-based.
+
+Keep the tab foreground: selecting a package sets the framerate to 250, and background-tab
+throttling stalls the compiled scheduler. Expect about 12 minutes to the first token and
+about a minute per further token on the recorded Xeon host; the 128-token bound is clamped
+by the 128-cell KV cache. Prompt prefill re-streams every weight per token, so long prompts
+scale linearly; batched prefill was built and measured at 1.07× per prompt token, so it is
+not wired in (see `docs/levers.md`).
 
 Measured memory was 4.2–4.8 GiB peak RSS in the headless Node VM; browser memory and
 full-generation performance have not been benchmarked. The updated chat was

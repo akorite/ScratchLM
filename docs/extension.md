@@ -4,16 +4,14 @@ Load `extension/loader.js` as a **custom unsandboxed extension** in TurboWarp (E
 
 The loader checks the package header, manifest, tensor shapes and ranges, but does not authenticate the package or scan the entire payload. Package only the verified model with the supplied packer. The package codec reporter is `raw`, `bslut4`, or `bslut5`; the bytes are copied unchanged. Metadata and tensor indices are **1-based**. Metadata value returns a scalar or JSON for an array; tensor fields include `type_id`, `dimensions` (JSON), `offset`, and `length`. Metadata keys can be enumerated with the count and key blocks; tensors with the count and name blocks. For large tokenizer arrays, JSON reporters can be large.
 
-## Chat view
+## Interface
 
-With the prompt-to-text project loaded, the extension opens a browser chat window
-with a multiline composer, local conversation display, model picker and Stop control.
-It reads the project's `BS ui phase`, `BS layer`, `BS step`, prompt length, head-scan
-row count and decoded text; it does not compute model outputs or simulate progress.
-Send sets the prompt and starts the existing Scratch generation loop. Each send
-resets the sequence; displayed previous turns are not fed back to the model.
-Closing the view keeps inference running; use Stop to interrupt it. The view is
-absent in headless environments and is removed when the project/runtime is replaced.
+The extension is storage only: it opens a local package, serves bounded reads and reports
+status. The visible interface is Scratch blocks and sprites in the project itself — the
+**ask and wait** prompt for input, the **Bonsai** sprite's say bubble for the reply, and the
+**Bonsai progress** sprite, whose thirty costumes are a phase/layer progress bar switched
+from `BS ui phase` and `BS layer` as the decoder advances. No HTML is injected into the
+page and no styling lives outside the project.
 
 ## Transfers
 
