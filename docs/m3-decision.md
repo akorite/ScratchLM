@@ -20,6 +20,12 @@ The plan specifies an approximate ~22 s head target rather than a strict 22.00 s
 
 At the retuned 640-row default, three compiled M4 head runs in `benchmarks/results/head-m4-topk-xeon.json` had a 21.68 s median and 23.40 s worst wall time. Scratch-selected top-8 and greedy tokens matched the native fixture in all three; maximum error across all 248,320 logits was `1.91e-6`, below half the native `0.990841` top-1/top-2 margin. The full native logits were regenerated outside Git from the locked model and reference build.
 
+## Optimizer cliff and the split kernels (2026-11-15)
+
+V8 refuses to optimise a function whose bytecode passes roughly 61 kB (`--max-optimized-bytecode-size`). The compiled `BS layer` and `BS deltanet` procedures were 88.9 kB and 81.1 kB, so their projection loops had been running unoptimised; a microbenchmark of the same 7-block/weight loop measured 8.0 ns per weight over the cap versus 4.8 under it. Giving every projection call site its own small procedure (tensor, row count, destination and request baked in) drops both bodies below the cliff.
+
+Measured after the split, same host, three runs: **33.68 s per decode step** (17.9 ns per weight, 448-row tiles) against 48.6 s at the same tile before the split and the 41.8 s recorded baseline. First token for the ten-token prompt fell from 723.8 s to **408.0 s** (466.1 s for the twelve-token prompt), with the pinned build's `248068` and `"<think>"` unchanged, at 4.2 GiB peak. See `benchmarks/results/decode-kernel-split-xeon.json` and `decoder-throughput-xeon.json`.
+
 ## Measured prompt-to-text (end to end)
 
 `benchmarks/decoder.py` drives the released project the way the Scratch loop does — one flag press per decode step, the prompt prefilled first — and rejects any run whose first generated token differs from the pinned native build's choice. Two prompts on the recorded Xeon host, Node VM, no renderer, 250 fps, `bslut5` package (`benchmarks/results/decoder-xeon.json`):
