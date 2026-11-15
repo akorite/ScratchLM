@@ -75,21 +75,67 @@ def write_project(path, data, name, svg):
             archive.writestr(info, contents)
 
 
+def baseline_project(revision, destination):
+    """Generate a project from another revision in its own interpreter.
+
+    Both trees export the same top-level `scratch` package, so the baseline must be
+    produced by a subprocess with its own working directory; importing it here would
+    silently generate the current tree and make every delta read as zero.
+    """
+    tree = destination / 'tree'
+    tree.mkdir(parents=True, exist_ok=True)
+    archive = subprocess.run(['git', '-C', str(ROOT), 'archive', revision], capture_output=True, check=True)
+    subprocess.run(['tar', '-x', '-C', str(tree)], input=archive.stdout, check=True)
+    project = destination / f'baseline-{revision.replace("/", "-")}.sb3'
+    built = subprocess.run([sys.executable, str(tree / 'tools/generate_project.py'), str(project)],
+                           cwd=tree, capture_output=True, text=True)
+    if built.returncode:
+        raise SystemExit(f'baseline generation failed: {built.stderr[-2000:]}')
+    return project, tree
+
+
+def timed_run(project, args, env_extra):
+    env = {key: value for key, value in os.environ.items() if not key.startswith('BONSAI_')}
+    env.update(BONSAI_TURBOWARP_VM=os.environ['BONSAI_TURBOWARP_VM'],
+               BONSAI_MODEL_PACKAGE=os.environ['BONSAI_MODEL_PACKAGE'],
+               BONSAI_TOKEN_ID=str(args.token_id), BONSAI_LAYER_POSITION=str(args.position),
+               BONSAI_TIMEOUT_MS='1800000', BONSAI_FRAMERATE=str(args.framerate),
+               BONSAI_DEBUG_VARS='BS greedy token,BS greedy logit,BS second logit', **env_extra)
+    before = resource.getrusage(resource.RUSAGE_CHILDREN)
+    start = time.perf_counter()
+    completed = subprocess.run(['node', str(ROOT / 'tests/scratch/run-vm.js'), str(project), '[]', '42'],
+                               env=env, capture_output=True, text=True, timeout=1850, check=True)
+    wall = time.perf_counter() - start
+    after = resource.getrusage(resource.RUSAGE_CHILDREN)
+    values = json.loads(completed.stdout)
+    return {'wall_seconds': wall,
+            'cpu_seconds': (after.ru_utime - before.ru_utime) + (after.ru_stime - before.ru_stime),
+            'peak_rss_bytes': values.get('peak_rss_bytes'),
+            'compile_ms': values.get('compile_ms'),
+            **{key: values.get(key) for key in ('BS greedy token', 'BS greedy logit', 'BS second logit')}}
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--repetitions', type=int, default=1)
+    parser.add_argument('--pairs', type=int, default=None, help='interleaved build-vs-build pairs (needs --compare-build)')
+    parser.add_argument('--compare-build', default=None, help='git revision of the baseline build')
+    parser.add_argument('--position', type=int, default=0, help='KV cells to seed before the step')
     parser.add_argument('--tile', type=int, action='append', default=None)
     parser.add_argument('--framerate', type=int, default=250)
     parser.add_argument('--token-id', type=int, default=1237)
     parser.add_argument('--warp-head', action='store_true')
     parser.add_argument('--stub', default='', help='comma list: layers,head,delta,conv,attention-core,lut-build,hadamard')
     args = parser.parse_args()
+    if args.pairs and not args.compare_build:
+        raise SystemExit('--pairs needs --compare-build')
     tiles = args.tile or [attention.TILE]
     vm = os.environ['BONSAI_TURBOWARP_VM']
     package = os.environ['BONSAI_MODEL_PACKAGE']
     stubs = [item for item in args.stub.split(',') if item]
     apply_stubs(stubs)
+    weights = stage_weights(Path(package))
     projects, hashes = {}, {}
     with tempfile.TemporaryDirectory() as temp:
         for tile in tiles:
@@ -98,49 +144,77 @@ def main():
             write_project(project, data, name, svg)
             projects[tile] = project
             hashes[tile] = hashlib.sha256(data).hexdigest()
-        runs = []
-        for _ in range(args.repetitions):
-          for tile in tiles:
-            env = {key: value for key, value in os.environ.items() if not key.startswith('BONSAI_')}
-            env.update(BONSAI_TURBOWARP_VM=vm, BONSAI_MODEL_PACKAGE=package,
-                       BONSAI_TOKEN_ID=str(args.token_id), BONSAI_LAYER_POSITION='0',
-                       BONSAI_TIMEOUT_MS='1800000', BONSAI_FRAMERATE=str(args.framerate),
-                       BONSAI_DEBUG_VARS='BS greedy token,BS greedy logit,BS second logit')
-            before = resource.getrusage(resource.RUSAGE_CHILDREN)
-            start = time.perf_counter()
-            completed = subprocess.run(
-                ['node', str(ROOT / 'tests/scratch/run-vm.js'), str(projects[tile]), '[]', '42'],
-                env=env, capture_output=True, text=True, timeout=1850, check=True)
-            wall = time.perf_counter() - start
-            after = resource.getrusage(resource.RUSAGE_CHILDREN)
-            cpu = (after.ru_utime - before.ru_utime) + (after.ru_stime - before.ru_stime)
-            values = json.loads(completed.stdout)
-            runs.append({'wall_seconds': wall, 'cpu_seconds': cpu, 'tile': tile,
-                         'framerate': args.framerate,
-                         **{key: values.get(key) for key in
-                            ('BS greedy token', 'BS greedy logit', 'BS second logit')}})
-    summary = {tile: {'wall_seconds': [r['wall_seconds'] for r in runs if r['tile'] == tile],
-                      'cpu_seconds': [r['cpu_seconds'] for r in runs if r['tile'] == tile],
-                      'median_wall_seconds': statistics.median(
-                          r['wall_seconds'] for r in runs if r['tile'] == tile),
-                      'median_cpu_seconds': statistics.median(
-                          r['cpu_seconds'] for r in runs if r['tile'] == tile)} for tile in tiles}
-    payload = {'schema': 'bonsai-decode-step/v1', 'cpu': next(
+        baseline = baseline_hashes = None
+        if args.compare_build:
+            baseline, tree = baseline_project(args.compare_build, Path(temp))
+            # hash the project.json, matching how the current build's hash is taken
+            baseline_hashes = hashlib.sha256(
+                zipfile.ZipFile(baseline).read('project.json')).hexdigest()
+        runs, pairs = [], []
+        for index in range(args.pairs or args.repetitions):
+            for tile in tiles:
+                current = timed_run(projects[tile], args, {'BONSAI_KV_CELLS': str(args.position)} if args.position else {})
+                runs.append({'build': 'current', 'tile': tile, 'framerate': args.framerate, **current})
+                if baseline:
+                    basis = timed_run(baseline, args, {'BONSAI_KV_CELLS': str(args.position)} if args.position else {})
+                    runs.append({'build': 'baseline', 'tile': tile, 'framerate': args.framerate, **basis})
+                    pairs.append({'pair': index + 1, 'tile': tile,
+                                  'current_seconds': runs[-2]['wall_seconds'],
+                                  'baseline_seconds': runs[-1]['wall_seconds'],
+                                  'delta_seconds': runs[-2]['wall_seconds'] - runs[-1]['wall_seconds']})
+    def summary_for(build, tile):
+        values = [r for r in runs if r['build'] == build and r['tile'] == tile]
+        if not values:
+            return None
+        return {'wall_seconds': [r['wall_seconds'] for r in values],
+                'cpu_seconds': [r['cpu_seconds'] for r in values],
+                'median_wall_seconds': statistics.median(r['wall_seconds'] for r in values),
+                'median_cpu_seconds': statistics.median(r['cpu_seconds'] for r in values),
+                'median_ns_per_weight': statistics.median(r['wall_seconds'] for r in values)
+                * 1e9 / weights['total']}
+    summary = {tile: summary_for('current', tile) for tile in tiles}
+    if baseline:
+        summary['baseline'] = summary_for('baseline', tiles[0])
+    payload = {'schema': 'bonsai-decode-step/v2', 'cpu': next(
         (line.split(':', 1)[1].strip() for line in Path('/proc/cpuinfo').read_text().splitlines()
          if line.startswith('model name')), None),
         'turbowarp_vm': Path(vm).name, 'turbomode': True, 'tiles': tiles, 'stubs': stubs,
-        'warp_head': args.warp_head,
+        'warp_head': args.warp_head, 'position': args.position,
         'framerate': args.framerate, 'token_id': args.token_id, 'project_sha256': hashes,
+        'baseline_revision': args.compare_build, 'baseline_project_sha256': baseline_hashes,
         'source_sha256': {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
                           for path in sorted((ROOT / 'scratch').glob('*.py'))},
         'generator_sha256': hashlib.sha256((ROOT / 'tools/generate_project.py').read_bytes()).hexdigest(),
-        'note': 'One mode-42 decode step (24 layers + output_norm + head scan + greedy), Node VM, no renderer.',
-        'runs': runs, 'summary_by_tile': summary}
+        'ledger': {stage: {'weights': count, 'seconds': None} for stage, count in weights.items()},
+        'note': 'One mode-42 decode step (24 layers + output_norm + head scan + greedy), Node VM, no renderer. '
+                'Compare builds with --compare-build and alternate them inside pairs; per-weight figures use the '
+                'package tensor count, not a per-matrix measurement.',
+        'runs': runs, 'pairs': pairs, 'summary_by_tile': summary}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(payload, indent=2) + '\n')
-    print(json.dumps({tile: {key: round(value, 2) for key, value in entry.items() if 'median' in key}
-                      for tile, entry in summary.items()}))
+    print(json.dumps({str(tile): {key: round(value, 2) for key, value in entry.items() if 'median' in key}
+                      for tile, entry in summary.items() if entry}, indent=1))
 
+
+def stage_weights(package: Path):
+    """Weight counts per stage, read from the package manifest."""
+    import struct
+    with package.open('rb') as source:
+        source.read(8)
+        (length,) = struct.unpack('<Q', source.read(8))
+        manifest = json.loads(source.read(length))
+    counts = {'total': 0, 'blocks': 0, 'head': 0}
+    for tensor in manifest['tensors']:
+        count = 1
+        for dimension in tensor['dimensions']:
+            count *= dimension
+        counts['total'] += count
+        if tensor['name'] == 'token_embd.weight':
+            counts['head'] += count
+        elif tensor['name'].startswith('blk.'):
+            counts['blocks'] += count
+    counts['other'] = counts['total'] - counts['head'] - counts['blocks']
+    return counts
 
 if __name__ == '__main__':
     main()

@@ -47,6 +47,15 @@ def phase_body(phase, iterations):
         return [('data_deletealloflist', {}, {'LIST': list(a)}, {}),
                 g.addlist(0, *a),
                 g.repeat(iterations, [replace_item(1, x, *a)])]
+    if phase == 'add_wide':
+        # the kernel's real destinations are 2,048 or 6,144 items, not one
+        return [('data_deletealloflist', {}, {'LIST': list(a)}, {}),
+                g.repeat(iterations, [g.addlist(x, *a)])]
+    if phase == 'replace_wide':
+        return [('data_deletealloflist', {}, {'LIST': list(a)}, {}),
+                g.repeat(2048, [g.addlist(0, *a)]),
+                g.repeat(iterations, [replace_item(g.op('operator_add', NUM1=g.op(
+                    'operator_mod', NUM1=idx, NUM2=2048), NUM2=1), x, *a), g.change('BS idx', 1)])]
     if phase == 'item':
         # 303,264 is the largest bslut5 LUT (6144-wide activation), so the read
         # touches the same list size the kernel uses; the index varies every read.
@@ -106,7 +115,7 @@ def main():
                BONSAI_FRAMERATE='250', BONSAI_TIMEOUT_MS='900000')
     results = []
     with tempfile.TemporaryDirectory() as temp:
-        for phase in ('calc', 'add', 'replace', 'item', 'f32'):
+        for phase in ('calc', 'add', 'replace', 'item', 'add_wide', 'replace_wide', 'f32'):
             projects = {}
             for count in (args.baseline, args.iterations):
                 data = build(phase, count)

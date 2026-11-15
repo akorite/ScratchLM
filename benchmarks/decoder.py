@@ -62,7 +62,8 @@ def run_prompt(vm, package, node_path, prompt, budget, temp):
     state = json.loads(run.stdout.strip().splitlines()[-1])
     return {'prompt': prompt, 'wall_seconds': wall,
             'cpu_seconds': (after.ru_utime - before.ru_utime) + (after.ru_stime - before.ru_stime),
-            'peak_rss_bytes': after.ru_maxrss * 1024, 'state': state}
+            'peak_rss_bytes': state.get('peak_rss_bytes',
+                                         (after.ru_maxrss - before.ru_maxrss) * 1024), 'state': state}
 
 
 def main():

@@ -9,9 +9,12 @@ const Thread = require(path.join(root, 'src/engine/thread.js'));
 const ScratchStorage = require('scratch-storage');
 
 const attempts = [];
+let compileMs = 0;
 const tryCompile = Thread.prototype.tryCompile;
 Thread.prototype.tryCompile = function () {
+    const started = performance.now();
     tryCompile.call(this);
+    compileMs += performance.now() - started;
     attempts.push(Boolean(this.isCompiled));
 };
 
@@ -130,6 +133,18 @@ const loaderMode = ['22', '23', '24', '40', '41', '42', '43'].includes(process.a
         }
         const secondPrompt = process.env.BONSAI_SECOND_PROMPT || null;
         const secondAfter = Number(process.env.BONSAI_SECOND_AFTER || 0);
+        if (process.env.BONSAI_KV_CELLS !== undefined) {
+            const cells = Number(process.env.BONSAI_KV_CELLS);
+            const kCache = stage.lookupVariableByNameAndType('BS k cache', 'list');
+            const vCache = stage.lookupVariableByNameAndType('BS v cache', 'list');
+            if (!kCache || !vCache) throw new Error('project KV caches are missing');
+            kCache.value = new Array(cells * 512).fill(0);
+            vCache.value = new Array(cells * 512).fill(0);
+            const stepVar = stage.lookupVariableByNameAndType('BS step', '');
+            if (stepVar) stepVar.value = cells;
+            const positionVar = stage.lookupVariableByNameAndType('BS layer position', '');
+            if (positionVar) positionVar.value = cells;
+        }
         if (process.env.BONSAI_LOOP !== undefined) {
             const loopVar = stage.lookupVariableByNameAndType('BS loop', '');
             if (loopVar) loopVar.value = Number(process.env.BONSAI_LOOP);
@@ -296,7 +311,10 @@ const loaderMode = ['22', '23', '24', '40', '41', '42', '43'].includes(process.a
                 if (at) return l.value[Number(at) - 1];
                 return `list:${l.value.length}:${JSON.stringify(l.value.slice(0, 4))}:${JSON.stringify(l.value.slice(-4))}`;
             };
-            process.stdout.write(JSON.stringify(Object.fromEntries(names.map(n => [n, read(n)]))) + '\n');
+            const state = Object.fromEntries(names.map(n => [n, read(n)]));
+            state.peak_rss_bytes = process.resourceUsage().maxRSS * 1024;
+            state.compile_ms = compileMs;
+            process.stdout.write(JSON.stringify(state) + '\n');
         } else if (prompts) {
             process.stdout.write(JSON.stringify({prompts: produced}) + '\n');
         } else if (steps > 1) {
