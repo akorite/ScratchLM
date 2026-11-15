@@ -497,7 +497,7 @@ def project(with_text=False, with_benchmark=False):
         variables[var('BS render start')[2]][1] = 1
         variables[var('BS started')[2]][1] = 0
         variables[var('BS loop')[2]][1] = 1
-        variables[var('BS decode budget')[2]][1] = 11
+        variables[var('BS decode budget')[2]][1] = 128  # the release bound; start clamps to context
     if with_benchmark:
         variables[var('BS mode')[2]][1] = 24 if with_text else 11
     stage = {'isStage': True, 'name': 'Stage', 'variables': variables,
@@ -608,6 +608,8 @@ def main():
         for filename, contents in (('project.json', data), (name, svg)):
             info = zipfile.ZipInfo(filename, (1980, 1, 1, 0, 0, 0))
             info.compress_type = zipfile.ZIP_DEFLATED
+            # Pin the platform byte so the archive hash does not depend on the host OS.
+            info.create_system = 3
             archive.writestr(info, contents)
 
 
