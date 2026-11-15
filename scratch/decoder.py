@@ -83,4 +83,6 @@ def stack(h):
                                                        OPERAND1=h['var']('BS step valid'), OPERAND2=0),
                                                clear_on_failure, [])])
     return [setvar('BS dn slot', 0), setvar('BS attn slot', 0), *entry, *run, gated,
-            h['change']('BS step', 1)]
+            h['change']('BS step', 1),
+            setvar('BS context used', h['var']('BS step')),
+            setvar('context', h['var']('BS context used'))]

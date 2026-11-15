@@ -453,7 +453,8 @@ def make(h):
             conditional(lt(var('BS max tokens'), 1), [setvar('BS stop', 1), setvar('BS text', '')]),
             setvar('BS decode budget', sub(add(var('BS prompt length'), var('BS max tokens')), 1)),
             ('procedures_call', {}, {'PROCCODE': ('BS detok load', 'true')}, {}),
-            setvar('BS step', 0), setvar('BS started', 1),
+            setvar('BS step', 0), setvar('BS tokens out', 0), setvar('BS context used', 0),
+            setvar('BS started', 1),
         ]
         one = lambda: [
             conditional(not_(lt(var('BS step'), sub(var('BS prompt length'), 1))),
@@ -486,6 +487,9 @@ def make(h):
                                 [conditional(not_(lt(step, var('BS prompt length'))), [
                         conditional(eq(eos, var('BS eos token')), [setvar('BS stop', 1), setvar('BS stop reason', 'eos')], [
                             addlist(eos, 'BS out tokens', 'l_out_tokens'),
+                            setvar('BS tokens out', sub(length('BS out tokens', 'l_out_tokens'),
+                                                        var('BS prompt length'))),
+                            setvar('tokens', var('BS tokens out')),
                             ('procedures_call', {}, {'PROCCODE': ('BS detok render', 'true')}, {}),
                             ('event_broadcastandwait', {'BROADCAST_INPUT': 'BS show'}, {}, {}),
                         ])])]),

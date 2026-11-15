@@ -292,34 +292,6 @@ def category_runs():
 
 
 
-def frame_costume():
-    """Chat panel: Scratch's own palette on a graphite surface, paper reply area."""
-    return ('<svg xmlns="http://www.w3.org/2000/svg" width="452" height="268" viewBox="0 0 452 268">'
-            '<rect x="0" y="0" width="452" height="268" rx="20" fill="#171A21"/>'
-            '<rect x="0.75" y="0.75" width="450.5" height="266.5" rx="19.5" fill="none" stroke="#2C3240"/>'
-            '<path d="M0 56 H452" stroke="#2C3240"/>'
-            '<circle cx="28" cy="28" r="8" fill="#FF8C1A"/>'
-            '<text x="44" y="34" font-family="Inter, Helvetica, sans-serif" font-size="17" '
-            'font-weight="700" fill="#F4F1EA" letter-spacing="-0.2">Bonsai</text>'
-            '<text x="118" y="34" font-family="ui-monospace, Menlo, monospace" font-size="10.5" '
-            'fill="#8B93A7">2B ternary · 24 layers · in blocks</text>'
-            '<rect x="16" y="68" width="420" height="150" rx="14" fill="#FFF7EC"/>'
-            '<text x="32" y="96" font-family="Inter, Helvetica, sans-serif" font-size="12" '
-            'font-weight="600" fill="#B08968" letter-spacing="0.3">Bonsai replies</text>'
-            '</svg>').encode()
-
-
-def input_costume():
-    """Prompt field: drawn where Scratch drops its ask bar, so both read as one control."""
-    return ('<svg xmlns="http://www.w3.org/2000/svg" width="452" height="52" viewBox="0 0 452 52">'
-            '<rect x="0" y="0" width="452" height="52" rx="14" fill="#232833"/>'
-            '<rect x="0.75" y="0.75" width="450.5" height="50.5" rx="13.5" fill="none" stroke="#3A4152"/>'
-            '<circle cx="26" cy="26" r="4" fill="#4C97FF"/>'
-            '<text x="40" y="31" font-family="Inter, Helvetica, sans-serif" font-size="13.5" '
-            'fill="#96A0B5">Type a prompt, press enter</text>'
-            '<text x="404" y="31" font-family="ui-monospace, Menlo, monospace" font-size="11" '
-            'fill="#5C6579">128</text>'
-            '</svg>').encode()
 
 def project(with_text=False, with_benchmark=False):
     graph = Blocks()
@@ -512,7 +484,8 @@ def project(with_text=False, with_benchmark=False):
     # The head procedure is always present (the decoder calls it), so its variables are too.
     names += ('BS head rows', 'BS head tensor', 'BS tile size', 'BS tile count', 'BS tile row',
               'BS scanned', 'BS head valid', 'BS cancel', 'BS benchmark transfer', 'BS groups per row',
-              'BS readout', 'BS step valid', 'BS subtotal b', 'BS total b', 'BS stage marker', 'BS repeat a', 'BS repeat b')
+              'BS readout', 'BS step valid', 'BS subtotal b', 'BS total b', 'BS stage marker',
+                 'BS tokens out', 'BS context used', 'tokens', 'layer', 'context', 'BS repeat a', 'BS repeat b')
     if with_text:
         names += ('BS text index', 'BS text unit', 'BS text next', 'BS text code', 'BS text equal',
                   'BS text needle', 'BS text result')
@@ -647,33 +620,17 @@ def project(with_text=False, with_benchmark=False):
                         'broadcasts': {}, 'blocks': speaker.blocks, 'comments': {}, 'currentCostume': 0,
                         'costumes': [{'name': 'backdrop', 'dataFormat': 'svg', 'assetId': asset,
                                       'md5ext': asset + '.svg', 'rotationCenterX': 240, 'rotationCenterY': 180}],
-                        'sounds': [], 'volume': 100, 'layerOrder': 300, 'visible': True, 'x': -40, 'y': -20,
+                        'sounds': [], 'volume': 100, 'layerOrder': 300, 'visible': True, 'x': -150, 'y': 74,
                         'size': 100, 'direction': 90, 'draggable': False, 'rotationStyle': 'all around'})
-        frame_data = frame_costume()
-        frame_digest = hashlib.md5(frame_data).hexdigest()
-        assets[frame_digest + '.svg'] = frame_data
-        targets.append({'isStage': False, 'name': 'Bonsai frame', 'variables': {}, 'lists': {},
-                        'broadcasts': {}, 'blocks': {}, 'comments': {}, 'currentCostume': 0,
-                        'costumes': [{'name': 'panel', 'dataFormat': 'svg', 'assetId': frame_digest,
-                                      'md5ext': frame_digest + '.svg', 'rotationCenterX': 226,
-                                      'rotationCenterY': 134}],
-                        'sounds': [], 'volume': 100, 'layerOrder': 299, 'visible': True,
-                        'x': 0, 'y': 22, 'size': 100, 'direction': 90, 'draggable': False,
-                        'rotationStyle': 'all around'})
-        # The prompt field is a sprite so the stage reads as one surface; the
-        # ask bar Scratch draws lands just above it.
-        field_data = input_costume()
-        field_digest = hashlib.md5(field_data).hexdigest()
-        assets[field_digest + '.svg'] = field_data
-        targets.append({'isStage': False, 'name': 'Bonsai prompt', 'variables': {}, 'lists': {},
-                        'broadcasts': {}, 'blocks': {}, 'comments': {}, 'currentCostume': 0,
-                        'costumes': [{'name': 'field', 'dataFormat': 'svg', 'assetId': field_digest,
-                                      'md5ext': field_digest + '.svg', 'rotationCenterX': 226,
-                                      'rotationCenterY': 26}],
-                        'sounds': [], 'volume': 100, 'layerOrder': 302, 'visible': True,
-                        'x': 0, 'y': -152, 'size': 100, 'direction': 90, 'draggable': False,
-                        'rotationStyle': 'all around'})
-    content = {'targets': targets, 'monitors': [], 'extensions': ['bonsailoader'] if with_benchmark else ['bonsailoader'],
+    monitors = []
+    if with_text and with_benchmark:
+        for name, x, y in (('layer', 240, 8), ('tokens', 240, 36), ('context', 240, 64)):
+            vid = var(name)[2]
+            monitors.append({'id': vid, 'mode': 'default', 'opcode': 'data_variable',
+                             'params': {'VARIABLE': name}, 'spriteName': None, 'value': 0,
+                             'width': 0, 'height': 0, 'x': x, 'y': y, 'visible': True,
+                             'sliderMin': 0, 'sliderMax': 100, 'isDiscrete': True})
+    content = {'targets': targets, 'monitors': monitors, 'extensions': ['bonsailoader'] if with_benchmark else ['bonsailoader'],
                'meta': {'semver': '3.0.0', 'vm': '0.2.0', 'agent': 'BonsaiScratch'}}
     return json.dumps(content, ensure_ascii=True, separators=(',', ':')).encode('utf-8'), assets
 
