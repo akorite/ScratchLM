@@ -104,3 +104,59 @@ The full suite takes about 90 minutes on the recorded host because three typed p
 Full model files and large generated manifests and fixtures belong outside Git. Current development measurements on the Intel Xeon host do not establish performance or memory use on the plan's Ryzen-class 16 GB target.
 
 The [M3/M4 decision record](docs/m3-decision.md) summarizes the speed redesign, `bslut5` adoption, projected decode/prefill costs, and measured M4 end-to-end head results on the Xeon host.
+
+## Running it in TurboWarp (browser or desktop)
+
+The `.sb3` files in `dist/` do not contain the model. You need the package first, then the
+loader extension, then the package selected at runtime.
+
+### 1. Fetch the locked GGUF
+
+```sh
+export WORK=~/.cache/bonsaiscratch
+mkdir -p "$WORK/build-tmp"
+# prism-ml/Ternary-Bonsai-2-2B-gguf at revision a6032a5089ac27e96be3a80c7b42d1ad0bd89887
+# file: Ternary-Bonsai-2-2B-PQ2_0.gguf  (model-lock.json records the hash)
+```
+
+Check `model-lock.json` for the pinned repository, revision, filename and SHA-256, and copy
+or download that file to `"$WORK/model.gguf"`. The packaging step refuses a model whose
+identity does not match the lock.
+
+### 2. Build the package (~537 MB)
+
+```sh
+TMPDIR="$WORK/build-tmp" python3 tools/package_model.py \
+  "$WORK/model.gguf" "$WORK/model-bslut5-tokenizer.bsp" --codec bslut5
+```
+
+It validates the GGUF, reads the package back, reverses every PQ2_0 group and compares the
+result byte-for-byte with the source, then prints the package SHA-256. Keep that checksum.
+The package is not committed and must not be uploaded to Git.
+
+### 3. Load the extension
+
+```sh
+python3 -m http.server 8000     # from the repo root
+```
+
+In TurboWarp, open Extensions → Custom Extension, load
+`http://localhost:8000/extension/loader.js` (or the file itself), and tick
+**"Run extension without sandbox"**. An unsandboxed extension has full page access: only
+load source you trust. This works in the browser editor as well as the desktop app.
+
+### 4. Load the project and the package
+
+Open `dist/bonsai-prompt-to-text.sb3`, run the **`select Bonsai package`** block, pick the
+`.bsp` you built, and wait for package status `ok`. A failed selection reports `error: …`.
+
+### 5. Run
+
+Keep the tab in the foreground: selecting a package sets the framerate to 250, and
+background-tab throttling will stall the compiled scheduler. Press the green flag. Expect
+about 12 minutes to the first token and about a minute per further token on the recorded
+Xeon host; typing a new prompt resets tokens, KV cells, convolution history and recurrent
+state, so you can re-run without reloading.
+
+Measured memory was 4.2–4.8 GiB peak RSS in the headless Node VM. A browser tab has not
+been measured and will need at least that much; treat a laptop or a browser tab as untested.
