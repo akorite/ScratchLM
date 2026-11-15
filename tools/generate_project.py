@@ -167,14 +167,15 @@ def f32_procedure(graph):
     add_procedure(graph, 'BS f32', body, x=1200, warp='true')
 
 
-def q8_script(output_name='BS output', output_id='l_output'):
+def q8_script(output_name='BS output', output_id='l_output',
+              input_name='BS input', input_id='l_input'):
     emit = lambda value: addlist(value, output_name, output_id)
     index, start, maximum, absmax, x, scale, rounded = map(var, (
         'BS index', 'BS group start', 'BS maximum', 'BS absmax', 'BS x', 'BS iscale', 'BS rounded'))
     absolute = ('operator_mathop', {'NUM': x}, {'OPERATOR': ['abs', None]}, False)
     result = var('BS f32 output')
     fraction = var('BS fraction')
-    scan = [setvar('BS x', item('BS input', 'l_input', index)),
+    scan = [setvar('BS x', item(input_name, input_id, index)),
             conditional(op('operator_gt', OPERAND1=absolute, OPERAND2=absmax),
                         [setvar('BS absmax', absolute), setvar('BS maximum', x)]),
             change('BS index', 1)]
@@ -182,7 +183,7 @@ def q8_script(output_name='BS output', output_id='l_output'):
                   OPERAND2=op('operator_and', OPERAND1=op('operator_equals', OPERAND1=fraction, OPERAND2=0.5),
                               OPERAND2=op('operator_equals', OPERAND1=op('operator_mod', NUM1=rounded, NUM2=2), OPERAND2=1)))
     quantize = [
-        setvar('BS x', item('BS input', 'l_input', index)),
+        setvar('BS x', item(input_name, input_id, index)),
         setvar('BS f32 input', op('operator_multiply', NUM1=scale, NUM2=x)), call_f32(),
         setvar('BS rounded', floor(result)),
         setvar('BS fraction', op('operator_subtract', NUM1=result, NUM2=rounded)),
@@ -349,6 +350,10 @@ def project(with_text=False, with_benchmark=False):
                             [call_proc('BS deltanet', 'true')], fallback)]
     fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=42),
                             [call_proc('BS decode', 'true')], fallback)]
+    # mode 43: project the same activation pair through one weight pass, the
+    # primitive the batched prefill is built from
+    fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=43),
+                            [call_proc('BS pair demo', 'true')], fallback)]
     if with_text and with_benchmark:
         fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=22),
                                 [call_proc('BS tokenize', 'true')], fallback)]
@@ -385,6 +390,13 @@ def project(with_text=False, with_benchmark=False):
     add_procedure(graph, 'BS deltanet', deltanet_body, x=2400, warp='true')
     add_procedure(graph, 'BS head', lut.script(globals(), head=True), x=3000, warp='false')
     add_procedure(graph, 'BS embed', embedding.make(15, globals()), x=3300, warp='true')
+    add_procedure(graph, 'BS pair demo',
+                  attention.matvec_pair(globals(), 'blk.3.attn_q.weight', 4096, 'BS pair kernel demo',
+                                        request='pair-demo') + [],
+                  x=4450, warp='true')
+    for index, (proc, spec) in enumerate(sorted(attention.PAIR_KERNELS.items())):
+        add_procedure(graph, proc, attention.matvec_pair_kernel_body(globals(), spec),
+                      x=4500 + 60 * index, warp='true')
     for index, (proc, spec) in enumerate(sorted(attention.KERNELS.items())):
         add_procedure(graph, proc, attention.matvec_kernel_body(globals(), spec),
                       x=4300 + 60 * index, warp='true')
@@ -430,7 +442,7 @@ def project(with_text=False, with_benchmark=False):
     # The head procedure is always present (the decoder calls it), so its variables are too.
     names += ('BS head rows', 'BS head tensor', 'BS tile size', 'BS tile count', 'BS tile row',
               'BS scanned', 'BS head valid', 'BS cancel', 'BS benchmark transfer', 'BS groups per row',
-              'BS readout', 'BS step valid')
+              'BS readout', 'BS step valid', 'BS subtotal b', 'BS total b')
     if with_text:
         names += ('BS text index', 'BS text unit', 'BS text next', 'BS text code', 'BS text equal',
                   'BS text needle', 'BS text result')
@@ -509,6 +521,9 @@ def project(with_text=False, with_benchmark=False):
                      'l_dt': ['BS dt', []], 'l_ssm_a': ['BS ssm a', []],
                      'l_prompt': ['BS prompt tokens', []],
                      'l_cp': ['BS cp', []], 'l_ids': ['BS ids', []],
+                     'l_input_b': ['BS input b', []], 'l_pair_a': ['BS pair a', []],
+                     'l_pair_b': ['BS pair b', []], 'l_lut_b': ['BS lut b', []],
+                     'l_q8_b': ['BS q8 b', []],
                      'l_units': ['BS units', [chr(code) for code in range(0x10000)]],
                      'l_bytes': ['BS bytes', []], 'l_vocab': ['BS vocab', []],
                      'l_out_tokens': ['BS out tokens', []],

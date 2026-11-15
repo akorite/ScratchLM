@@ -66,6 +66,77 @@ def matvec(h, tensor, rows, dest_name, dest_id, request='layer', proc='BS matvec
     return [('procedures_call', {}, {'PROCCODE': (proc, 'true')}, {})]
 
 
+PAIR_KERNELS = {}
+
+
+def matvec_pair(h, tensor, rows, proc, request='pair'):
+    """Project two activation vectors through one weight pass.
+
+    `BS input` and `BS input b` are the two activations; results land in
+    `BS pair a` and `BS pair b`. The packed-byte read is shared, which is the
+    whole point: the same weight byte serves both tokens.
+    """
+    PAIR_KERNELS[proc] = {'tensor': tensor, 'rows': rows, 'request': request}
+    return [('procedures_call', {}, {'PROCCODE': (proc, 'true')}, {})]
+
+
+def matvec_pair_kernel_body(h, spec):
+    """Two-token projection kernel for one call site."""
+    var, op, floor, item, length, setvar, addlist, conditional, repeat, change = (
+        h[name] for name in ('var', 'op', 'floor', 'item', 'length', 'setvar',
+                             'addlist', 'conditional', 'repeat', 'change'))
+    add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
+    sub = lambda a, b: op('operator_subtract', NUM1=a, NUM2=b)
+    mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
+    div = lambda a, b: op('operator_divide', NUM1=a, NUM2=b)
+    eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
+    gt = lambda a, b: op('operator_gt', OPERAND1=a, OPERAND2=b)
+    v = lambda name: var('BS ' + name)
+    tensor, rows, request = spec['tensor'], spec['rows'], spec['request']
+    status = ('bonsailoader_status', {'ID': request}, {}, False)
+    copied = ('bonsailoader_copied', {'ID': request}, {}, False)
+    groups = div(length('BS input', 'l_input'), 128)
+    tile_rows = v('proj tile')
+    tile_groups = mul(tile_rows, groups)
+    row_base = mul(v('tile row'), groups)
+    row = [setvar('BS total', 0), setvar('BS total b', 0), setvar('BS dot group', 0),
+           repeat(groups, lut.group_body_pair(h, add(row_base, v('dot group')), v('dot group'))
+                  + [change('BS dot group', 1)]),
+           addlist(v('total'), 'BS pair a', 'l_pair_a'),
+           addlist(v('total b'), 'BS pair b', 'l_pair_b'),
+           change('BS tile row', 1)]
+    chunk = [setvar('BS proj tile', sub(rows, v('proj scanned'))),
+             conditional(gt(tile_rows, TILE), [setvar('BS proj tile', TILE)]),
+             ('bonsailoader_loadGroups',
+              {'ID': request, 'TENSOR': tensor, 'START': mul(v('proj scanned'), groups),
+               'COUNT': tile_groups, 'Q': 'l_packed', 'SCALE': 'l_scales'}, {}, {}),
+             ('control_wait', {'DURATION': 0}, {}, {}),
+             setvar('BS settle', 0),
+             repeat(600, [conditional(eq(v('settle'), 0), [
+                 conditional(eq(status, 'pending'), [('control_wait', {'DURATION': 0}, {}, {})],
+                             [setvar('BS settle', 1)])])]),
+             conditional(op('operator_and', OPERAND1=eq(status, 'ok'),
+                            OPERAND2=eq(copied, tile_groups)),
+                         [setvar('BS tile row', 0), repeat(tile_rows, row),
+                          change('BS proj scanned', tile_rows)],
+                         [setvar('BS proj valid', 0), setvar('BS step valid', 0)])]
+    return [('data_deletealloflist', {}, {'LIST': ['BS pair a', 'l_pair_a']}, {}),
+            ('data_deletealloflist', {}, {'LIST': ['BS pair b', 'l_pair_b']}, {}),
+            setvar('BS proj scanned', 0), setvar('BS proj valid', 1),
+            conditional(eq(op('operator_mod', NUM1=length('BS input', 'l_input'), NUM2=256), 0),
+                        [('data_deletealloflist', {}, {'LIST': ['BS q8', 'l_q8']}, {}),
+                         *h['q8_script']('BS q8', 'l_q8'),
+                         ('data_deletealloflist', {}, {'LIST': ['BS lut', 'l_lut']}, {}),
+                         *lut.codec_tables(h), *lut.build_lut(h),
+                         ('data_deletealloflist', {}, {'LIST': ['BS q8 b', 'l_q8_b']}, {}),
+                         *h['q8_script']('BS q8 b', 'l_q8_b', 'BS input b', 'l_input_b'),
+                         ('data_deletealloflist', {}, {'LIST': ['BS lut b', 'l_lut_b']}, {}),
+                         *lut.build_lut(h, 'BS lut b', 'l_lut_b', 'BS input b', 'l_input_b'),
+                         repeat(floor(div(sub(add(rows, TILE), 1), TILE)),
+                                [conditional(eq(v('proj valid'), 1), chunk)])],
+                        [setvar('BS proj valid', 0)])]
+
+
 def matvec_kernel_body(h, spec):
     """Tiled PQ2 projection kernel for one call site."""
     var, op, floor, item, length, setvar, addlist, conditional, repeat, change = (

@@ -86,6 +86,13 @@ const loaderMode = ['22', '23', '24', '40', '41', '42', '43'].includes(process.a
             if (bytes.length % 4) throw new Error('invalid F32 fixture');
             input.value = Array.from({length: bytes.length / 4}, (_, i) => bytes.readFloatLE(i * 4));
         }
+        if (process.env.BONSAI_ACTIVATION_B_F32) {
+            const inputB = stage.lookupVariableByNameAndType('BS input b', 'list');
+            const bytes = fs.readFileSync(process.env.BONSAI_ACTIVATION_B_F32);
+            if (!inputB) throw new Error('project input-b list is missing');
+            if (bytes.length % 4) throw new Error('invalid F32 fixture');
+            inputB.value = Array.from({length: bytes.length / 4}, (_, i) => bytes.readFloatLE(i * 4));
+        }
         if (process.env.BONSAI_SIGNS_F32) {
             const signs = stage.lookupVariableByNameAndType('BS signs', 'list');
             if (!signs) throw new Error('project signs list is missing');

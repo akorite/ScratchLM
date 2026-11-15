@@ -243,6 +243,43 @@ def build_lut(h, lut_name='BS lut', lut_id='l_lut', input_name='BS input', input
             repeat(div(mul(length(input_name, input_id), v('lut groups')), 128), setup)]
 
 
+def group_body_pair(h, base, logical=None):
+    """Accumulate one group for two activations from a single packed-byte read.
+
+    Both LUTs are indexed by the same byte value at the same position, so the
+    packed byte and the two cursor updates are shared; only the lookups and the
+    accumulations double.
+    """
+    from scratch import embedding
+    var, op, floor, item, setvar, addlist, repeat, change = (
+        h[name] for name in ('var', 'op', 'floor', 'item', 'setvar', 'addlist', 'repeat', 'change'))
+    add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
+    mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
+    div = lambda a, b: op('operator_divide', NUM1=a, NUM2=b)
+    v = lambda name: var('BS ' + name)
+    q8 = lambda index: item('BS q8', 'l_q8', index)
+    q8_b = lambda index: item('BS q8 b', 'l_q8_b', index)
+    q8_base = mul(floor(div(logical, 2)), 257)
+    packed = item('BS packed bytes', 'l_packed', v('byte cur'))
+    inner = [setvar('BS subtotal', add(v('subtotal'), item('BS lut', 'l_lut', add(v('lut cur'), packed)))),
+             setvar('BS subtotal b', add(v('subtotal b'), item('BS lut b', 'l_lut_b', add(v('lut cur'), packed)))),
+             change('BS byte cur', 1), change('BS lut cur', v('lut domain'))]
+    return embedding.decode_fp16_scale(h, item('BS weight scales', 'l_scales', add(base, 1)), on_valid=[
+        setvar('BS subtotal', 0), setvar('BS subtotal b', 0),
+        setvar('BS byte cur', add(mul(base, 32), 1)),
+        setvar('BS lut cur', add(1, mul(logical, mul(v('lut groups'), v('lut domain'))))),
+        repeat(v('lut groups'), inner),
+        setvar('BS f32 input', mul(v('weight scale'), q8(add(q8_base, 1)))), h['call_f32'](),
+        setvar('BS f32 input', mul(v('f32 output'), v('subtotal'))), h['call_f32'](),
+        setvar('BS f32 input', add(v('total'), v('f32 output'))), h['call_f32'](),
+        setvar('BS total', v('f32 output')),
+        h['setvar']('BS f32 input', mul(v('weight scale'), q8_b(add(q8_base, 1)))), h['call_f32'](),
+        h['setvar']('BS f32 input', mul(v('f32 output'), v('subtotal b'))), h['call_f32'](),
+        h['setvar']('BS f32 input', add(v('total b'), v('f32 output'))), h['call_f32'](),
+        h['setvar']('BS total b', v('f32 output')),
+    ])
+
+
 def group_body(h, base, logical=None, lut_name='BS lut', lut_id='l_lut', total='BS total'):
     """Accumulate one 128-weight PQ2 group into BS total.
 
