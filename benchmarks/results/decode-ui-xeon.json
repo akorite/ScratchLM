@@ -1,0 +1,93 @@
+{
+  "schema": "bonsai-decode-step/v2",
+  "cpu": "Intel(R) Xeon(R) Platinum 8488C",
+  "turbowarp_vm": "scratch-vm-0cb82afe62506f3d9f2ff849c95593f0473b5d2c",
+  "turbomode": true,
+  "tiles": [
+    448
+  ],
+  "stubs": [],
+  "warp_head": false,
+  "position": 0,
+  "framerate": 250,
+  "token_id": 1237,
+  "project_sha256": {
+    "448": "e36f85e9fdd8ca802f3f3ccfa1df8557aaf0c33f46082e34cb187e8cf3aa0e96"
+  },
+  "baseline_revision": null,
+  "baseline_project_sha256": null,
+  "source_sha256": {
+    "scratch/attention.py": "e2ddb39dd8ab4beef0d2a99a639f355ffedd53432e60af8f642c6c74829a34c1",
+    "scratch/decoder.py": "ea2b1c8a2315526b49fb86a7b042f291e81941eada1c93fa21d30fdb27ae1212",
+    "scratch/deltanet.py": "052a0fc9240ccf1d9baee0ac9e738449b63dd36b9b47d57d41da1ce9be8fbb25",
+    "scratch/embedding.py": "b84579012816170b6c295df44a8db89f41ba9325a70cb6aa1883fd6a45c5258e",
+    "scratch/layers.py": "8ca670ba075e863e11f5ee7282294740f29a1fed40b2bd46646bb834779d0fbd",
+    "scratch/lut.py": "6a8efd8b7d40e24726b173c9af3e04ec78fd234e244948aa44669643a0638c37",
+    "scratch/numeric.py": "8c0e74d47b70ed40439558b102727d30c22df65b9c2687388ce02be1baf6c88c",
+    "scratch/text.py": "355f2ce1180cf66072dc5b8d1de4c578efe51d653815cc09b0fa9b5afcef5ff2",
+    "scratch/tokenizer.py": "ab2ed43d1d201674c3de00f74c8419a7080657f98912c33e9146fc2c9e25142f",
+    "scratch/transform.py": "ac3f90259433ac840a6c948b4e295870b88a043f3b132cf0e3a3a89368450745"
+  },
+  "generator_sha256": "3c3c65feb14bcb9808196ea6aa39bb35a411b394d4f9a54a8beb2534315316a5",
+  "ledger": {
+    "total": {
+      "weights": 1882823884,
+      "seconds": null
+    },
+    "blocks": {
+      "weights": 1373263680,
+      "seconds": null
+    },
+    "head": {
+      "weights": 508559360,
+      "seconds": null
+    },
+    "other": {
+      "weights": 1000844,
+      "seconds": null
+    }
+  },
+  "note": "One mode-42 decode step (24 layers + output_norm + head scan + greedy), Node VM, no renderer. Compare builds with --compare-build and alternate them inside pairs; per-weight figures use the package tensor count, not a per-matrix measurement.",
+  "runs": [
+    {
+      "build": "current",
+      "tile": 448,
+      "framerate": 250,
+      "wall_seconds": 35.24752183910459,
+      "cpu_seconds": 50.515637,
+      "peak_rss_bytes": 793780224,
+      "compile_ms": 260.679314,
+      "BS greedy token": 11,
+      "BS greedy logit": 12.117389678955078,
+      "BS second logit": 11.707728385925293
+    },
+    {
+      "build": "current",
+      "tile": 448,
+      "framerate": 250,
+      "wall_seconds": 33.35129650705494,
+      "cpu_seconds": 48.755185000000004,
+      "peak_rss_bytes": 859721728,
+      "compile_ms": 257.51857300000006,
+      "BS greedy token": 11,
+      "BS greedy logit": 12.117389678955078,
+      "BS second logit": 11.707728385925293
+    }
+  ],
+  "pairs": [],
+  "summary_by_tile": {
+    "448": {
+      "wall_seconds": [
+        35.24752183910459,
+        33.35129650705494
+      ],
+      "cpu_seconds": [
+        50.515637,
+        48.755185000000004
+      ],
+      "median_wall_seconds": 34.299409173079766,
+      "median_cpu_seconds": 49.635411000000005,
+      "median_ns_per_weight": 18.217003440710425
+    }
+  }
+}
