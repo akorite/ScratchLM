@@ -355,6 +355,11 @@ def project(with_text=False, with_benchmark=False):
                             [call_proc('BS stage pair', 'true')], fallback)]
     fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=47),
                             [call_proc('BS stage pair control', 'true')], fallback)]
+    # modes 48/49 repeat the stage so the model load stops dominating the timing
+    fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=48),
+                            [call_proc('BS stage pair repeat', 'true')], fallback)]
+    fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=49),
+                            [call_proc('BS stage repeat', 'true')], fallback)]
     # mode 43: project the same activation pair through one weight pass, the
     # primitive the batched prefill is built from
     fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=43),
@@ -404,6 +409,12 @@ def project(with_text=False, with_benchmark=False):
                    *deltanet.stage(helpers),
                    *copy(helpers, 'BS dn layer out', 'l_dn_layer_out', 'BS ctl out b', 'l_ctl_out_b')],
                   x=4750, warp='true')
+    add_procedure(graph, 'BS stage pair repeat',
+                  [setvar('BS step valid', 1), repeat(4, [*deltanet.stage_pair(helpers)])],
+                  x=4800, warp='true')
+    add_procedure(graph, 'BS stage repeat',
+                  [setvar('BS step valid', 1), repeat(4, [*deltanet.stage(helpers)])],
+                  x=4850, warp='true')
     add_procedure(graph, 'BS stage pair',
                   [setvar('BS step valid', 1), *deltanet.stage_pair(helpers)], x=4700, warp='true')
     add_procedure(graph, 'BS pair demo',

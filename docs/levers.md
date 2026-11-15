@@ -89,10 +89,23 @@ slots per 128-weight group, about 5%. The stride is identical for the raw,
 `bslut4` and `bslut5` codecs, so no per-codec kernel and no exit from the
 bytecode cliff is needed.
 
-## Open: batched prompt tokens in one weight pass
+## Wall: batched prompt tokens in one weight pass
 
 Projecting K tokens through one weight read amortizes only the packed read
-(0.44 of the pass), so the ceiling is 1.3–1.5× on prompt time and nothing on
-decode. The primitive exists (`BS pair demo`, mode 43, tests in
-`tests/scratch/test_pair_projection.py`); wiring it into the layer bodies is
-the remaining work.
+(0.44 of the pass), so the modelled ceiling was 1.3–1.5× on prompt time.
+
+Built and measured instead. The paired DeltaNet stage is exact against a
+sequential A-then-B control for both tokens and the final recurrent state, and
+modes 48/49 repeat the single and paired stages four times so the package load
+does not dominate:
+
+| Run | Wall | Per token |
+|---|---|---|
+| four single stages | 2.82 s | 0.305 s |
+| four paired stages (8 tokens) | 4.46 s | 0.358 s |
+
+The paired path is **0.85×**: 18% slower per token, not faster. The packed read
+is only 0.44 of the pass, while the second accumulator adds a lookup and an add
+per group and the per-token staging adds copies around every projection.
+Batching prefill is a regression on this runtime; the paired stage stays a
+verified primitive that the decoder does not call.
