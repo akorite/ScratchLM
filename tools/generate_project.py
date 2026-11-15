@@ -360,6 +360,9 @@ def project(with_text=False, with_benchmark=False):
                             [call_proc('BS stage pair repeat', 'true')], fallback)]
     fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=49),
                             [call_proc('BS stage repeat', 'true')], fallback)]
+    # mode 50 is the empty baseline: it measures startup and package load alone
+    fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=50),
+                            [call_proc('BS stage baseline', 'true')], fallback)]
     # mode 43: project the same activation pair through one weight pass, the
     # primitive the batched prefill is built from
     fallback = [conditional(op('operator_equals', OPERAND1=var('BS mode'), OPERAND2=43),
@@ -409,6 +412,7 @@ def project(with_text=False, with_benchmark=False):
                    *deltanet.stage(helpers),
                    *copy(helpers, 'BS dn layer out', 'l_dn_layer_out', 'BS ctl out b', 'l_ctl_out_b')],
                   x=4750, warp='true')
+    add_procedure(graph, 'BS stage baseline', [setvar('BS stage marker', 1)], x=4900, warp='true')
     add_procedure(graph, 'BS stage pair repeat',
                   [setvar('BS step valid', 1), repeat(4, [*deltanet.stage_pair(helpers)])],
                   x=4800, warp='true')
@@ -469,7 +473,7 @@ def project(with_text=False, with_benchmark=False):
     # The head procedure is always present (the decoder calls it), so its variables are too.
     names += ('BS head rows', 'BS head tensor', 'BS tile size', 'BS tile count', 'BS tile row',
               'BS scanned', 'BS head valid', 'BS cancel', 'BS benchmark transfer', 'BS groups per row',
-              'BS readout', 'BS step valid', 'BS subtotal b', 'BS total b')
+              'BS readout', 'BS step valid', 'BS subtotal b', 'BS total b', 'BS stage marker')
     if with_text:
         names += ('BS text index', 'BS text unit', 'BS text next', 'BS text code', 'BS text equal',
                   'BS text needle', 'BS text result')

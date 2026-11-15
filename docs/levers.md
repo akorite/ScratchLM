@@ -94,18 +94,22 @@ bytecode cliff is needed.
 Projecting K tokens through one weight read amortizes only the packed read
 (0.44 of the pass), so the modelled ceiling was 1.3–1.5× on prompt time.
 
-Built and measured instead. The paired DeltaNet stage is exact against a
-sequential A-then-B control for both tokens and the final recurrent state, and
-modes 48/49 repeat the single and paired stages four times so the package load
-does not dominate:
+Built and measured instead. First measurement was invalid: modes 48/49 were
+missing from the harness loader allowlist, so the stub nulled the package after
+one request and the repeated stages timed failure paths. With modes 48/49/50 on
+the allowlist, outputs verified (2048 numeric values per token) and a startup
+baseline (mode 50, 2.16 s) subtracted:
 
-| Run | Wall | Per token |
+| Run | Wall | Per unit |
 |---|---|---|
-| four single stages | 2.82 s | 0.305 s |
-| four paired stages (8 tokens) | 4.46 s | 0.358 s |
+| four single stages | 4.66 s | 0.63 s per token |
+| four paired stages (8 tokens) | 15.3 s | 1.64 s per token |
 
-The paired path is **0.85×**: 18% slower per token, not faster. The packed read
-is only 0.44 of the pass, while the second accumulator adds a lookup and an add
-per group and the per-token staging adds copies around every projection.
-Batching prefill is a regression on this runtime; the paired stage stays a
-verified primitive that the decoder does not call.
+The paired path is **0.38×**: 2.6× slower per token. A two-token pass costs
+3.3 s against 1.3 s for two single passes. The packed read is only 0.44 of the
+pass while the second accumulator adds a lookup and an add per group, the pair
+kernel builds a second LUT and q8 stream per site, and the per-token staging
+copies lists around every projection. Batching prefill is a regression on this
+runtime; the paired stage stays a verified primitive that the decoder does not
+call.
+
