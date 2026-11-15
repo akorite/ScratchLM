@@ -1,0 +1,160 @@
+{
+  "schema": "bonsai-decode-step/v2",
+  "cpu": "Intel(R) Xeon(R) Platinum 8488C",
+  "turbowarp_vm": "scratch-vm-0cb82afe62506f3d9f2ff849c95593f0473b5d2c",
+  "turbomode": true,
+  "tiles": [
+    448,
+    640
+  ],
+  "stubs": [],
+  "warp_head": false,
+  "position": 0,
+  "framerate": 250,
+  "token_id": 1237,
+  "project_sha256": {
+    "448": "773a63bafbee62e1c0f94a4f3089e0849606277a783f34437b7ae2db112434bc",
+    "640": "9ed0efb80c6a75d19be8acf82d7fe8cce62a1d887aeaa8ae2b18b160b7dcfc6f"
+  },
+  "baseline_revision": null,
+  "baseline_project_sha256": null,
+  "source_sha256": {
+    "scratch/attention.py": "81e817544ba9e9c5d1ee003f1b782e478c76d5347b06f9adce929259cffebbab",
+    "scratch/decoder.py": "9632250ec7584d3bc7907d7cdca0be3679a66f157e992e4b49456786bc5f1ba5",
+    "scratch/deltanet.py": "e9c4826022bc3f91c24b4219ffd3d43e52acced93ef015f0feb936d637a32d36",
+    "scratch/embedding.py": "b84579012816170b6c295df44a8db89f41ba9325a70cb6aa1883fd6a45c5258e",
+    "scratch/layers.py": "8ca670ba075e863e11f5ee7282294740f29a1fed40b2bd46646bb834779d0fbd",
+    "scratch/lut.py": "bcee413a1f29b8f9037457a31c09fce1db8c3add5e9203c8d45fff2254396370",
+    "scratch/numeric.py": "8c0e74d47b70ed40439558b102727d30c22df65b9c2687388ce02be1baf6c88c",
+    "scratch/text.py": "355f2ce1180cf66072dc5b8d1de4c578efe51d653815cc09b0fa9b5afcef5ff2",
+    "scratch/tokenizer.py": "02a81f5738b0efd4fca3d9f6918251206186c40057778d57cfef50e381ad8ddf",
+    "scratch/transform.py": "ac3f90259433ac840a6c948b4e295870b88a043f3b132cf0e3a3a89368450745"
+  },
+  "generator_sha256": "3291804b4d1d8bb0dc1f0dea3a51a5a8fb30e42249dd69907735f819096bc431",
+  "ledger": {
+    "total": {
+      "weights": 1882823884,
+      "seconds": null
+    },
+    "blocks": {
+      "weights": 1373263680,
+      "seconds": null
+    },
+    "head": {
+      "weights": 508559360,
+      "seconds": null
+    },
+    "other": {
+      "weights": 1000844,
+      "seconds": null
+    }
+  },
+  "note": "One mode-42 decode step (24 layers + output_norm + head scan + greedy), Node VM, no renderer. Compare builds with --compare-build and alternate them inside pairs; per-weight figures use the package tensor count, not a per-matrix measurement.",
+  "runs": [
+    {
+      "build": "current",
+      "tile": 448,
+      "framerate": 250,
+      "wall_seconds": 48.28340313397348,
+      "cpu_seconds": 60.105883999999996,
+      "peak_rss_bytes": 922759168,
+      "compile_ms": 164.902698,
+      "BS greedy token": 11,
+      "BS greedy logit": 12.117389678955078,
+      "BS second logit": 11.707728385925293
+    },
+    {
+      "build": "current",
+      "tile": 640,
+      "framerate": 250,
+      "wall_seconds": 77.93431353592314,
+      "cpu_seconds": 88.232006,
+      "peak_rss_bytes": 913891328,
+      "compile_ms": 190.411794,
+      "BS greedy token": 11,
+      "BS greedy logit": 12.117389678955078,
+      "BS second logit": 11.707728385925293
+    },
+    {
+      "build": "current",
+      "tile": 448,
+      "framerate": 250,
+      "wall_seconds": 47.473795282887295,
+      "cpu_seconds": 58.87481700000001,
+      "peak_rss_bytes": 908668928,
+      "compile_ms": 167.2478739999999,
+      "BS greedy token": 11,
+      "BS greedy logit": 12.117389678955078,
+      "BS second logit": 11.707728385925293
+    },
+    {
+      "build": "current",
+      "tile": 640,
+      "framerate": 250,
+      "wall_seconds": 47.19383305707015,
+      "cpu_seconds": 58.41312099999998,
+      "peak_rss_bytes": 934240256,
+      "compile_ms": 183.26376800000003,
+      "BS greedy token": 11,
+      "BS greedy logit": 12.117389678955078,
+      "BS second logit": 11.707728385925293
+    },
+    {
+      "build": "current",
+      "tile": 448,
+      "framerate": 250,
+      "wall_seconds": 48.47643270296976,
+      "cpu_seconds": 60.58580699999999,
+      "peak_rss_bytes": 941805568,
+      "compile_ms": 167.36663299999998,
+      "BS greedy token": 11,
+      "BS greedy logit": 12.117389678955078,
+      "BS second logit": 11.707728385925293
+    },
+    {
+      "build": "current",
+      "tile": 640,
+      "framerate": 250,
+      "wall_seconds": 76.2540581158828,
+      "cpu_seconds": 87.34813600000001,
+      "peak_rss_bytes": 903131136,
+      "compile_ms": 167.88507400000003,
+      "BS greedy token": 11,
+      "BS greedy logit": 12.117389678955078,
+      "BS second logit": 11.707728385925293
+    }
+  ],
+  "pairs": [],
+  "summary_by_tile": {
+    "448": {
+      "wall_seconds": [
+        48.28340313397348,
+        47.473795282887295,
+        48.47643270296976
+      ],
+      "cpu_seconds": [
+        60.105883999999996,
+        58.87481700000001,
+        60.58580699999999
+      ],
+      "median_wall_seconds": 48.28340313397348,
+      "median_cpu_seconds": 60.105883999999996,
+      "median_ns_per_weight": 25.64414204869598
+    },
+    "640": {
+      "wall_seconds": [
+        77.93431353592314,
+        47.19383305707015,
+        76.2540581158828
+      ],
+      "cpu_seconds": [
+        88.232006,
+        58.41312099999998,
+        87.34813600000001
+      ],
+      "median_wall_seconds": 76.2540581158828,
+      "median_cpu_seconds": 87.34813600000001,
+      "median_ns_per_weight": 40.49983578595968
+    }
+  }
+}
