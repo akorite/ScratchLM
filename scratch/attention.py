@@ -421,13 +421,19 @@ def layer_q(h):
                                              'BS gate', 'l_gate'),
                                      change('BS index', 1)]),
                         change('BS layer head', 1)])]
-    return [
-        *matvec(h, weight(h, '.attn_q.weight'), 4096, 'BS q full', 'l_q_full', request='layer-q', proc='BS mv q'),
+    _post = [
         conditional(eq(v('proj valid'), 1), split),
         *head_norm(h, 'BS q', 'l_q', 'BS qn', 'l_qn', 'BS q norm', 'l_q_norm', 256, 8),
         *rope_list(h, 'BS qn', 'l_qn', 'BS q', 'l_q', v('layer position')),
     ]
+    return [*layer_q_proj(h), *_post, ]
 
+
+def layer_q_proj(h):
+    """Project the staged activation through the .attn_q.weight matrix."""
+    return [
+                *matvec(h, weight(h, '.attn_q.weight'), 4096, 'BS q full', 'l_q_full', request='layer-q', proc='BS mv q'),
+    ]
 
 def layer_k(h):
     """One sequential segment of the attention layer; segments compose in order."""
@@ -437,14 +443,22 @@ def layer_k(h):
     eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
     add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
     mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
-    return [
+    _pre = [
         *copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
-        *matvec(h, weight(h, '.attn_k.weight'), 512, 'BS k', 'l_k', request='layer-k', proc='BS mv k'),
+    ]
+    _post = [
         *head_norm(h, 'BS k', 'l_k', 'BS kn', 'l_kn', 'BS k norm', 'l_k_norm', 256, 2),
         *rope_list(h, 'BS kn', 'l_kn', 'BS k', 'l_k', v('layer position')),
     ]
+    return [*_pre, *layer_k_proj(h), *_post, ]
 
+
+def layer_k_proj(h):
+    """Project the staged activation through the .attn_k.weight matrix."""
+    return [
+                *matvec(h, weight(h, '.attn_k.weight'), 512, 'BS k', 'l_k', request='layer-k', proc='BS mv k'),
+    ]
 
 def layer_v(h):
     """One sequential segment of the attention layer; segments compose in order."""
@@ -454,14 +468,22 @@ def layer_v(h):
     eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
     add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
     mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
-    return [
+    _pre = [
         *copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
-        *matvec(h, weight(h, '.attn_v.weight'), 512, 'BS v', 'l_v', request='layer-v', proc='BS mv v'),
+    ]
+    _post = [
         *cache_write(h, 'BS k', 'l_k', 'BS k cache', 'l_k_cache', v('layer position')),
         *cache_write(h, 'BS v', 'l_v', 'BS v cache', 'l_v_cache', v('layer position')),
     ]
+    return [*_pre, *layer_v_proj(h), *_post, ]
 
+
+def layer_v_proj(h):
+    """Project the staged activation through the .attn_v.weight matrix."""
+    return [
+                *matvec(h, weight(h, '.attn_v.weight'), 512, 'BS v', 'l_v', request='layer-v', proc='BS mv v'),
+    ]
 
 def layer_attn(h):
     """One sequential segment of the attention layer; segments compose in order."""
@@ -488,14 +510,22 @@ def layer_out(h):
     eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
     add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
     mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
-    return [
+    _pre = [
         *copy(h, 'BS attn gated', 'l_attn_gated', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
-        *matvec(h, weight(h, '.attn_output.weight'), 2048, 'BS attn out', 'l_attn_out', request='layer-o', proc='BS mv o'),
+    ]
+    _post = [
         *h['combine'](h, gated=False, rhs=('BS attn out', 'l_attn_out'), input_name='BS layer input',
                       input_id='l_layer_input', output=('BS residual', 'l_residual')),
     ]
+    return [*_pre, *layer_out_proj(h), *_post, ]
 
+
+def layer_out_proj(h):
+    """Project the staged activation through the .attn_output.weight matrix."""
+    return [
+                *matvec(h, weight(h, '.attn_output.weight'), 2048, 'BS attn out', 'l_attn_out', request='layer-o', proc='BS mv o'),
+    ]
 
 def layer_ffn_prep(h):
     """One sequential segment of the attention layer; segments compose in order."""
@@ -521,10 +551,14 @@ def layer_ffn_gate(h):
     eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
     add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
     mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
-    return [
-        *matvec(h, weight(h, '.ffn_gate.weight'), 6144, 'BS ffn gate', 'l_ffn_gate', request='layer-g', proc='BS mv g'),
-    ]
+    return [*layer_ffn_gate_proj(h), ]
 
+
+def layer_ffn_gate_proj(h):
+    """Project the staged activation through the .ffn_gate.weight matrix."""
+    return [
+                *matvec(h, weight(h, '.ffn_gate.weight'), 6144, 'BS ffn gate', 'l_ffn_gate', request='layer-g', proc='BS mv g'),
+    ]
 
 def layer_ffn_up(h):
     """One sequential segment of the attention layer; segments compose in order."""
@@ -534,12 +568,18 @@ def layer_ffn_up(h):
     eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
     add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
     mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
-    return [
+    _pre = [
         *copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
-        *matvec(h, weight(h, '.ffn_up.weight'), 6144, 'BS ffn up', 'l_ffn_up', request='layer-u', proc='BS mv u'),
     ]
+    return [*_pre, *layer_ffn_up_proj(h), ]
 
+
+def layer_ffn_up_proj(h):
+    """Project the staged activation through the .ffn_up.weight matrix."""
+    return [
+                *matvec(h, weight(h, '.ffn_up.weight'), 6144, 'BS ffn up', 'l_ffn_up', request='layer-u', proc='BS mv u'),
+    ]
 
 def layer_ffn_act(h):
     """One sequential segment of the attention layer; segments compose in order."""
@@ -563,12 +603,18 @@ def layer_ffn_down(h):
     eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
     add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
     mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
-    return [
+    _pre = [
         *copy(h, 'BS ffn', 'l_ffn', 'BS input', 'l_input'),
         *rotate_in(h, 6144),
-        *matvec(h, weight(h, '.ffn_down.weight'), 2048, 'BS ffn out', 'l_ffn_out', request='layer-d', proc='BS mv d'),
     ]
+    return [*_pre, *layer_ffn_down_proj(h), ]
 
+
+def layer_ffn_down_proj(h):
+    """Project the staged activation through the .ffn_down.weight matrix."""
+    return [
+                *matvec(h, weight(h, '.ffn_down.weight'), 2048, 'BS ffn out', 'l_ffn_out', request='layer-d', proc='BS mv d'),
+    ]
 
 def layer_ffn_out(h):
     """One sequential segment of the attention layer; segments compose in order."""
