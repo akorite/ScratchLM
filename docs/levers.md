@@ -89,27 +89,37 @@ slots per 128-weight group, about 5%. The stride is identical for the raw,
 `bslut4` and `bslut5` codecs, so no per-codec kernel and no exit from the
 bytecode cliff is needed.
 
-## Wall: batched prompt tokens in one weight pass
+## Measured: batched prompt tokens in one weight pass (1.07×)
 
 Projecting K tokens through one weight read amortizes only the packed read
-(0.44 of the pass), so the modelled ceiling was 1.3–1.5× on prompt time.
+(0.44 of the pass), so the modelled ceiling was 1.3–1.5× on prompt time, and
+nothing on decode.
 
-Built and measured instead. First measurement was invalid: modes 48/49 were
-missing from the harness loader allowlist, so the stub nulled the package after
-one request and the repeated stages timed failure paths. With modes 48/49/50 on
-the allowlist, outputs verified (2048 numeric values per token) and a startup
-baseline (mode 50, 2.16 s) subtracted:
+Two earlier measurements were invalid and are recorded here so they are not
+repeated:
 
-| Run | Wall | Per unit |
+1. Modes 48/49 were missing from the harness loader allowlist, so the stub
+   nulled the package after one request and the runs timed failure paths.
+2. With the allowlist fixed, the repeat procedures still ran four stages
+   without restoring the 2048-wide token vector, so iterations two to four
+   failed the stage's dimension guard (2.6× "slower" was measured garbage).
+
+With modes 48/49/50 allowlisted, each iteration restoring both token inputs,
+outputs verified as 2048 numeric values, and a startup baseline (mode 50,
+2.16 s) subtracted:
+
+| Run | Wall | Per token |
 |---|---|---|
-| four single stages | 4.66 s | 0.63 s per token |
-| four paired stages (8 tokens) | 15.3 s | 1.64 s per token |
+| four single stages | 11.11 s | 2.24 s |
+| four paired stages (8 tokens) | 18.95 s | 2.10 s |
 
-The paired path is **0.38×**: 2.6× slower per token. A two-token pass costs
-3.3 s against 1.3 s for two single passes. The packed read is only 0.44 of the
-pass while the second accumulator adds a lookup and an add per group, the pair
-kernel builds a second LUT and q8 stream per site, and the per-token staging
-copies lists around every projection. Batching prefill is a regression on this
-runtime; the paired stage stays a verified primitive that the decoder does not
-call.
+Batching is **1.07×**: about 7% faster per prompt token, against a modelled
+25–33%. The paired kernel builds a second LUT and q8 stream per site and the
+per-token staging copies lists around every projection, which consumes most of
+the shared-read saving.
 
+Verdict: correct but not worth its cost. The paired stage stays a verified
+primitive (bit-exact against a sequential A→B control for both tokens and the
+final recurrent state); wiring it into the decoder would add per-token
+positions, per-token KV cells and a paired layer body for roughly 7% of prompt
+time and no decode gain.

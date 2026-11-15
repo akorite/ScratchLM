@@ -414,10 +414,18 @@ def project(with_text=False, with_benchmark=False):
                   x=4750, warp='true')
     add_procedure(graph, 'BS stage baseline', [setvar('BS stage marker', 1)], x=4900, warp='true')
     add_procedure(graph, 'BS stage pair repeat',
-                  [setvar('BS step valid', 1), repeat(4, [*deltanet.stage_pair(helpers)])],
+                  [setvar('BS step valid', 1),
+                   *copy(helpers, 'BS input', 'l_input', 'BS repeat a', 'l_repeat_a'),
+                   *copy(helpers, 'BS input b', 'l_input_b', 'BS repeat b', 'l_repeat_b'),
+                   repeat(4, [*copy(helpers, 'BS repeat a', 'l_repeat_a', 'BS input', 'l_input'),
+                              *copy(helpers, 'BS repeat b', 'l_repeat_b', 'BS input b', 'l_input_b'),
+                              *deltanet.stage_pair(helpers)])],
                   x=4800, warp='true')
     add_procedure(graph, 'BS stage repeat',
-                  [setvar('BS step valid', 1), repeat(4, [*deltanet.stage(helpers)])],
+                  [setvar('BS step valid', 1),
+                   *copy(helpers, 'BS input', 'l_input', 'BS repeat a', 'l_repeat_a'),
+                   repeat(4, [*copy(helpers, 'BS repeat a', 'l_repeat_a', 'BS input', 'l_input'),
+                              *deltanet.stage(helpers)])],
                   x=4850, warp='true')
     add_procedure(graph, 'BS stage pair',
                   [setvar('BS step valid', 1), *deltanet.stage_pair(helpers)], x=4700, warp='true')
@@ -473,7 +481,7 @@ def project(with_text=False, with_benchmark=False):
     # The head procedure is always present (the decoder calls it), so its variables are too.
     names += ('BS head rows', 'BS head tensor', 'BS tile size', 'BS tile count', 'BS tile row',
               'BS scanned', 'BS head valid', 'BS cancel', 'BS benchmark transfer', 'BS groups per row',
-              'BS readout', 'BS step valid', 'BS subtotal b', 'BS total b', 'BS stage marker')
+              'BS readout', 'BS step valid', 'BS subtotal b', 'BS total b', 'BS stage marker', 'BS repeat a', 'BS repeat b')
     if with_text:
         names += ('BS text index', 'BS text unit', 'BS text next', 'BS text code', 'BS text equal',
                   'BS text needle', 'BS text result')
