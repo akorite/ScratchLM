@@ -371,34 +371,16 @@ def attention(h):
     ]
 
 
-def layer(h):
-    var, op, floor, item, length, setvar, addlist, conditional, repeat, change = (
-        h[name] for name in ('var', 'op', 'floor', 'item', 'length', 'setvar', 'addlist', 'conditional',
-                             'repeat', 'change'))
+def layer_begin(h):
+    """One sequential segment of the attention layer; segments compose in order."""
+    var, op, item, setvar, addlist, repeat, change, conditional = (
+        h[n] for n in ('var', 'op', 'item', 'setvar', 'addlist', 'repeat', 'change', 'conditional'))
+    v = lambda name: var('BS ' + name)
+    eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
     add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
     mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
-    eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
-    lt = lambda a, b: op('operator_lt', OPERAND1=a, OPERAND2=b)
-    v = lambda name: var('BS ' + name)
     codec = ('bonsailoader_codec', {}, {}, False)
-    split = [('data_deletealloflist', {}, {'LIST': ['BS q', 'l_q']}, {}),
-             ('data_deletealloflist', {}, {'LIST': ['BS gate', 'l_gate']}, {}),
-             setvar('BS layer head', 0),
-             repeat(8, [setvar('BS index', 0),
-                        repeat(256, [addlist(item('BS q full', 'l_q_full',
-                                                  add(add(mul(v('layer head'), 512), v('index')), 1)),
-                                             'BS q', 'l_q'),
-                                     addlist(item('BS q full', 'l_q_full',
-                                                  add(add(add(mul(v('layer head'), 512), v('index')), 257), 0)),
-                                             'BS gate', 'l_gate'),
-                                     change('BS index', 1)]),
-                        change('BS layer head', 1)])]
-    valid = op('operator_and', OPERAND1=eq(length('BS input', 'l_input'), 2048),
-               OPERAND2 = op('operator_and', OPERAND1=eq(v('layer position'), floor(v('layer position'))),
-                             OPERAND2=op('operator_and', OPERAND1=op('operator_gt', OPERAND1=v('layer position'),
-                                                                    OPERAND2=-1),
-                                         OPERAND2=lt(v('layer position'), 128))))
-    body = [
+    return [
         embedding.set_codec_from_loader(h, codec),
         *embedding.load_dense(h, 'qnorm', weight(h, '.attn_q_norm.weight'), 'BS q norm', 'l_q_norm', 256,
                               [setvar('BS proj valid', 0)]),
@@ -416,46 +398,221 @@ def layer(h):
         *copy(h, 'BS input', 'l_input', 'BS layer input', 'l_layer_input'),
         *copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
+    ]
+
+
+def layer_q(h):
+    """One sequential segment of the attention layer; segments compose in order."""
+    var, op, item, setvar, addlist, repeat, change, conditional = (
+        h[n] for n in ('var', 'op', 'item', 'setvar', 'addlist', 'repeat', 'change', 'conditional'))
+    v = lambda name: var('BS ' + name)
+    eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
+    add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
+    mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
+    split = [('data_deletealloflist', {}, {'LIST': ['BS q', 'l_q']}, {}),
+             ('data_deletealloflist', {}, {'LIST': ['BS gate', 'l_gate']}, {}),
+             setvar('BS layer head', 0),
+             repeat(8, [setvar('BS index', 0),
+                        repeat(256, [addlist(item('BS q full', 'l_q_full',
+                                                  add(add(mul(v('layer head'), 512), v('index')), 1)),
+                                             'BS q', 'l_q'),
+                                     addlist(item('BS q full', 'l_q_full',
+                                                  add(add(add(mul(v('layer head'), 512), v('index')), 257), 0)),
+                                             'BS gate', 'l_gate'),
+                                     change('BS index', 1)]),
+                        change('BS layer head', 1)])]
+    return [
         *matvec(h, weight(h, '.attn_q.weight'), 4096, 'BS q full', 'l_q_full', request='layer-q', proc='BS mv q'),
         conditional(eq(v('proj valid'), 1), split),
         *head_norm(h, 'BS q', 'l_q', 'BS qn', 'l_qn', 'BS q norm', 'l_q_norm', 256, 8),
         *rope_list(h, 'BS qn', 'l_qn', 'BS q', 'l_q', v('layer position')),
+    ]
+
+
+def layer_k(h):
+    """One sequential segment of the attention layer; segments compose in order."""
+    var, op, item, setvar, addlist, repeat, change, conditional = (
+        h[n] for n in ('var', 'op', 'item', 'setvar', 'addlist', 'repeat', 'change', 'conditional'))
+    v = lambda name: var('BS ' + name)
+    eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
+    add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
+    mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
+    return [
         *copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
         *matvec(h, weight(h, '.attn_k.weight'), 512, 'BS k', 'l_k', request='layer-k', proc='BS mv k'),
         *head_norm(h, 'BS k', 'l_k', 'BS kn', 'l_kn', 'BS k norm', 'l_k_norm', 256, 2),
         *rope_list(h, 'BS kn', 'l_kn', 'BS k', 'l_k', v('layer position')),
+    ]
+
+
+def layer_v(h):
+    """One sequential segment of the attention layer; segments compose in order."""
+    var, op, item, setvar, addlist, repeat, change, conditional = (
+        h[n] for n in ('var', 'op', 'item', 'setvar', 'addlist', 'repeat', 'change', 'conditional'))
+    v = lambda name: var('BS ' + name)
+    eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
+    add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
+    mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
+    return [
         *copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
         *matvec(h, weight(h, '.attn_v.weight'), 512, 'BS v', 'l_v', request='layer-v', proc='BS mv v'),
         *cache_write(h, 'BS k', 'l_k', 'BS k cache', 'l_k_cache', v('layer position')),
         *cache_write(h, 'BS v', 'l_v', 'BS v cache', 'l_v_cache', v('layer position')),
+    ]
+
+
+def layer_attn(h):
+    """One sequential segment of the attention layer; segments compose in order."""
+    var, op, item, setvar, addlist, repeat, change, conditional = (
+        h[n] for n in ('var', 'op', 'item', 'setvar', 'addlist', 'repeat', 'change', 'conditional'))
+    v = lambda name: var('BS ' + name)
+    eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
+    add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
+    mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
+    return [
         ('data_deletealloflist', {}, {'LIST': ['BS attn', 'l_attn']}, {}),
         setvar('BS index', 0),
         repeat(2048, [addlist(0, 'BS attn', 'l_attn'), change('BS index', 1)]),
         setvar('BS layer head', 0), repeat(8, attention(h)),
         *gate_mul(h, 'BS attn', 'l_attn', 'BS gate', 'l_gate', 'BS attn gated', 'l_attn_gated'),
+    ]
+
+
+def layer_out(h):
+    """One sequential segment of the attention layer; segments compose in order."""
+    var, op, item, setvar, addlist, repeat, change, conditional = (
+        h[n] for n in ('var', 'op', 'item', 'setvar', 'addlist', 'repeat', 'change', 'conditional'))
+    v = lambda name: var('BS ' + name)
+    eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
+    add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
+    mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
+    return [
         *copy(h, 'BS attn gated', 'l_attn_gated', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
         *matvec(h, weight(h, '.attn_output.weight'), 2048, 'BS attn out', 'l_attn_out', request='layer-o', proc='BS mv o'),
         *h['combine'](h, gated=False, rhs=('BS attn out', 'l_attn_out'), input_name='BS layer input',
                       input_id='l_layer_input', output=('BS residual', 'l_residual')),
+    ]
+
+
+def layer_ffn_prep(h):
+    """One sequential segment of the attention layer; segments compose in order."""
+    var, op, item, setvar, addlist, repeat, change, conditional = (
+        h[n] for n in ('var', 'op', 'item', 'setvar', 'addlist', 'repeat', 'change', 'conditional'))
+    v = lambda name: var('BS ' + name)
+    eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
+    add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
+    mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
+    return [
         *copy(h, 'BS residual', 'l_residual', 'BS input', 'l_input'),
         *weighted_norm(h, 'BS post w', 'l_post_w', 'BS normed', 'l_normed'),
         *copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
+    ]
+
+
+def layer_ffn_gate(h):
+    """One sequential segment of the attention layer; segments compose in order."""
+    var, op, item, setvar, addlist, repeat, change, conditional = (
+        h[n] for n in ('var', 'op', 'item', 'setvar', 'addlist', 'repeat', 'change', 'conditional'))
+    v = lambda name: var('BS ' + name)
+    eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
+    add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
+    mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
+    return [
         *matvec(h, weight(h, '.ffn_gate.weight'), 6144, 'BS ffn gate', 'l_ffn_gate', request='layer-g', proc='BS mv g'),
+    ]
+
+
+def layer_ffn_up(h):
+    """One sequential segment of the attention layer; segments compose in order."""
+    var, op, item, setvar, addlist, repeat, change, conditional = (
+        h[n] for n in ('var', 'op', 'item', 'setvar', 'addlist', 'repeat', 'change', 'conditional'))
+    v = lambda name: var('BS ' + name)
+    eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
+    add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
+    mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
+    return [
         *copy(h, 'BS normed', 'l_normed', 'BS input', 'l_input'),
         *rotate_in(h, 2048),
         *matvec(h, weight(h, '.ffn_up.weight'), 6144, 'BS ffn up', 'l_ffn_up', request='layer-u', proc='BS mv u'),
+    ]
+
+
+def layer_ffn_act(h):
+    """One sequential segment of the attention layer; segments compose in order."""
+    var, op, item, setvar, addlist, repeat, change, conditional = (
+        h[n] for n in ('var', 'op', 'item', 'setvar', 'addlist', 'repeat', 'change', 'conditional'))
+    v = lambda name: var('BS ' + name)
+    eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
+    add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
+    mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
+    return [
         *h['combine'](h, gated=True, rhs=('BS ffn up', 'l_ffn_up'), input_name='BS ffn gate',
                       input_id='l_ffn_gate', output=('BS ffn', 'l_ffn')),
+    ]
+
+
+def layer_ffn_down(h):
+    """One sequential segment of the attention layer; segments compose in order."""
+    var, op, item, setvar, addlist, repeat, change, conditional = (
+        h[n] for n in ('var', 'op', 'item', 'setvar', 'addlist', 'repeat', 'change', 'conditional'))
+    v = lambda name: var('BS ' + name)
+    eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
+    add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
+    mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
+    return [
         *copy(h, 'BS ffn', 'l_ffn', 'BS input', 'l_input'),
         *rotate_in(h, 6144),
         *matvec(h, weight(h, '.ffn_down.weight'), 2048, 'BS ffn out', 'l_ffn_out', request='layer-d', proc='BS mv d'),
+    ]
+
+
+def layer_ffn_out(h):
+    """One sequential segment of the attention layer; segments compose in order."""
+    var, op, item, setvar, addlist, repeat, change, conditional = (
+        h[n] for n in ('var', 'op', 'item', 'setvar', 'addlist', 'repeat', 'change', 'conditional'))
+    v = lambda name: var('BS ' + name)
+    eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
+    add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
+    mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
+    return [
         *h['combine'](h, gated=False, rhs=('BS ffn out', 'l_ffn_out'), input_name='BS residual',
                       input_id='l_residual', output=('BS layer out', 'l_layer_out')),
         ('data_deletealloflist', {}, {'LIST': ['BS output', 'l_output']}, {}),
         *copy(h, 'BS layer out', 'l_layer_out', 'BS output', 'l_output'),
+    ]
+
+
+def layer(h):
+    var, op, floor, item, length, setvar, addlist, conditional, repeat, change = (
+        h[name] for name in ('var', 'op', 'floor', 'item', 'length', 'setvar', 'addlist', 'conditional',
+                             'repeat', 'change'))
+    add = lambda a, b: op('operator_add', NUM1=a, NUM2=b)
+    mul = lambda a, b: op('operator_multiply', NUM1=a, NUM2=b)
+    eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
+    lt = lambda a, b: op('operator_lt', OPERAND1=a, OPERAND2=b)
+    v = lambda name: var('BS ' + name)
+    codec = ('bonsailoader_codec', {}, {}, False)
+    valid = op('operator_and', OPERAND1=eq(length('BS input', 'l_input'), 2048),
+               OPERAND2 = op('operator_and', OPERAND1=eq(v('layer position'), floor(v('layer position'))),
+                             OPERAND2=op('operator_and', OPERAND1=op('operator_gt', OPERAND1=v('layer position'),
+                                                                    OPERAND2=-1),
+                                         OPERAND2=lt(v('layer position'), 128))))
+    body = [
+        *layer_begin(h),
+        *layer_q(h),
+        *layer_k(h),
+        *layer_v(h),
+        *layer_attn(h),
+        *layer_out(h),
+        *layer_ffn_prep(h),
+        *layer_ffn_gate(h),
+        *layer_ffn_up(h),
+        *layer_ffn_act(h),
+        *layer_ffn_down(h),
+        *layer_ffn_out(h),
     ]
     return [conditional(valid, body, [conditional(eq(v('step valid'), 1), [addlist('invalid dimensions')])])]
