@@ -143,7 +143,12 @@ def l2(h, source, source_id, dest, dest_id, heads=16, width=128, eps='9.99999997
 
 
 def delta(h):
-    """The Gated DeltaNet recurrence: decay, delta rule update and readout per head."""
+    """The Gated DeltaNet recurrence: decay, delta rule update and readout per head.
+
+    Every inner loop walks its slice with one incrementing cursor instead of
+    recomputing `base + head*16384 + row*128 + col + 1` per element, which was
+    four extra blocks per state read.
+    """
     var, op, floor, item, length, setvar, addlist, conditional, repeat, change = (
         h[name] for name in ('var', 'op', 'floor', 'item', 'length', 'setvar',
                              'addlist', 'conditional', 'repeat', 'change'))
@@ -153,46 +158,47 @@ def delta(h):
     div = lambda a, b: op('operator_divide', NUM1=a, NUM2=b)
     eq = lambda a, b: op('operator_equals', OPERAND1=a, OPERAND2=b)
     gt = lambda a, b: op('operator_gt', OPERAND1=a, OPERAND2=b)
-    math = lambda name, value: ('operator_mathop', {'NUM': value}, {'OPERATOR': [name, None]}, False)
     v = lambda name: var('BS ' + name)
-    head, j, i = v('dn head'), v('dn j'), v('dn i')
+    head, row, col = v('dn head'), v('dn j'), v('dn i')
+    cursor, vector = v('dn cursor'), v('dn vec')
     beta = lambda hd: item('BS beta sigmoid', 'l_beta_sigmoid', add(hd, 1))
-    k = lambda hd, d: item('BS k', 'l_k', add(add(mul(hd, 128), d), 1))
-    q = lambda hd, d: item('BS q', 'l_q', add(add(mul(hd, 128), d), 1))
-    vv = lambda hd, d: item('BS v', 'l_v', add(add(mul(hd, 128), d), 1))
-    state = lambda hd, row, col: item('BS state', 'l_state',
-                                      add(add(add(mul(v('state base'), 1),
-                                                  add(mul(hd, 16384), mul(row, 128))), add(col, 1)), 0))
-    replace_state = lambda hd, row, col, value: ('data_replaceitemoflist',
-                                                 {'INDEX': add(add(add(mul(v('state base'), 1),
-                                                                       add(mul(hd, 16384), mul(row, 128))),
-                                                                   add(col, 1)), 0),
-                                                  'ITEM': value}, {'LIST': ['BS state', 'l_state']}, {})
+    state = lambda: item('BS state', 'l_state', cursor)
+    read = lambda name, list_id, at: item(name, list_id, add(vector, at))
     decay = item('BS decay', 'l_decay', add(head, 1))
-    # The state is stored transposed: row j of M is column j of S.
-    scale = [h['setvar']('BS f32 input', mul(state(head, j, i), decay)), h['call_f32'](),
-             replace_state(head, j, i, var('BS f32 output')), change('BS dn i', 1)]
-    # Native reduces a 128-element f32 dot with one rounding at the end, so accumulate exactly
-    # and round once; rounding every step loses precision to cancellation in (v - M k).
-    dot = lambda source: [setvar('BS dn sum', add(v('dn sum'), mul(state(head, j, i), source(head, i)))),
-                          change('BS dn i', 1)]
-    round_sum = [h['setvar']('BS f32 input', v('dn sum')), h['call_f32'](),
+    # one row of the state is contiguous: base + head*16384 + row*128 + 1
+    row_cursor = lambda: [setvar('BS dn cursor',
+                                 add(add(add(mul(v('state base'), 1), mul(head, 16384)), mul(row, 128)), 1))]
+    vector_cursor = lambda: [setvar('BS dn vec', add(mul(head, 128), 1))]
+    f32 = h['call_f32']
+    # decay: S[j][:] *= exp(g)
+    scale = [*row_cursor(), setvar('BS dn i', 0),
+             repeat(128, [h['setvar']('BS f32 input', mul(state(), decay)), f32(),
+                          ('data_replaceitemoflist', {'INDEX': cursor, 'ITEM': var('BS f32 output')},
+                           {'LIST': ['BS state', 'l_state']}, {}),
+                          change('BS dn cursor', 1)])]
+    # accumulator loops keep the native reduction order: exact f32 sum, one rounding
+    dot = lambda name, list_id: [setvar('BS dn sum', add(v('dn sum'), mul(state(), read(name, list_id, col)))),
+                                 change('BS dn cursor', 1), change('BS dn i', 1)]
+    round_sum = [h['setvar']('BS f32 input', v('dn sum')), f32(),
                  setvar('BS dn sum', var('BS f32 output'))]
-    update = [setvar('BS dn sum', 0), setvar('BS dn i', 0), repeat(128, dot(k)), *round_sum,
-              h['setvar']('BS f32 input', mul(sub(vv(head, j), v('dn sum')), beta(head))), h['call_f32'](),
+    update = [*vector_cursor(),
+              setvar('BS dn sum', 0), setvar('BS dn i', 0), *row_cursor(),
+              repeat(128, dot('BS k', 'l_k')), *round_sum,
+              h['setvar']('BS f32 input', mul(sub(read('BS v', 'l_v', row), v('dn sum')), beta(head))), f32(),
               setvar('BS dn delta', var('BS f32 output')),
-              setvar('BS dn i', 0),
-              repeat(128, [h['setvar']('BS f32 input', add(state(head, j, i), mul(v('dn delta'), k(head, i)))),
-                           h['call_f32'](), replace_state(head, j, i, var('BS f32 output')), change('BS dn i', 1)]),
-              setvar('BS dn sum', 0), setvar('BS dn i', 0), repeat(128, dot(q)), *round_sum,
-              h['setvar']('BS f32 input', mul(v('dn sum'), 0.08838834764831845)), h['call_f32'](),
+              *row_cursor(), setvar('BS dn i', 0),
+              repeat(128, [h['setvar']('BS f32 input', add(state(), mul(v('dn delta'), read('BS k', 'l_k', col)))),
+                           f32(),
+                           ('data_replaceitemoflist', {'INDEX': cursor, 'ITEM': var('BS f32 output')},
+                            {'LIST': ['BS state', 'l_state']}, {}),
+                           change('BS dn cursor', 1), change('BS dn i', 1)]),
+              *row_cursor(), setvar('BS dn sum', 0), setvar('BS dn i', 0),
+              repeat(128, dot('BS q', 'l_q')), *round_sum,
+              h['setvar']('BS f32 input', mul(v('dn sum'), 0.08838834764831845)), f32(),
               addlist(var('BS f32 output'), 'BS gdn out', 'l_gdn_out'),
               change('BS dn j', 1)]
-    scale_all = [setvar('BS dn j', 0),
-                 repeat(128, [setvar('BS dn i', 0), repeat(128, scale), change('BS dn j', 1)])]
+    scale_all = [setvar('BS dn j', 0), repeat(128, [*scale, change('BS dn j', 1)])]
     per_head = [*scale_all, setvar('BS dn j', 0), repeat(128, update), change('BS dn head', 1)]
-    fill = [setvar('BS dn i', 0),
-            repeat(128, [addlist(0, 'BS state', 'l_state'), change('BS dn i', 1)])]
     return [('data_deletealloflist', {}, {'LIST': ['BS gdn out', 'l_gdn_out']}, {}),
             *attention.ensure(h, 'BS state', 'l_state', add(mul(v('state base'), 1), 262144)),
             setvar('BS dn head', 0), repeat(16, per_head)]

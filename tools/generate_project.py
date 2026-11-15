@@ -425,7 +425,8 @@ def project(with_text=False, with_benchmark=False):
              'BS layer maximum', 'BS layer weight', 'BS layer divisor',
              'BS proj scanned', 'BS proj tile', 'BS proj valid', 'BS settle',
              'BS dn channel', 'BS dn tap', 'BS dn sum', 'BS dn row', 'BS dn index',
-             'BS dn head', 'BS dn scale', 'BS dn j', 'BS dn i', 'BS dn delta', 'BS dn sp')
+             'BS dn head', 'BS dn scale', 'BS dn j', 'BS dn i', 'BS dn delta', 'BS dn sp',
+              'BS dn cursor', 'BS dn vec')
     # The head procedure is always present (the decoder calls it), so its variables are too.
     names += ('BS head rows', 'BS head tensor', 'BS tile size', 'BS tile count', 'BS tile row',
               'BS scanned', 'BS head valid', 'BS cancel', 'BS benchmark transfer', 'BS groups per row',
