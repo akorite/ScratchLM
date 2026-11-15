@@ -88,7 +88,7 @@ def matvec(h, tensor, rows, dest_name, dest_id, request='layer'):
                             OPERAND2=eq(copied, tile_groups)),
                          [setvar('BS tile row', 0), repeat(tile_rows, row),
                           change('BS proj scanned', tile_rows)],
-                         [setvar('BS proj valid', 0)])]
+                         [setvar('BS proj valid', 0), setvar('BS step valid', 0)])]
     return [('data_deletealloflist', {}, {'LIST': [dest_name, dest_id]}, {}),
             setvar('BS proj scanned', 0), setvar('BS proj valid', 1),
             conditional(eq(op('operator_mod', NUM1=length('BS input', 'l_input'), NUM2=256), 0),
@@ -371,4 +371,4 @@ def layer(h):
         ('data_deletealloflist', {}, {'LIST': ['BS output', 'l_output']}, {}),
         *copy(h, 'BS layer out', 'l_layer_out', 'BS output', 'l_output'),
     ]
-    return [conditional(valid, body, [addlist('invalid dimensions')])]
+    return [conditional(valid, body, [conditional(eq(v('step valid'), 1), [addlist('invalid dimensions')])])]

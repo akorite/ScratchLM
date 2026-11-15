@@ -28,7 +28,9 @@ def stack(h):
                     h['call_deltanet'](),
                     setvar('BS dn slot', add(v('dn slot'), 1))]
         if layer < 23:
-            run += [*attention.copy(h, 'BS output', 'l_output', 'BS input', 'l_input')]
+            # an invalid step keeps its last valid vector rather than copying a sentinel forward
+            run += [h['conditional'](h['op']('operator_equals', OPERAND1=h['var']('BS step valid'), OPERAND2=1),
+                                     [*attention.copy(h, 'BS output', 'l_output', 'BS input', 'l_input')], [])]
     # Readout: final output_norm, the full head scan over the vocabulary, then greedy selection.
     # Start from the token embedding when a token id is supplied, else the vector in `BS input`.
     codec = ('bonsailoader_codec', {}, {}, False)
@@ -42,7 +44,7 @@ def stack(h):
                                   [setvar('BS token id', h['var']('BS greedy token'))], []),
                  h['conditional'](h['op']('operator_gt', OPERAND1=h['var']('BS token id'), OPERAND2=-1),
                                   [setvar('BS decode by id', 1)], [setvar('BS decode by id', 0)])])]
-    entry = [setvar('BS layer position', step), *choose,
+    entry = [setvar('BS step valid', 1), setvar('BS layer position', step), *choose,
              embedding.set_codec_from_loader(h, codec),
              *embedding.load_dense(h, 'decode-signs', 'prism.hadamard.signs.2048', 'BS signs', 'l_signs',
                                    2048, [h['addlist']('load failed')])]
@@ -67,6 +69,15 @@ def stack(h):
     ]
     # During prompt prefill only the last step's logits are used, so the head scan and
     # the readout are skipped on the earlier ones: same state, less work.
-    gated = h['conditional'](h['op']('operator_equals', OPERAND1=h['var']('BS readout'), OPERAND2=1), readout, [])
+    readout_gate = h['op']('operator_and',
+        OPERAND1=h['op']('operator_equals', OPERAND1=h['var']('BS readout'), OPERAND2=1),
+        OPERAND2=h['op']('operator_equals', OPERAND1=h['var']('BS step valid'), OPERAND2=1))
+    # a failed step must not leave a diagnostic string in the numeric lists
+    clear_on_failure = [('data_deletealloflist', {}, {'LIST': ['BS output', 'l_output']}, {}),
+                        ('data_deletealloflist', {}, {'LIST': ['BS input', 'l_input']}, {})]
+    gated = h['conditional'](readout_gate, readout,
+                             [h['conditional'](h['op']('operator_equals',
+                                                       OPERAND1=h['var']('BS step valid'), OPERAND2=0),
+                                               clear_on_failure, [])])
     return [setvar('BS dn slot', 0), setvar('BS attn slot', 0), *entry, *run, gated,
             h['change']('BS step', 1)]

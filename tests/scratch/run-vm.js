@@ -133,6 +133,17 @@ const loaderMode = ['22', '23', '24', '40', '41', '42', '43'].includes(process.a
         }
         const secondPrompt = process.env.BONSAI_SECOND_PROMPT || null;
         const secondAfter = Number(process.env.BONSAI_SECOND_AFTER || 0);
+        if (process.env.BONSAI_FAIL_TILE) {
+            // Reject group requests after the first `BONSAI_FAIL_TILE` calls, so the embedding's
+            // row fetch (call 1) still succeeds and the first projection tile is what fails.
+            // only the projection tiles fail; the embedding row fetch keeps working
+            const failing = loader.loadGroups.bind(loader);
+            loader.loadGroups = (args, util) => {
+                const id = String(args.ID || '');
+                if (!/^(layer|dn)-/.test(id)) return failing(args, util);
+                return failing({...args, START: 1e9, COUNT: 1}, util);
+            };
+        }
         if (process.env.BONSAI_KV_CELLS !== undefined) {
             const cells = Number(process.env.BONSAI_KV_CELLS);
             const kCache = stage.lookupVariableByNameAndType('BS k cache', 'list');

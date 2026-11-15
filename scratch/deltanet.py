@@ -344,5 +344,7 @@ def stage(h):
         ('data_deletealloflist', {}, {'LIST': ['BS output', 'l_output']}, {}),
         *attention.copy(h, 'BS dn layer out', 'l_dn_layer_out', 'BS output', 'l_output'),
     ]
-    valid = eq(length('BS input', 'l_input'), 2048)
-    return [conditional(valid, body, [h['addlist']('invalid dimensions')])]
+    valid = op('operator_and', OPERAND1=eq(length('BS input', 'l_input'), 2048),
+                OPERAND2=eq(h['var']('BS step valid'), 1))
+    return [conditional(valid, body, [conditional(eq(h['var']('BS step valid'), 1),
+                                                          [h['addlist']('invalid dimensions')])])]

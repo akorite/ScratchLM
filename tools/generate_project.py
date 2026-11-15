@@ -426,7 +426,7 @@ def project(with_text=False, with_benchmark=False):
     # The head procedure is always present (the decoder calls it), so its variables are too.
     names += ('BS head rows', 'BS head tensor', 'BS tile size', 'BS tile count', 'BS tile row',
               'BS scanned', 'BS head valid', 'BS cancel', 'BS benchmark transfer', 'BS groups per row',
-              'BS readout')
+              'BS readout', 'BS step valid')
     if with_text:
         names += ('BS text index', 'BS text unit', 'BS text next', 'BS text code', 'BS text equal',
                   'BS text needle', 'BS text result')
@@ -453,6 +453,7 @@ def project(with_text=False, with_benchmark=False):
     variables[var('BS head tensor')[2]][1] = 'token_embd.weight'
     variables[var('BS tile size')[2]][1] = 640
     variables[var('BS readout')[2]][1] = 1  # the decoder runs the readout unless a prefill step turns it off
+    variables[var('BS step valid')[2]][1] = 1  # a failed projection clears it; primitive modes never do
     if with_text and with_benchmark:
         variables[var('BS prompt')[2]][1] = ''
         variables[var('BS max tokens')[2]][1] = 128  # the release bound on generated tokens

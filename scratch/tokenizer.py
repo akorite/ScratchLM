@@ -459,12 +459,13 @@ def make(h):
                         [setvar('BS readout', 1)], [setvar('BS readout', 0)]),
             ('data_deletealloflist', {}, {'LIST': ['BS output', 'l_output']}, {}),
             ('procedures_call', {}, {'PROCCODE': ('BS decode', 'true')}, {}),
-            conditional(not_(lt(step, var('BS prompt length'))), [
+            conditional(eq(var('BS step valid'), 0), [setvar('BS stop', 1), setvar('BS stop reason', 'failure')],
+                        [conditional(not_(lt(step, var('BS prompt length'))), [
                 conditional(eq(eos, var('BS eos token')), [setvar('BS stop', 1), setvar('BS stop reason', 'eos')], [
                     addlist(eos, 'BS out tokens', 'l_out_tokens'),
                     ('procedures_call', {}, {'PROCCODE': ('BS detok render', 'true')}, {}),
                     ('event_broadcastandwait', {'BROADCAST_INPUT': 'BS show'}, {}, {}),
-                ])]),
+                ])])]),
             conditional(not_(lt(step, var('BS decode budget'))), [setvar('BS stop', 1)]),
         ]
         # the readout is only needed on the step that produces a token
@@ -479,12 +480,14 @@ def make(h):
                     conditional(not_(lt(var('BS step'), sub(var('BS prompt length'), 1))),
                                 [setvar('BS readout', 1)], [setvar('BS readout', 0)]),
                     ('event_broadcastandwait', {'BROADCAST_INPUT': 'BS decode step'}, {}, {}),
-                    conditional(not_(lt(step, var('BS prompt length'))), [
+                    conditional(eq(var('BS step valid'), 0),
+                                [setvar('BS stop', 1), setvar('BS stop reason', 'failure')],
+                                [conditional(not_(lt(step, var('BS prompt length'))), [
                         conditional(eq(eos, var('BS eos token')), [setvar('BS stop', 1), setvar('BS stop reason', 'eos')], [
                             addlist(eos, 'BS out tokens', 'l_out_tokens'),
                             ('procedures_call', {}, {'PROCCODE': ('BS detok render', 'true')}, {}),
                             ('event_broadcastandwait', {'BROADCAST_INPUT': 'BS show'}, {}, {}),
-                        ])]),
+                        ])])]),
                 ]),
             ], [*one()]),
         ]
