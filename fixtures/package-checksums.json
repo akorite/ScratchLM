@@ -1,0 +1,18 @@
+{
+  "schema": "bonsaiscratch-package-checksums/v1",
+  "source_sha256": "d5f01a4ecaf49239653308ee732ad1a0c5f802c0ddb997549fc7b694c8b45928",
+  "packages": {
+    "raw": {
+      "bytes": 537500472,
+      "sha256": "e65cc2098cb2bb54768acac0648048e56e9872894d5bd181eef4822bd51cb417"
+    },
+    "bslut4": {
+      "bytes": 537500475,
+      "sha256": "82c3b150fe9ad052df9c9d6c484791adbd8a314bfd24c6f4cdf6487766196062"
+    },
+    "bslut5": {
+      "bytes": 537500475,
+      "sha256": "ab952eb1422f37633c4c5c7d89a820d2d2b587c8d690566446f4143a32ccdace"
+    }
+  }
+}

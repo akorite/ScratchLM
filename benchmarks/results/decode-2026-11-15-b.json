@@ -1,0 +1,107 @@
+{
+ "schema": "bonsai-decode-step/v2",
+ "cpu": "Intel(R) Xeon(R) Platinum 8488C",
+ "turbowarp_vm": "scratch-vm-0cb82afe62506f3d9f2ff849c95593f0473b5d2c",
+ "turbomode": true,
+ "tiles": [
+  448
+ ],
+ "stubs": [],
+ "warp_head": false,
+ "position": 0,
+ "framerate": 250,
+ "token_id": 1237,
+ "project_sha256": {
+  "448": "4ac479af9d8f07dc8077cff0da09558917c7d66a912f7d38903de9d974aa09d7"
+ },
+ "baseline_revision": null,
+ "baseline_project_sha256": null,
+ "source_sha256": {
+  "scratch/attention.py": "bc5c0b216ce230974817df196e2f292717b8f5c48a97d6a3ff9c36e61647b70b",
+  "scratch/decoder.py": "9632250ec7584d3bc7907d7cdca0be3679a66f157e992e4b49456786bc5f1ba5",
+  "scratch/deltanet.py": "7ab27a3a575fb857ece22f832fa26b7f682cbdb32e50b5fa77d208b246d100ea",
+  "scratch/embedding.py": "b84579012816170b6c295df44a8db89f41ba9325a70cb6aa1883fd6a45c5258e",
+  "scratch/layers.py": "8ca670ba075e863e11f5ee7282294740f29a1fed40b2bd46646bb834779d0fbd",
+  "scratch/lut.py": "bfc0d36ecb298a40f2e859ceb5cdf1c91e890175890abd8c323ed30e8da9726a",
+  "scratch/numeric.py": "8c0e74d47b70ed40439558b102727d30c22df65b9c2687388ce02be1baf6c88c",
+  "scratch/text.py": "355f2ce1180cf66072dc5b8d1de4c578efe51d653815cc09b0fa9b5afcef5ff2",
+  "scratch/tokenizer.py": "02a81f5738b0efd4fca3d9f6918251206186c40057778d57cfef50e381ad8ddf",
+  "scratch/transform.py": "ac3f90259433ac840a6c948b4e295870b88a043f3b132cf0e3a3a89368450745"
+ },
+ "generator_sha256": "f177f38ab3b8daa8f73e10d063c1a55f5baf08e836519c0cf2e10836cf485ae0",
+ "ledger": {
+  "total": {
+   "weights": 1882823884,
+   "seconds": null
+  },
+  "blocks": {
+   "weights": 1373263680,
+   "seconds": null
+  },
+  "head": {
+   "weights": 508559360,
+   "seconds": null
+  },
+  "other": {
+   "weights": 1000844,
+   "seconds": null
+  }
+ },
+ "note": "One mode-42 decode step (24 layers + output_norm + head scan + greedy), Node VM, no renderer. Compare builds with --compare-build and alternate them inside pairs; per-weight figures use the package tensor count, not a per-matrix measurement. Baseline pair recorded before the KTD1 unroll and the literal-stride experiments; both were measured and reverted.",
+ "runs": [
+  {
+   "build": "current",
+   "tile": 448,
+   "framerate": 250,
+   "wall_seconds": 33.984840204007924,
+   "cpu_seconds": 47.636101,
+   "peak_rss_bytes": 799199232,
+   "compile_ms": 178.1477460000001,
+   "BS greedy token": 11,
+   "BS greedy logit": 12.117389678955078,
+   "BS second logit": 11.707728385925293
+  },
+  {
+   "build": "current",
+   "tile": 448,
+   "framerate": 250,
+   "wall_seconds": 33.50922647397965,
+   "cpu_seconds": 46.75633,
+   "peak_rss_bytes": 847986688,
+   "compile_ms": 197.96709399999997,
+   "BS greedy token": 11,
+   "BS greedy logit": 12.117389678955078,
+   "BS second logit": 11.707728385925293
+  },
+  {
+   "build": "current",
+   "tile": 448,
+   "framerate": 250,
+   "wall_seconds": 33.84238360193558,
+   "cpu_seconds": 47.320329,
+   "peak_rss_bytes": 787800064,
+   "compile_ms": 190.00600400000008,
+   "BS greedy token": 11,
+   "BS greedy logit": 12.117389678955078,
+   "BS second logit": 11.707728385925293
+  }
+ ],
+ "pairs": [],
+ "summary_by_tile": {
+  "448": {
+   "wall_seconds": [
+    33.984840204007924,
+    33.50922647397965,
+    33.84238360193558
+   ],
+   "cpu_seconds": [
+    47.636101,
+    46.75633,
+    47.320329
+   ],
+   "median_wall_seconds": 33.84238360193558,
+   "median_cpu_seconds": 47.320329,
+   "median_ns_per_weight": 17.974269335291467
+  }
+ }
+}

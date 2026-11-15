@@ -1,0 +1,162 @@
+{
+  "schema": "bonsai-list-ops/v1",
+  "vm": "/tmp/bonsaiscratch-reference/scratch-vm-0cb82afe62506f3d9f2ff849c95593f0473b5d2c",
+  "framerate": 250,
+  "note": "One warp loop per project, timed externally at two iteration counts; the slope includes compiled loop overhead. sensing_timer cannot time warp loops (frame-granular clock).",
+  "results": [
+    {
+      "phase": "calc",
+      "iterations": 20000000,
+      "baseline": 1000,
+      "baseline_cpu_seconds": [
+        0.290591,
+        0.27530799999999994
+      ],
+      "cpu_seconds": [
+        0.30009800000000003,
+        0.31315000000000004
+      ],
+      "baseline_wall_seconds": [
+        0.23380883084610105,
+        0.20916775218211114
+      ],
+      "wall_seconds": [
+        0.23600728600285947,
+        0.24899254296906292
+      ],
+      "ns_per_op": 1.1837841892094625
+    },
+    {
+      "phase": "add",
+      "iterations": 20000000,
+      "baseline": 1000,
+      "baseline_cpu_seconds": [
+        0.27461399999999997,
+        0.2737439999999998
+      ],
+      "cpu_seconds": [
+        0.749133,
+        0.7535050000000003
+      ],
+      "baseline_wall_seconds": [
+        0.21250990498811007,
+        0.20757945603691041
+      ],
+      "wall_seconds": [
+        0.6467457981780171,
+        0.632333496818319
+      ],
+      "ns_per_op": 23.858192909645496
+    },
+    {
+      "phase": "replace",
+      "iterations": 20000000,
+      "baseline": 1000,
+      "baseline_cpu_seconds": [
+        0.30555699999999963,
+        0.26968000000000003
+      ],
+      "cpu_seconds": [
+        0.3299500000000001,
+        0.3300740000000002
+      ],
+      "baseline_wall_seconds": [
+        0.34262727410532534,
+        0.2108137288596481
+      ],
+      "wall_seconds": [
+        0.27489193296059966,
+        0.26768948207609355
+      ],
+      "ns_per_op": 2.1197809890494677
+    },
+    {
+      "phase": "item",
+      "iterations": 20000000,
+      "baseline": 1000,
+      "baseline_cpu_seconds": [
+        0.295107,
+        0.2904170000000008
+      ],
+      "cpu_seconds": [
+        0.39162899999999956,
+        0.3951779999999999
+      ],
+      "baseline_wall_seconds": [
+        0.22530414792709053,
+        0.21805947506800294
+      ],
+      "wall_seconds": [
+        0.3163791049737483,
+        0.32078562304377556
+      ],
+      "ns_per_op": 5.032326616330782
+    },
+    {
+      "phase": "add_wide",
+      "iterations": 20000000,
+      "baseline": 1000,
+      "baseline_cpu_seconds": [
+        0.2782029999999993,
+        0.28129099999999996
+      ],
+      "cpu_seconds": [
+        0.7615609999999999,
+        0.763722
+      ],
+      "baseline_wall_seconds": [
+        0.2115352600812912,
+        0.23460494307801127
+      ],
+      "wall_seconds": [
+        0.6517144499812275,
+        0.6528154278639704
+      ],
+      "ns_per_op": 24.14593229661485
+    },
+    {
+      "phase": "replace_wide",
+      "iterations": 20000000,
+      "baseline": 1000,
+      "baseline_cpu_seconds": [
+        0.276508,
+        0.27941300000000013
+      ],
+      "cpu_seconds": [
+        0.3913370000000005,
+        0.3818209999999995
+      ],
+      "baseline_wall_seconds": [
+        0.21788664814084768,
+        0.21308655687607825
+      ],
+      "wall_seconds": [
+        0.32247374299913645,
+        0.3171291968319565
+      ],
+      "ns_per_op": 5.431196559827989
+    },
+    {
+      "phase": "f32",
+      "iterations": 20000000,
+      "baseline": 1000,
+      "baseline_cpu_seconds": [
+        0.29215999999999975,
+        0.2981919999999998
+      ],
+      "cpu_seconds": [
+        0.7776179999999999,
+        0.7796560000000006
+      ],
+      "baseline_wall_seconds": [
+        0.2239747599232942,
+        0.22468274598941207
+      ],
+      "wall_seconds": [
+        0.7085055960342288,
+        0.7107397939544171
+      ],
+      "ns_per_op": 24.174258712935668
+    }
+  ]
+}

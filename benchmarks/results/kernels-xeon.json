@@ -1,0 +1,974 @@
+{
+  "schema": "bonsai-resident-kernels/v1",
+  "cpu": "Intel(R) Xeon(R) Platinum 8488C",
+  "platform": "Linux-7.0.0-1014-aws-x86_64-with-glibc2.43",
+  "turbowarp_vm": "0cb82afe62506f3d9f2ff849c95593f0473b5d2c",
+  "compiler": true,
+  "turbo_mode": true,
+  "warp_timer": false,
+  "row": 0,
+  "node_version": "v24.22.1",
+  "note": "Each resident real row is repeated; Scratch tick timer is coarse. Not full-token or browser performance.",
+  "results": [
+    {
+      "kernel": "scalar-raw",
+      "tensor": "blk.3.attn_q.weight",
+      "width": 2048,
+      "iterations": 489,
+      "contributions": 1001472,
+      "lookups": null,
+      "median_compute_tick_seconds": 0.29399999999999993,
+      "worst_compute_tick_seconds": 0.45500000000000007,
+      "runs": [
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0.020000000000000018,
+          "setup_tick_seconds": 0,
+          "compute_tick_seconds": 0.29399999999999993,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 45.642893999999956,
+          "peak_rss_bytes": 406618112
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0.04299999999999998,
+          "setup_tick_seconds": 0,
+          "compute_tick_seconds": 0.45500000000000007,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 49.02373699999998,
+          "peak_rss_bytes": 486735872
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0.010000000000000009,
+          "setup_tick_seconds": 0,
+          "compute_tick_seconds": 0.25300000000000006,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 55.86337400000002,
+          "peak_rss_bytes": 472383488
+        }
+      ]
+    },
+    {
+      "kernel": "scalar-raw",
+      "tensor": "blk.3.attn_q.weight",
+      "width": 2048,
+      "iterations": 4883,
+      "contributions": 10000384,
+      "lookups": null,
+      "median_compute_tick_seconds": 1.869,
+      "worst_compute_tick_seconds": 2.1029999999999998,
+      "runs": [
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0.008000000000000007,
+          "setup_tick_seconds": 0,
+          "compute_tick_seconds": 2.1029999999999998,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 52.69810600000005,
+          "peak_rss_bytes": 552660992
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0.024999999999999967,
+          "setup_tick_seconds": 0,
+          "compute_tick_seconds": 1.8530000000000002,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 64.17546600000003,
+          "peak_rss_bytes": 551002112
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0.013000000000000012,
+          "setup_tick_seconds": 0,
+          "compute_tick_seconds": 1.869,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 72.47282799999994,
+          "peak_rss_bytes": 553988096
+        }
+      ]
+    },
+    {
+      "kernel": "raw-lut4",
+      "tensor": "blk.3.attn_q.weight",
+      "width": 2048,
+      "iterations": 489,
+      "contributions": 1001472,
+      "lookups": 250368,
+      "median_compute_tick_seconds": 0.07699999999999996,
+      "worst_compute_tick_seconds": 0.08399999999999996,
+      "runs": [
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0.009000000000000008,
+          "setup_tick_seconds": 0.059,
+          "compute_tick_seconds": 0.08399999999999996,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 59.496593000000075,
+          "peak_rss_bytes": 457367552
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0.009999999999999953,
+          "setup_tick_seconds": 0.05300000000000005,
+          "compute_tick_seconds": 0.07699999999999996,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 66.8090390000001,
+          "peak_rss_bytes": 448606208
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0.07600000000000001,
+          "setup_tick_seconds": 0.07600000000000001,
+          "compute_tick_seconds": 0.07199999999999995,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 63.19372899999996,
+          "peak_rss_bytes": 406417408
+        }
+      ]
+    },
+    {
+      "kernel": "raw-lut4",
+      "tensor": "blk.3.attn_q.weight",
+      "width": 2048,
+      "iterations": 4883,
+      "contributions": 10000384,
+      "lookups": 2500096,
+      "median_compute_tick_seconds": 0.5409999999999999,
+      "worst_compute_tick_seconds": 0.6,
+      "runs": [
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0.009000000000000008,
+          "setup_tick_seconds": 0.055999999999999994,
+          "compute_tick_seconds": 0.54,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 59.65811599999995,
+          "peak_rss_bytes": 555491328
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0.02300000000000002,
+          "setup_tick_seconds": 0.08700000000000002,
+          "compute_tick_seconds": 0.5409999999999999,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 45.20781999999997,
+          "peak_rss_bytes": 424230912
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0.015000000000000013,
+          "setup_tick_seconds": 0.04799999999999999,
+          "compute_tick_seconds": 0.6,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 60.45097899999996,
+          "peak_rss_bytes": 555421696
+        }
+      ]
+    },
+    {
+      "kernel": "bs-lut4",
+      "tensor": "blk.3.attn_q.weight",
+      "width": 2048,
+      "iterations": 489,
+      "contributions": 1001472,
+      "lookups": 250368,
+      "median_compute_tick_seconds": 0.07699999999999996,
+      "worst_compute_tick_seconds": 0.07699999999999996,
+      "runs": [
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0.017000000000000015,
+          "setup_tick_seconds": 0.030000000000000027,
+          "compute_tick_seconds": 0.07699999999999996,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 58.84637200000009,
+          "peak_rss_bytes": 433516544
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0.008000000000000007,
+          "setup_tick_seconds": 0.029000000000000026,
+          "compute_tick_seconds": 0.07699999999999996,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 54.65288999999996,
+          "peak_rss_bytes": 434245632
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0.013000000000000012,
+          "setup_tick_seconds": 0.032999999999999974,
+          "compute_tick_seconds": 0.067,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 61.22335399999997,
+          "peak_rss_bytes": 430284800
+        }
+      ]
+    },
+    {
+      "kernel": "bs-lut4",
+      "tensor": "blk.3.attn_q.weight",
+      "width": 2048,
+      "iterations": 4883,
+      "contributions": 10000384,
+      "lookups": 2500096,
+      "median_compute_tick_seconds": 0.541,
+      "worst_compute_tick_seconds": 0.583,
+      "runs": [
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0.022999999999999965,
+          "setup_tick_seconds": 0.049000000000000044,
+          "compute_tick_seconds": 0.583,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 49.03589599999998,
+          "peak_rss_bytes": 424996864
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0.009000000000000008,
+          "setup_tick_seconds": 0.02400000000000002,
+          "compute_tick_seconds": 0.524,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 60.871073000000024,
+          "peak_rss_bytes": 556457984
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0.010000000000000009,
+          "setup_tick_seconds": 0.024999999999999967,
+          "compute_tick_seconds": 0.541,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 72.84607600000004,
+          "peak_rss_bytes": 554598400
+        }
+      ]
+    },
+    {
+      "kernel": "bs-lut5",
+      "tensor": "blk.3.attn_q.weight",
+      "width": 2048,
+      "iterations": 489,
+      "contributions": 1001472,
+      "lookups": 203424,
+      "median_compute_tick_seconds": 0.069,
+      "worst_compute_tick_seconds": 0.07699999999999996,
+      "runs": [
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0.01200000000000001,
+          "setup_tick_seconds": 0.045999999999999985,
+          "compute_tick_seconds": 0.065,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 66.41188299999999,
+          "peak_rss_bytes": 441970688
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0.04299999999999998,
+          "setup_tick_seconds": 0.04700000000000004,
+          "compute_tick_seconds": 0.07699999999999996,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 41.049259000000006,
+          "peak_rss_bytes": 405970944
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0.035999999999999976,
+          "setup_tick_seconds": 0.059,
+          "compute_tick_seconds": 0.069,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 56.623952999999915,
+          "peak_rss_bytes": 404783104
+        }
+      ]
+    },
+    {
+      "kernel": "bs-lut5",
+      "tensor": "blk.3.attn_q.weight",
+      "width": 2048,
+      "iterations": 4883,
+      "contributions": 10000384,
+      "lookups": 2031328,
+      "median_compute_tick_seconds": 0.47700000000000004,
+      "worst_compute_tick_seconds": 0.496,
+      "runs": [
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0.024999999999999967,
+          "setup_tick_seconds": 0.063,
+          "compute_tick_seconds": 0.47700000000000004,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 44.74943600000006,
+          "peak_rss_bytes": 484913152
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0.015000000000000013,
+          "setup_tick_seconds": 0.06,
+          "compute_tick_seconds": 0.496,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 60.503603,
+          "peak_rss_bytes": 557666304
+        },
+        {
+          "output": [
+            0.018908217549324036
+          ],
+          "quant_tick_seconds": 0.014000000000000012,
+          "setup_tick_seconds": 0.04799999999999999,
+          "compute_tick_seconds": 0.46299999999999997,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 58.32490400000006,
+          "peak_rss_bytes": 556118016
+        }
+      ]
+    },
+    {
+      "kernel": "scalar-raw",
+      "tensor": "blk.0.ffn_down.weight",
+      "width": 6144,
+      "iterations": 163,
+      "contributions": 1001472,
+      "lookups": null,
+      "median_compute_tick_seconds": 0.256,
+      "worst_compute_tick_seconds": 0.354,
+      "runs": [
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0.046999999999999986,
+          "setup_tick_seconds": 0,
+          "compute_tick_seconds": 0.354,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 46.99335199999996,
+          "peak_rss_bytes": 419631104
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0.018000000000000016,
+          "setup_tick_seconds": 0,
+          "compute_tick_seconds": 0.23800000000000004,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 56.87784999999997,
+          "peak_rss_bytes": 473804800
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0.02699999999999997,
+          "setup_tick_seconds": 0,
+          "compute_tick_seconds": 0.256,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 68.79336599999999,
+          "peak_rss_bytes": 483991552
+        }
+      ]
+    },
+    {
+      "kernel": "scalar-raw",
+      "tensor": "blk.0.ffn_down.weight",
+      "width": 6144,
+      "iterations": 1628,
+      "contributions": 10002432,
+      "lookups": null,
+      "median_compute_tick_seconds": 1.83,
+      "worst_compute_tick_seconds": 1.8920000000000003,
+      "runs": [
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0.021999999999999964,
+          "setup_tick_seconds": 0,
+          "compute_tick_seconds": 1.8920000000000003,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 55.802580000000034,
+          "peak_rss_bytes": 554438656
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0.016000000000000014,
+          "setup_tick_seconds": 0,
+          "compute_tick_seconds": 1.779,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 69.089067,
+          "peak_rss_bytes": 552636416
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0.016000000000000014,
+          "setup_tick_seconds": 0,
+          "compute_tick_seconds": 1.83,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 58.03602599999999,
+          "peak_rss_bytes": 551276544
+        }
+      ]
+    },
+    {
+      "kernel": "raw-lut4",
+      "tensor": "blk.0.ffn_down.weight",
+      "width": 6144,
+      "iterations": 163,
+      "contributions": 1001472,
+      "lookups": 250368,
+      "median_compute_tick_seconds": 0.07600000000000001,
+      "worst_compute_tick_seconds": 0.07600000000000001,
+      "runs": [
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0.08200000000000002,
+          "setup_tick_seconds": 0.134,
+          "compute_tick_seconds": 0.07200000000000001,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 72.684935,
+          "peak_rss_bytes": 470147072
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0.020000000000000018,
+          "setup_tick_seconds": 0.135,
+          "compute_tick_seconds": 0.07600000000000001,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 60.693622000000005,
+          "peak_rss_bytes": 479391744
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0.02400000000000002,
+          "setup_tick_seconds": 0.123,
+          "compute_tick_seconds": 0.07600000000000001,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 58.33447699999999,
+          "peak_rss_bytes": 477822976
+        }
+      ]
+    },
+    {
+      "kernel": "raw-lut4",
+      "tensor": "blk.0.ffn_down.weight",
+      "width": 6144,
+      "iterations": 1628,
+      "contributions": 10002432,
+      "lookups": 2500608,
+      "median_compute_tick_seconds": 0.5339999999999999,
+      "worst_compute_tick_seconds": 0.534,
+      "runs": [
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0.03999999999999998,
+          "setup_tick_seconds": 0.14600000000000002,
+          "compute_tick_seconds": 0.534,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 69.02551200000005,
+          "peak_rss_bytes": 561635328
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0.019000000000000017,
+          "setup_tick_seconds": 0.121,
+          "compute_tick_seconds": 0.506,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 61.95200699999998,
+          "peak_rss_bytes": 561131520
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0.056999999999999995,
+          "setup_tick_seconds": 0.133,
+          "compute_tick_seconds": 0.5339999999999999,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 41.18402500000002,
+          "peak_rss_bytes": 429453312
+        }
+      ]
+    },
+    {
+      "kernel": "bs-lut4",
+      "tensor": "blk.0.ffn_down.weight",
+      "width": 6144,
+      "iterations": 163,
+      "contributions": 1001472,
+      "lookups": 250368,
+      "median_compute_tick_seconds": 0.07600000000000001,
+      "worst_compute_tick_seconds": 0.1509999999999999,
+      "runs": [
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0.05099999999999999,
+          "setup_tick_seconds": 0.05700000000000005,
+          "compute_tick_seconds": 0.1509999999999999,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 44.31473899999992,
+          "peak_rss_bytes": 407879680
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0.043999999999999984,
+          "setup_tick_seconds": 0.064,
+          "compute_tick_seconds": 0.07600000000000001,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 41.655276999999955,
+          "peak_rss_bytes": 406364160
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0.01599999999999996,
+          "setup_tick_seconds": 0.04800000000000004,
+          "compute_tick_seconds": 0.07599999999999996,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 54.89929500000005,
+          "peak_rss_bytes": 449294336
+        }
+      ]
+    },
+    {
+      "kernel": "bs-lut4",
+      "tensor": "blk.0.ffn_down.weight",
+      "width": 6144,
+      "iterations": 1628,
+      "contributions": 10002432,
+      "lookups": 2500608,
+      "median_compute_tick_seconds": 0.5469999999999999,
+      "worst_compute_tick_seconds": 0.571,
+      "runs": [
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0.05199999999999999,
+          "setup_tick_seconds": 0.052000000000000046,
+          "compute_tick_seconds": 0.533,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 70.26073899999994,
+          "peak_rss_bytes": 422346752
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0.057999999999999996,
+          "setup_tick_seconds": 0.056999999999999995,
+          "compute_tick_seconds": 0.5469999999999999,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 48.11784399999999,
+          "peak_rss_bytes": 426147840
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0.02200000000000002,
+          "setup_tick_seconds": 0.05199999999999999,
+          "compute_tick_seconds": 0.571,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 54.498650999999995,
+          "peak_rss_bytes": 556224512
+        }
+      ]
+    },
+    {
+      "kernel": "bs-lut5",
+      "tensor": "blk.0.ffn_down.weight",
+      "width": 6144,
+      "iterations": 163,
+      "contributions": 1001472,
+      "lookups": 203424,
+      "median_compute_tick_seconds": 0.133,
+      "worst_compute_tick_seconds": 0.267,
+      "runs": [
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0.07300000000000001,
+          "setup_tick_seconds": 0.278,
+          "compute_tick_seconds": 0.07099999999999995,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 42.870700000000056,
+          "peak_rss_bytes": 424472576
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0.024999999999999967,
+          "setup_tick_seconds": 0.20599999999999996,
+          "compute_tick_seconds": 0.267,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 92.91282100000001,
+          "peak_rss_bytes": 557723648
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0.05299999999999999,
+          "setup_tick_seconds": 0.11599999999999999,
+          "compute_tick_seconds": 0.133,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 44.69979699999999,
+          "peak_rss_bytes": 428044288
+        }
+      ]
+    },
+    {
+      "kernel": "bs-lut5",
+      "tensor": "blk.0.ffn_down.weight",
+      "width": 6144,
+      "iterations": 1628,
+      "contributions": 10002432,
+      "lookups": 2031744,
+      "median_compute_tick_seconds": 0.47600000000000003,
+      "worst_compute_tick_seconds": 0.478,
+      "runs": [
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0.020000000000000018,
+          "setup_tick_seconds": 0.10499999999999998,
+          "compute_tick_seconds": 0.47600000000000003,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 55.60106900000005,
+          "peak_rss_bytes": 562823168
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0.05099999999999999,
+          "setup_tick_seconds": 0.11099999999999999,
+          "compute_tick_seconds": 0.478,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 45.37911399999996,
+          "peak_rss_bytes": 430526464
+        },
+        {
+          "output": [
+            -0.061216630041599274
+          ],
+          "quant_tick_seconds": 0.01599999999999996,
+          "setup_tick_seconds": 0.11400000000000005,
+          "compute_tick_seconds": 0.474,
+          "scratch_transfer_and_scheduler_seconds": null,
+          "framerate": 250,
+          "loader_requests": 0,
+          "loader_read_ms": 0,
+          "loader_command_ms": 0,
+          "loader_copy_and_overhead_ms": 0,
+          "worst_event_loop_gap_ms": 82.17095499999994,
+          "peak_rss_bytes": 560250880
+        }
+      ]
+    }
+  ]
+}

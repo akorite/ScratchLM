@@ -1,0 +1,90 @@
+{
+ "schema": "bonsai-decoder-io/v1",
+ "cpu": "Intel(R) Xeon(R) Platinum 8488C",
+ "node": "v24.22.1",
+ "note": "One flag press per decode step; the prompt is prefilled first, so time to first token covers the whole prompt. Times include the one-time 5 MB BPE table load.",
+ "results": [
+  {
+   "prompt": "hello world",
+   "wall_seconds": 723.805968245957,
+   "cpu_seconds": 934.5245679999999,
+   "peak_rss_bytes": 4557213696,
+   "state": {
+    "BS out tokens": [
+     248045,
+     846,
+     198,
+     14556,
+     1814,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068
+    ],
+    "BS greedy token": 248068,
+    "BS step": 10,
+    "BS prompt tokens": [
+     248045,
+     846,
+     198,
+     14556,
+     1814,
+     248046,
+     198,
+     248045,
+     74455,
+     198
+    ],
+    "BS text": "<think>"
+   },
+   "prompt_token_count": 10,
+   "first_token": 248068,
+   "text": "<think>"
+  },
+  {
+   "prompt": "it's \u4f60\u597d",
+   "wall_seconds": 906.02019045013,
+   "cpu_seconds": 1152.752037,
+   "peak_rss_bytes": 5073645568,
+   "state": {
+    "BS out tokens": [
+     248045,
+     846,
+     198,
+     275,
+     579,
+     220,
+     109266,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068
+    ],
+    "BS greedy token": 248068,
+    "BS step": 12,
+    "BS prompt tokens": [
+     248045,
+     846,
+     198,
+     275,
+     579,
+     220,
+     109266,
+     248046,
+     198,
+     248045,
+     74455,
+     198
+    ],
+    "BS text": "<think>"
+   },
+   "prompt_token_count": 12,
+   "first_token": 248068,
+   "text": "<think>"
+  }
+ ]
+}

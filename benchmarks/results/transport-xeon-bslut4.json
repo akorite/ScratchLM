@@ -1,0 +1,143 @@
+{
+  "method": "Node invokes the actual extension on TurboWarp VM list objects; no Scratch script runs",
+  "cache": "served from the loader read-ahead window when covered; read_ms>0 only on refill",
+  "window_bytes": 67108864,
+  "node": "v24.22.1",
+  "vm_revision": "0cb82afe62506f3d9f2ff849c95593f0473b5d2c",
+  "package_codec": "bslut4",
+  "source_sha256": "d5f01a4ecaf49239653308ee732ad1a0c5f802c0ddb997549fc7b694c8b45928",
+  "results": [
+    {
+      "budget_bytes": 65536,
+      "actual_bytes": 65518,
+      "groups": 1927,
+      "repetition": 0,
+      "window_hit": false,
+      "read_ms": 0,
+      "copy_and_request_ms": 164.640762,
+      "total_ms": 164.640762,
+      "observed_rss_bytes": 273760256
+    },
+    {
+      "budget_bytes": 65536,
+      "actual_bytes": 65518,
+      "groups": 1927,
+      "repetition": 1,
+      "window_hit": true,
+      "read_ms": 0,
+      "copy_and_request_ms": 8.690011000000027,
+      "total_ms": 8.690011000000027,
+      "observed_rss_bytes": 273760256
+    },
+    {
+      "budget_bytes": 65536,
+      "actual_bytes": 65518,
+      "groups": 1927,
+      "repetition": 2,
+      "window_hit": true,
+      "read_ms": 0,
+      "copy_and_request_ms": 7.109446999999932,
+      "total_ms": 7.109446999999932,
+      "observed_rss_bytes": 273760256
+    },
+    {
+      "budget_bytes": 262144,
+      "actual_bytes": 262140,
+      "groups": 7710,
+      "repetition": 0,
+      "window_hit": true,
+      "read_ms": 0,
+      "copy_and_request_ms": 4.560440000000085,
+      "total_ms": 4.560440000000085,
+      "observed_rss_bytes": 275988480
+    },
+    {
+      "budget_bytes": 262144,
+      "actual_bytes": 262140,
+      "groups": 7710,
+      "repetition": 1,
+      "window_hit": true,
+      "read_ms": 0,
+      "copy_and_request_ms": 1.0548959999999852,
+      "total_ms": 1.0548959999999852,
+      "observed_rss_bytes": 276250624
+    },
+    {
+      "budget_bytes": 262144,
+      "actual_bytes": 262140,
+      "groups": 7710,
+      "repetition": 2,
+      "window_hit": true,
+      "read_ms": 0,
+      "copy_and_request_ms": 0.7889000000000124,
+      "total_ms": 0.7889000000000124,
+      "observed_rss_bytes": 276512768
+    },
+    {
+      "budget_bytes": 1048576,
+      "actual_bytes": 1048560,
+      "groups": 30840,
+      "repetition": 0,
+      "window_hit": true,
+      "read_ms": 0,
+      "copy_and_request_ms": 6.307238999999981,
+      "total_ms": 6.307238999999981,
+      "observed_rss_bytes": 285818880
+    },
+    {
+      "budget_bytes": 1048576,
+      "actual_bytes": 1048560,
+      "groups": 30840,
+      "repetition": 1,
+      "window_hit": true,
+      "read_ms": 0,
+      "copy_and_request_ms": 2.0875570000000607,
+      "total_ms": 2.0875570000000607,
+      "observed_rss_bytes": 286867456
+    },
+    {
+      "budget_bytes": 1048576,
+      "actual_bytes": 1048560,
+      "groups": 30840,
+      "repetition": 2,
+      "window_hit": true,
+      "read_ms": 0,
+      "copy_and_request_ms": 1.7985009999999875,
+      "total_ms": 1.7985009999999875,
+      "observed_rss_bytes": 287916032
+    },
+    {
+      "budget_bytes": 4194304,
+      "actual_bytes": 4194274,
+      "groups": 123361,
+      "repetition": 0,
+      "window_hit": true,
+      "read_ms": 0,
+      "copy_and_request_ms": 67.31657500000006,
+      "total_ms": 67.31657500000006,
+      "observed_rss_bytes": 326606848
+    },
+    {
+      "budget_bytes": 4194304,
+      "actual_bytes": 4194274,
+      "groups": 123361,
+      "repetition": 1,
+      "window_hit": true,
+      "read_ms": 0,
+      "copy_and_request_ms": 8.50498600000003,
+      "total_ms": 8.50498600000003,
+      "observed_rss_bytes": 330801152
+    },
+    {
+      "budget_bytes": 4194304,
+      "actual_bytes": 4194274,
+      "groups": 123361,
+      "repetition": 2,
+      "window_hit": true,
+      "read_ms": 0,
+      "copy_and_request_ms": 7.718940000000089,
+      "total_ms": 7.718940000000089,
+      "observed_rss_bytes": 335126528
+    }
+  ]
+}

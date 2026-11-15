@@ -1,0 +1,63 @@
+{
+  "capture": {
+    "f32": {
+      "bytes": 8192,
+      "sha256": "27164d6784daf7887631ceeef287e0efc7d15a160d69cb44d8a27ce095f03545"
+    },
+    "node": "attn_norm-0",
+    "note": "Explicit native Q8_K quantization of captured F32 data, not intercepted matmul staging.",
+    "q8_k": {
+      "bytes": 2336,
+      "sha256": "98fc17af1ae1f27c6374e44745ae1f0455a52981fb48dc1c9d380e3b38627c4e"
+    },
+    "role": "out",
+    "shape": [
+      2048,
+      1,
+      1,
+      1
+    ]
+  },
+  "effective_context": 256,
+  "generated_tokens": 1,
+  "machine": "Intel(R) Xeon(R) Platinum 8488C, x86_64, Linux",
+  "model_sha256": "d5f01a4ecaf49239653308ee732ad1a0c5f802c0ddb997549fc7b694c8b45928",
+  "reference_binary": {
+    "bytes": 6558448,
+    "file": "bonsai-reference",
+    "sha256": "6f4e00b9a5ce408aeee5b7226492029c8d3915716be045b48987fb5e0cc65cc8"
+  },
+  "repeatability": "Two independent runs matched all 292 captured F32, Q8_K, logits and native state payloads byte-for-byte.",
+  "requested_context": 128,
+  "runtime_revision": "e3de715222b2667c54a267441159a5729f11155e",
+  "schema": "bonsai-compact-native/v1",
+  "steps": [
+    {
+      "input_token": 1,
+      "logits": {
+        "bytes": 993280,
+        "file": "logits-0.f32",
+        "sha256": "50d5f852d69f31fe1ff3ffca31d0c29b76d899ce7645fbf576e69378ef60ebf2"
+      },
+      "top1_logit": 9.496085166931152,
+      "top1_token": 321,
+      "top2_logit": 8.505244255065918,
+      "top2_token": 220
+    },
+    {
+      "input_token": 321,
+      "logits": {
+        "bytes": 993280,
+        "file": "logits-1.f32",
+        "sha256": "4480c21d784598c7b5869a8b2af53301dcfef5b131b2b8e4af99bba26899a6b5"
+      },
+      "top1_logit": 11.747736930847168,
+      "top1_token": 328,
+      "top2_logit": 11.568906784057617,
+      "top2_token": 279
+    }
+  ],
+  "tokens": [
+    1
+  ]
+}

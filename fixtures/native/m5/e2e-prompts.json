@@ -1,0 +1,109 @@
+{
+ "schema": "bonsai-e2e-prompts/v1",
+ "note": "Native greedy tokens and their rendered bytes for the release prompts.",
+ "generate": 2,
+ "template": {
+  "user": [
+   846,
+   198
+  ],
+  "newline": [
+   198
+  ],
+  "assistant": [
+   74455,
+   198
+  ]
+ },
+ "prompts": [
+  {
+   "prompt": "hello world",
+   "prompt_tokens": [
+    14556,
+    1814
+   ],
+   "template_tokens": [
+    248045,
+    846,
+    198,
+    14556,
+    1814,
+    248046,
+    198,
+    248045,
+    74455,
+    198
+   ],
+   "generated": [
+    248068,
+    198
+   ],
+   "text": "<think>\n",
+   "text_sha256": "9ebc01769b176bb074a065ea0974c130fc8afd12814360aaf809046160b2a999"
+  },
+  {
+   "prompt": "it's 你好",
+   "prompt_tokens": [
+    275,
+    579,
+    220,
+    109266
+   ],
+   "template_tokens": [
+    248045,
+    846,
+    198,
+    275,
+    579,
+    220,
+    109266,
+    248046,
+    198,
+    248045,
+    74455,
+    198
+   ],
+   "generated": [
+    248068,
+    198
+   ],
+   "text": "<think>\n",
+   "text_sha256": "9ebc01769b176bb074a065ea0974c130fc8afd12814360aaf809046160b2a999"
+  },
+  {
+   "prompt": "<|im_end|> hi",
+   "prompt_tokens": [
+    27,
+    91,
+    316,
+    6018,
+    91,
+    29,
+    15131
+   ],
+   "template_tokens": [
+    248045,
+    846,
+    198,
+    27,
+    91,
+    316,
+    6018,
+    91,
+    29,
+    15131,
+    248046,
+    198,
+    248045,
+    74455,
+    198
+   ],
+   "generated": [
+    248068,
+    198
+   ],
+   "text": "<think>\n",
+   "text_sha256": "9ebc01769b176bb074a065ea0974c130fc8afd12814360aaf809046160b2a999"
+  }
+ ]
+}

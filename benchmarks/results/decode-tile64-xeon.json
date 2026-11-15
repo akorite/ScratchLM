@@ -1,0 +1,252 @@
+{
+  "schema": "bonsai-decode-phases/v1",
+  "cpu": "Intel(R) Xeon(R) Platinum 8488C",
+  "turbowarp_vm": "scratch-vm-0cb82afe62506f3d9f2ff849c95593f0473b5d2c",
+  "tile": 64,
+  "framerate": 250,
+  "token_id": 1237,
+  "labels": [
+    "start",
+    "deltanet-start",
+    "end",
+    "deltanet-start",
+    "end",
+    "deltanet-start",
+    "end",
+    "attention-start",
+    "end",
+    "deltanet-start",
+    "end",
+    "deltanet-start",
+    "end",
+    "deltanet-start",
+    "end",
+    "attention-start",
+    "end",
+    "deltanet-start",
+    "end",
+    "deltanet-start",
+    "end",
+    "deltanet-start",
+    "end",
+    "attention-start",
+    "end",
+    "deltanet-start",
+    "end",
+    "deltanet-start",
+    "end",
+    "deltanet-start",
+    "end",
+    "attention-start",
+    "end",
+    "deltanet-start",
+    "end",
+    "deltanet-start",
+    "end",
+    "deltanet-start",
+    "end",
+    "attention-start",
+    "end",
+    "deltanet-start",
+    "end",
+    "deltanet-start",
+    "end",
+    "deltanet-start",
+    "end",
+    "attention-start",
+    "end",
+    "head-start",
+    "end",
+    "stop"
+  ],
+  "project_sha256": "8f34d3a4ba84e713076ea94ccb4957d9ab8072746914622873032d7f3d2b3f21",
+  "source_sha256": {
+    "scratch/attention.py": "355f2ef9ec96de296d8c0a82c07e3cc8f6b1b312b8334ba32d3e575bbac8548d",
+    "scratch/decoder.py": "2ce4d50206a980b2f0b7af573e8ca79a55c53b2881f4e40de225103802b66832",
+    "scratch/deltanet.py": "663326eddc3430e01429fc03b589f0ae2d429baae3957629b92e5fcc9bb2b385",
+    "scratch/embedding.py": "b84579012816170b6c295df44a8db89f41ba9325a70cb6aa1883fd6a45c5258e",
+    "scratch/layers.py": "8ca670ba075e863e11f5ee7282294740f29a1fed40b2bd46646bb834779d0fbd",
+    "scratch/lut.py": "bcee413a1f29b8f9037457a31c09fce1db8c3add5e9203c8d45fff2254396370",
+    "scratch/numeric.py": "8c0e74d47b70ed40439558b102727d30c22df65b9c2687388ce02be1baf6c88c",
+    "scratch/text.py": "355f2ce1180cf66072dc5b8d1de4c578efe51d653815cc09b0fa9b5afcef5ff2",
+    "scratch/transform.py": "ac3f90259433ac840a6c948b4e295870b88a043f3b132cf0e3a3a89368450745"
+  },
+  "generator_sha256": "bbcec87b979ad6a9ccfaa9062f7d81c8f65df47aa75be5f85bd39930069fb9b3",
+  "note": "Marks bracket each layer call inside the warp BS decode procedure; call label attention=lane 3 etc. Timers are sensing_timer, one node VM, no renderer.",
+  "runs": [
+    {
+      "entry": 0.475,
+      "readout": 17.167999999999992,
+      "head": 3.355000000000004,
+      "tail": 0.0,
+      "layers": [
+        {
+          "call": "deltanet",
+          "seconds": 4.477
+        },
+        {
+          "call": "deltanet",
+          "seconds": 5.281
+        },
+        {
+          "call": "deltanet",
+          "seconds": 5.383000000000001
+        },
+        {
+          "call": "attention",
+          "seconds": 2.085000000000001
+        },
+        {
+          "call": "deltanet",
+          "seconds": 5.506999999999998
+        },
+        {
+          "call": "deltanet",
+          "seconds": 4.802
+        },
+        {
+          "call": "deltanet",
+          "seconds": 5.213000000000001
+        },
+        {
+          "call": "attention",
+          "seconds": 1.9069999999999965
+        },
+        {
+          "call": "deltanet",
+          "seconds": 6.231000000000002
+        },
+        {
+          "call": "deltanet",
+          "seconds": 5.402000000000001
+        },
+        {
+          "call": "deltanet",
+          "seconds": 5.631
+        },
+        {
+          "call": "attention",
+          "seconds": 1.7310000000000016
+        },
+        {
+          "call": "deltanet",
+          "seconds": 7.493000000000002
+        },
+        {
+          "call": "deltanet",
+          "seconds": 5.282999999999994
+        },
+        {
+          "call": "deltanet",
+          "seconds": 5.8940000000000055
+        },
+        {
+          "call": "attention",
+          "seconds": 2.3460000000000036
+        },
+        {
+          "call": "deltanet",
+          "seconds": 6.583999999999989
+        },
+        {
+          "call": "deltanet",
+          "seconds": 5.819000000000003
+        },
+        {
+          "call": "deltanet",
+          "seconds": 5.588000000000008
+        },
+        {
+          "call": "attention",
+          "seconds": 1.8939999999999912
+        },
+        {
+          "call": "deltanet",
+          "seconds": 4.471000000000004
+        },
+        {
+          "call": "deltanet",
+          "seconds": 0.0
+        },
+        {
+          "call": "deltanet",
+          "seconds": 0.0
+        },
+        {
+          "call": "attention",
+          "seconds": 0.0
+        }
+      ],
+      "deltanet_seconds": 89.05900000000001,
+      "attention_seconds": 9.962999999999994,
+      "layer_seconds": 99.022,
+      "total_marked": 120.02,
+      "tile": 64,
+      "framerate": 250,
+      "marks": {
+        "BS mark 0": 0.277,
+        "BS mark 1": 0.752,
+        "BS mark 2": 5.229,
+        "BS mark 3": 5.229,
+        "BS mark 4": 10.51,
+        "BS mark 5": 10.51,
+        "BS mark 6": 15.893,
+        "BS mark 7": 15.893,
+        "BS mark 8": 17.978,
+        "BS mark 9": 17.978,
+        "BS mark 10": 23.485,
+        "BS mark 11": 23.485,
+        "BS mark 12": 28.287,
+        "BS mark 13": 28.287,
+        "BS mark 14": 33.5,
+        "BS mark 15": 33.5,
+        "BS mark 16": 35.407,
+        "BS mark 17": 35.407,
+        "BS mark 18": 41.638,
+        "BS mark 19": 41.638,
+        "BS mark 20": 47.04,
+        "BS mark 21": 47.04,
+        "BS mark 22": 52.671,
+        "BS mark 23": 52.671,
+        "BS mark 24": 54.402,
+        "BS mark 25": 54.402,
+        "BS mark 26": 61.895,
+        "BS mark 27": 61.895,
+        "BS mark 28": 67.178,
+        "BS mark 29": 67.178,
+        "BS mark 30": 73.072,
+        "BS mark 31": 73.072,
+        "BS mark 32": 75.418,
+        "BS mark 33": 75.418,
+        "BS mark 34": 82.002,
+        "BS mark 35": 82.002,
+        "BS mark 36": 87.821,
+        "BS mark 37": 87.821,
+        "BS mark 38": 93.409,
+        "BS mark 39": 93.409,
+        "BS mark 40": 95.303,
+        "BS mark 41": 95.303,
+        "BS mark 42": 99.774,
+        "BS mark 43": 99.774,
+        "BS mark 44": 99.774,
+        "BS mark 45": 99.774,
+        "BS mark 46": 99.774,
+        "BS mark 47": 99.774,
+        "BS mark 48": 99.774,
+        "BS mark 49": 116.942,
+        "BS mark 50": 120.297,
+        "BS mark 51": 120.297
+      }
+    }
+  ],
+  "median": {
+    "entry": 0.475,
+    "layer_seconds": 99.022,
+    "deltanet_seconds": 89.05900000000001,
+    "attention_seconds": 9.962999999999994,
+    "readout": 17.167999999999992,
+    "head": 3.355000000000004,
+    "tail": 0.0,
+    "total_marked": 120.02
+  }
+}

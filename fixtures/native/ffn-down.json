@@ -1,0 +1,15 @@
+{
+  "schema": "bonsai-native-projection/v1",
+  "model_sha256": "d5f01a4ecaf49239653308ee732ad1a0c5f802c0ddb997549fc7b694c8b45928",
+  "runtime_revision": "e3de715222b2667c54a267441159a5729f11155e",
+  "tokens": [1],
+  "requested_context": 128,
+  "effective_context": 256,
+  "node": "ffn_out-0",
+  "weight": "blk.0.ffn_down.weight",
+  "weight_dimensions": [6144, 2048],
+  "input": {"file": "layer0-ffn-down-input.f32", "sha256": "d57a5150af157adcb57021ea178c6deab82758a816431b47616ef65af15a7e1f", "elements": 6144, "role": "transformed F32 MUL_MAT src1"},
+  "reference_quantization": {"file": "layer0-ffn-down-input.q8_k", "sha256": "069af4f3148f4489eb95db250ef415d01b1eceb649c8f0945bfe78d7fd317033", "format": "q8_k-d-qs-bsums"},
+  "actual_cpu_staging": {"file": "layer0-ffn-down-staging.q8_k", "sha256": "1aade83077b671ec7de958a6849a054493036ced2094fc84e81979cbd8995915", "format": "q8_k-d-qs"},
+  "output": {"file": "layer0-ffn-down-output.f32", "sha256": "642f80272b2e1301a86747b7dfed558aa9b7fd809567bfeee79ee1c26fe69a18", "elements": 2048}
+}
