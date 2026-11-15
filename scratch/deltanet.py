@@ -358,7 +358,7 @@ def stage_state(h):
     ]
 
 
-def stage_out(h):
+def stage_out_prep(h):
     """One sequential segment of the DeltaNet stage; segments compose in order."""
     setvar = h['setvar']
     return [
@@ -371,9 +371,31 @@ def stage_out(h):
         *gated_norm(h),
         *attention.copy(h, 'BS final out', 'l_final_out', 'BS input', 'l_input'),
         *attention.rotate_in(h, 2048),
+    ]
+
+
+def stage_out_proj(h):
+    """One sequential segment of the DeltaNet stage; segments compose in order."""
+    return [
         *attention.matvec(h, weight(h, '.ssm_out.weight'), 2048, 'BS attn out', 'l_attn_out', request='dn-out', proc='BS mv dn-out'),
+    ]
+
+
+def stage_out_res(h):
+    """One sequential segment of the DeltaNet stage; segments compose in order."""
+    return [
         *h['combine'](h, gated=False, rhs=('BS attn out', 'l_attn_out'), input_name='BS layer input',
                       input_id='l_layer_input', output=('BS residual', 'l_residual')),
+    ]
+
+
+def stage_out(h):
+    """One sequential segment of the DeltaNet stage; segments compose in order."""
+    setvar = h['setvar']
+    return [
+        *stage_out_prep(h),
+        *stage_out_proj(h),
+        *stage_out_res(h),
     ]
 
 
