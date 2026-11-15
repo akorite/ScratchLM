@@ -455,7 +455,7 @@ def project(with_text=False, with_benchmark=False):
     variables[var('BS layer')[2]][1] = 3  # the attention layer by default; the decoder sets it per layer
     variables[var('BS head rows')[2]][1] = 248320
     variables[var('BS head tensor')[2]][1] = 'token_embd.weight'
-    variables[var('BS tile size')[2]][1] = 640
+    variables[var('BS tile size')[2]][1] = 2048  # head rows per request; 2048 * 16 groups stays inside the loader cap
     variables[var('BS readout')[2]][1] = 1  # the decoder runs the readout unless a prefill step turns it off
     variables[var('BS step valid')[2]][1] = 1  # a failed projection clears it; primitive modes never do
     if with_text and with_benchmark:
