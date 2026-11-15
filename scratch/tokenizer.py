@@ -424,6 +424,7 @@ def make(h):
         start = [
             # A new prompt starts from an empty sequence: the token list, the KV cells, the
             # convolution history and the recurrent state all belong to the previous prompt.
+            setvar('BS ui phase', 'tokenizing'),
             ('data_deletealloflist', {}, {'LIST': ['BS out tokens', 'l_out_tokens']}, {}),
             ('data_deletealloflist', {}, {'LIST': ['BS k cache', 'l_k_cache']}, {}),
             ('data_deletealloflist', {}, {'LIST': ['BS v cache', 'l_v_cache']}, {}),

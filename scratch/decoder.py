@@ -16,8 +16,8 @@ def stack(h):
     v = lambda name: var('BS ' + name)
     run = []
     for layer in range(24):
-        run += [setvar('BS layer', layer), setvar('BS state base', 0), setvar('BS kv base', 0),
-                setvar('BS conv base', 0)]
+        run += [setvar('BS ui phase', 'layers'), setvar('BS layer', layer),
+                setvar('BS state base', 0), setvar('BS kv base', 0), setvar('BS conv base', 0)]
         if layer in ATTENTION_LAYERS:
             run += [setvar('BS kv base', mul(v('attn slot'), KV_LAYER)),
                     h['call_attention'](),
@@ -44,7 +44,8 @@ def stack(h):
                                   [setvar('BS token id', h['var']('BS greedy token'))], []),
                  h['conditional'](h['op']('operator_gt', OPERAND1=h['var']('BS token id'), OPERAND2=-1),
                                   [setvar('BS decode by id', 1)], [setvar('BS decode by id', 0)])])]
-    entry = [setvar('BS step valid', 1), setvar('BS layer position', step), *choose,
+    entry = [setvar('BS ui phase', 'embedding'), setvar('BS step valid', 1),
+             setvar('BS layer position', step), *choose,
              embedding.set_codec_from_loader(h, codec),
              *embedding.load_dense(h, 'decode-signs', 'prism.hadamard.signs.2048', 'BS signs', 'l_signs',
                                    2048, [h['addlist']('load failed')])]
@@ -63,9 +64,11 @@ def stack(h):
         *transform.hadamard(h),
         *attention.copy(h, 'BS output', 'l_output', 'BS input', 'l_input'),
         ('data_deletealloflist', {}, {'LIST': ['BS output', 'l_output']}, {}),
+        setvar('BS ui phase', 'head'),
         h['call_head'](),
         *lut.greedy_select(h),
         h['addlist'](h['var']('BS greedy token')),
+        setvar('BS ui phase', 'rendering'),
     ]
     # During prompt prefill only the last step's logits are used, so the head scan and
     # the readout are skipped on the earlier ones: same state, less work.

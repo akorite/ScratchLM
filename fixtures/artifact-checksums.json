@@ -1,7 +1,7 @@
 {
  "schema": "bonsai-artifact-checksums/v1",
  "artifacts": {
-  "dist/fp16-q8-scalar.sb3": "b62ad74a5b354a2ac23da509dd4edbdb08cfe5702fd684e1972fd693887a5c80",
-  "dist/bonsai-prompt-to-text.sb3": "a0c308e664a058c0d302a8aefec61808bd58d3e0f9273d1578c3b8a180c78aaf"
+  "dist/fp16-q8-scalar.sb3": "b0f4db299416715314376325fb79c23629abcab8b11d9beabf3333bdcc86bd07",
+  "dist/bonsai-prompt-to-text.sb3": "a061390275d221d85776c76c11ce68aac24a3641cf9f2a02eb5128cb731a62df"
  }
 }
