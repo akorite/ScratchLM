@@ -156,12 +156,13 @@ Press the green flag: the project saves `BS mode` 24, so the prompt flow starts 
 manual edit, and Scratch's own **ask and wait** prompt is the text input. The reply appears
 in the **Bonsai** sprite's say bubble, rendered from the decoded token stream.
 
-The **Bonsai progress** sprite is the status panel. It is built from Scratch blocks and
-costumes only — no HTML, no CSS, no DOM. Its costume switches to a progress bar that fills
-across the real 24 layers (`Reading prompt · layer N / 24`), then to `Choosing next token`
-while the head scans the vocabulary, then `Writing response` while text is rendered. Layer
-and phase come from `BS layer` and `BS ui phase`, which the decoder sets as it runs; nothing
-in the panel is simulated or time-based.
+![The stage mid-run: the three variable monitors at right, the Bonsai sprite's say bubble carrying the reply](docs/stage.png)
+
+Three native Scratch variable monitors — **`layer`**, **`tokens`**, and **`context`** —
+appear along the right of the stage as the project runs. The decoder writes them as it
+works: `layer` counts the 24 layers as each one runs, `tokens` counts generated tokens,
+and `context` tracks the decode position against the 128-cell KV bound. Nothing in them
+is simulated or time-based.
 
 Keep the tab foreground: selecting a package sets the framerate to 250, and background-tab
 throttling stalls the compiled scheduler. Expect about 12 minutes to the first token and

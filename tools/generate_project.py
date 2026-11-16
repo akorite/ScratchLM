@@ -624,7 +624,7 @@ def project(with_text=False, with_benchmark=False):
                         'size': 100, 'direction': 90, 'draggable': False, 'rotationStyle': 'all around'})
     monitors = []
     if with_text and with_benchmark:
-        for name, x, y in (('layer', 240, 8), ('tokens', 240, 36), ('context', 240, 64)):
+        for name, x, y in (('layer', 320, 8), ('tokens', 320, 36), ('context', 320, 64)):
             vid = var(name)[2]
             monitors.append({'id': vid, 'mode': 'default', 'opcode': 'data_variable',
                              'params': {'VARIABLE': name}, 'spriteName': None, 'value': 0,

@@ -8,10 +8,9 @@ The loader checks the package header, manifest, tensor shapes and ranges, but do
 
 The extension is storage only: it opens a local package, serves bounded reads and reports
 status. The visible interface is Scratch blocks and sprites in the project itself — the
-**ask and wait** prompt for input, the **Bonsai** sprite's say bubble for the reply, and the
-**Bonsai progress** sprite, whose thirty costumes are a phase/layer progress bar switched
-from `BS ui phase` and `BS layer` as the decoder advances. No HTML is injected into the
-page and no styling lives outside the project.
+**ask and wait** prompt for input, the **Bonsai** sprite's say bubble for the reply, and
+three variable monitors (`layer`, `tokens`, `context`) that the decoder keeps current.
+No HTML is injected into the page and no styling lives outside the project.
 
 ## Transfers
 
