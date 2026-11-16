@@ -172,7 +172,5 @@ scale linearly; batched prefill was built and measured at 1.07× per prompt toke
 not wired in (see `docs/levers.md`).
 
 Measured memory was 4.2–4.8 GiB peak RSS in the headless Node VM; browser memory and
-full-generation performance have not been benchmarked. The updated chat was
-smoke-tested in TurboWarp web with a real package through live layer progress and Stop.
-For an optional browser smoke check, see `tests/scratch/check-chat-ui.js`; it sends
-one short prompt and stops after observing a real layer.
+full-generation performance have not been benchmarked. The chat surface was smoke-tested
+in TurboWarp web with a real package through live layer progress and Stop.
