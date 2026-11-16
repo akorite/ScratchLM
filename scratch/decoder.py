@@ -17,6 +17,7 @@ def stack(h):
     run = []
     for layer in range(24):
         run += [setvar('BS ui phase', 'layers'), setvar('BS layer', layer),
+                setvar('layer', add(var('BS layer'), 1)),
                 setvar('BS state base', 0), setvar('BS kv base', 0), setvar('BS conv base', 0)]
         if layer in ATTENTION_LAYERS:
             run += [setvar('BS kv base', mul(v('attn slot'), KV_LAYER)),
