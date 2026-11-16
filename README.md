@@ -5,9 +5,9 @@ answer what Scratch is.
 
 [![GitHub stars](https://img.shields.io/github/stars/akorite/ScratchLM?style=social)](https://github.com/akorite/ScratchLM/stargazers)
 
-<video src="docs/media/demo-eos.mp4" controls poster="docs/media/final-output.png" width="640"></video>
+<video src="https://github.com/akorite/ScratchLM/raw/main/docs/media/demo-eos.mp4" controls poster="https://github.com/akorite/ScratchLM/raw/main/docs/media/final-output.png" width="640"></video>
 
-*[Watch the recording directly](docs/media/demo-eos.mp4)*
+*[Watch the recording directly](https://github.com/akorite/ScratchLM/raw/main/docs/media/demo-eos.mp4)*
 
 It is extremely slow, but hell, it works.
 
