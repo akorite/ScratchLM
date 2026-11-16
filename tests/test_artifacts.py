@@ -27,6 +27,22 @@ class ArtifactTests(unittest.TestCase):
                     self.assertEqual(run.returncode, 0, run.stderr)
                     self.assertEqual(hashlib.sha256(regenerated.read_bytes()).hexdigest(), expected)
 
+    def test_visible_monitors_have_writers(self):
+        """Every visible variable monitor must be written somewhere in the project."""
+        import zipfile
+        for relative, flags in (('dist/bonsai-prompt-to-text.sb3', ['--text', '--benchmark']),):
+            project = json.loads(zipfile.ZipFile(ROOT / relative).read('project.json'))
+            monitored = {m['params']['VARIABLE'] for m in project['monitors'] if m.get('visible')}
+            writers = set()
+            for target in project['targets']:
+                for block in (target.get('blocks') or {}).values():
+                    if isinstance(block, dict) and block.get('opcode', '').startswith('data_'):
+                        variable = block.get('fields', {}).get('VARIABLE')
+                        if variable:
+                            writers.add(variable[0])
+            self.assertTrue(monitored <= writers,
+                            f'monitors with no writer: {sorted(monitored - writers)}')
+
 
 if __name__ == '__main__':
     unittest.main()
